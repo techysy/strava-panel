@@ -20,7 +20,9 @@
 - 📊 **可视化面板**：骑行次数、总距离、总时长、总爬升 + 每周骑行图表 + 最近骑行列表
 - 🌗 **日夜模式**：暗/亮主题切换（记忆选择，默认跟随系统）
 - 🌐 **i18n**：中/英双语界面切换
-- 🔒 **零依赖**：纯 Python 标准库（http.server），无第三方包
+- 🗄️ **SQLite 本地缓存**：数据缓存到 NAS，读取更快、离线可看历史
+- 📤 **agent 透出接口**：本地 agent 直接 HTTP 查询
+- 🔒 **零依赖**：纯 Python 标准库（http.server + sqlite3），无第三方包
 
 ## 快速开始 / Quick Start
 
@@ -46,6 +48,36 @@
 
 - 凭据：`/vol4/@appdata/strava/strava.conf`（权限 600，仅应用用户可读）
 - Token 缓存：`/vol4/@appdata/strava/strava_tokens.json`
+- **SQLite 缓存**：`/vol4/@appdata/strava/strava.db`（activities 表）
+
+## HTTP API（本地 agent 查询）
+
+应用提供 REST API，本地 Hermes agent 或其他工具可直接查询（`http://192.168.31.101:20127`）：
+
+```bash
+# 骑行统计（读缓存，快）
+curl http://192.168.31.101:20127/api/stats
+curl "http://192.168.31.101:20127/api/stats?start=2026-07-01&end=2026-07-31"   # 按月
+
+# 活动列表（支持过滤）
+curl "http://192.168.31.101:20127/api/activities?type=Ride&limit=10"
+curl "http://192.168.31.101:20127/api/activities?start=2026-07-01"
+
+# 每周聚合
+curl "http://192.168.31.101:20127/api/weekly"
+
+# 手动同步 Strava→SQLite
+curl http://192.168.31.101:20127/api/sync
+
+# 导出全量数据（给 agent）
+curl "http://192.168.31.101:20127/api/export?fmt=json"
+curl "http://192.168.31.101:20127/api/export?fmt=csv" -o strava.csv
+
+# 状态（含 db 缓存数、最后同步时间）
+curl http://192.168.31.101:20127/api/status
+```
+
+> 💡 agent 用法示例：`curl -s "http://192.168.31.101:20127/api/stats?start=2026-07-01&end=2026-07-31" | jq '.total_distance_km'`
 
 ## 构建 / Build
 

@@ -2,6 +2,22 @@
 
 ---
 
+## v1.1.0 (2026-08-01)
+
+### 新增 / Added
+
+- 🗄️ **SQLite 本地缓存**：骑行数据缓存到 `/vol4/@appdata/strava/strava.db`，读取更快，Strava API 不可用时也能查看历史
+- 🔄 **手动同步**：面板新增「立即同步」按钮 + `/api/sync` 接口
+- 📤 **agent 透出接口**：`/api/export?fmt=json|csv` 导出全量数据，本地 Hermes agent 可直接查询
+- 🔍 **查询增强**：`/api/stats` / `/api/activities` 支持 `start`/`end`/`type`/`limit` 过滤
+- 🔒 **凭据安全**：`strava.conf` / `strava_tokens.json` 权限设为 600
+
+### 变更 / Changed
+
+- `/api/stats` 改为读 SQLite 缓存（首次自动同步）
+
+---
+
 ## v1.0.1 (2026-08-01)
 
 ### 新增 / Added

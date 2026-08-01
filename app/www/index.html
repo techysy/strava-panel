@@ -99,6 +99,12 @@ a{color:var(--accent)}
     <h2 data-i18n="panel.auto">🔄 Token 自动刷新</h2>
     <p class="tips" data-i18n="panel.autoHint">Strava access token 约 6 小时过期。本应用每次访问 API 时自动用 refresh_token 刷新，无需手动干预。凭据保存在 NAS 应用数据目录。</p>
   </div>
+
+  <div class="panel">
+    <h2 data-i18n="panel.sync">🗄️ 本地缓存 / Local Cache</h2>
+    <p class="tips" id="syncInfo" data-i18n="panel.syncHint">骑行数据缓存到本地 SQLite，读取更快；本地 agent 可通过 /api/export 直接查询。</p>
+    <button class="btn secondary" onclick="doSync()" id="syncBtn" data-i18n="panel.syncNow">立即同步</button>
+  </div>
 </div>
 
 <script>
@@ -112,6 +118,7 @@ const I18N = {
     "setup.ok":"✓ 凭据有效，已连接！","setup.fail":"✗ ","setup.progress":"保存中…","setup.saving":"保存中…",
     "stats.rides":"骑行次数","stats.dist":"总距离","stats.dur":"总时长","stats.elev":"总爬升",
     "panel.weekly":"📊 每周骑行距离 (km)","panel.recent":"🚴 最近骑行","panel.auto":"🔄 Token 自动刷新","panel.autoHint":"Strava access token 约 6 小时过期。本应用每次访问 API 时自动用 refresh_token 刷新，无需手动干预。凭据保存在 NAS 应用数据目录。",
+    "panel.sync":"🗄️ 本地缓存 / Local Cache","panel.syncHint":"骑行数据缓存到本地 SQLite，读取更快；本地 agent 可通过 /api/export 直接查询。","panel.syncNow":"立即同步","panel.syncing":"同步中…","panel.syncDone":"✓ 同步完成","panel.syncFail":"✗ 同步失败",
     "col.date":"日期","col.name":"活动","col.dist":"距离","col.dur":"时长","col.elev":"爬升",
     "badge.detect":"检测中…","badge.ok":"已连接 ✓","badge.noConfig":"未配置凭据","badge.fail":"连接失败","badge.empty":"暂无数据",
   },
@@ -123,6 +130,7 @@ const I18N = {
     "setup.ok":"✓ Credentials valid, connected!","setup.fail":"✗ ","setup.saving":"Saving…",
     "stats.rides":"Rides","stats.dist":"Distance","stats.dur":"Duration","stats.elev":"Elevation",
     "panel.weekly":"📊 Weekly Distance (km)","panel.recent":"🚴 Recent Rides","panel.auto":"🔄 Auto Token Refresh","panel.autoHint":"Strava access token expires in ~6h. This app auto-refreshes via refresh_token on every API call. Credentials stored in NAS app data dir.",
+    "panel.sync":"🗄️ Local Cache","panel.syncHint":"Ride data cached to local SQLite for faster reads; local agents can query via /api/export.","panel.syncNow":"Sync Now","panel.syncing":"Syncing…","panel.syncDone":"✓ Sync Complete","panel.syncFail":"✗ Sync Failed",
     "col.date":"Date","col.name":"Activity","col.dist":"Distance","col.dur":"Duration","col.elev":"Elevation",
     "badge.detect":"Detecting…","badge.ok":"Connected ✓","badge.noConfig":"Not Configured","badge.fail":"Connection Failed","badge.empty":"No data",
   }
@@ -257,6 +265,21 @@ async function saveConfig(){
 }
 
 function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+async function doSync(){
+  const btn = document.getElementById("syncBtn");
+  const info = document.getElementById("syncInfo");
+  btn.disabled = true; btn.textContent = t("panel.syncing");
+  try{
+    const r = await fetch(API + "/api/sync");
+    const d = await r.json();
+    if(d.ok){
+      info.textContent = t("panel.syncDone") + ` (${d.new} new / ${d.activities} total)`;
+      loadData();
+    } else info.textContent = t("panel.syncFail") + " " + (d.error||"");
+  }catch(e){ info.textContent = t("panel.syncFail") + " " + e.message; }
+  btn.disabled = false; btn.innerHTML = t("panel.syncNow");
+}
 
 initTheme();
 applyI18n();
