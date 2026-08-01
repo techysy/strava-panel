@@ -115,9 +115,10 @@ python3 scripts/generate-icons.py
 
 | 现象 | 快速解决 |
 |------|---------|
+| 服务不自动启动（桌面空白） | `cmd/main status` 的 stopped 分支必须 `return 1`（详见 TROUBLESHOOTING 第 1 节） |
 | 桌面图标打不开 | 确认应用在 App Center 里是启用/运行状态，端口为 20127 |
 | `Unexpected token '<'` | 旧进程占端口，杀残留后重启应用 |
-| `Address already in use` | `pkill -9 -f "python3 app.py"` 清理残留 |
+| `Address already in use` | 清残留 + app.py 启用 SO_REUSEADDR |
 | Strava 401 权限缺失 | 重新授权并勾选 `activity:read_all` |
 | 数据不更新 | 面板「立即同步」或 `curl /api/sync` |
 
