@@ -2,6 +2,31 @@
 
 ---
 
+## v1.1.5 (2026-08-01)
+
+### 修复 / Fixes
+
+- **status 退出码**：修复 `status()` 在服务未运行时返回非零退出码（1），与 metacubexd/9router 一致。fnOS 依赖 status 退出码判断应用是否运行——之前 strava 的 status 在 stopped 时错误返回 0（被 fnOS 误判为 running），导致 fnOS 从不调用 `start`，服务无法自动启动
+
+---
+
+## v1.1.4 (2026-08-01)
+
+### 修复 / Fixes
+
+- **SO_REUSEADDR**：app.py 设置 `ThreadingTCPServer.allow_reuse_address = True`，解决频繁重启后 TIME_WAIT 导致 `Address already in use` / 服务起不来的问题（fnOS 以应用用户重启时尤为明显）
+- cmd/main 增强诊断日志（记录 fnOS 调用参数 `$1`、环境变量、SRC_DIR 判定、启动过程）
+
+---
+
+## v1.1.3 (2026-08-01)
+
+### 修复 / Fixes
+
+- cmd/main 增加诊断日志（`strava-diag.log`），记录 fnOS 传入的 TRIM 环境变量 + 启动错误，用于排查 fnOS 以应用用户启动失败的问题
+
+---
+
 ## v1.1.2 (2026-08-01)
 
 ### 修复 / Fixes

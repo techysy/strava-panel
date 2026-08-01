@@ -1,68 +1,94 @@
 #!/bin/bash
 set -uo pipefail
+
 APP_NAME="${TRIM_APPNAME:-strava}"
 APP_DIR="${TRIM_APPDEST:-/var/apps/${APP_NAME}}"
-# 数据目录始终用 fnOS 标准数据目录 /vol4/@appdata/<App>（不管 TRIM_APPDEST 传哪种布局）
 DATA_DIR="${TRIM_PKGVAR:-/vol4/@appdata/${APP_NAME}}"
 
-# 兼容两种部署布局
+# 诊断日志（无条件记录，便于排查 fnOS 调用方式）
+DIAG="${DATA_DIR}/strava-diag.log"
+mkdir -p "${DATA_DIR}" 2>/dev/null
+{
+    echo "=== $(date '+%F %T') call: '${1:-<none>}' USER=$(id -un) UID=$(id -u) ==="
+    echo "  PWD=$(pwd)"
+    echo "  ARG1=${1:-<none>}"
+    echo "  TRIM_APPDEST=${TRIM_APPDEST:-<unset>}"
+    echo "  TRIM_PKGVAR=${TRIM_PKGVAR:-<unset>}"
+    echo "  TRIM_APPNAME=${TRIM_APPNAME:-<unset>}"
+    echo "  TRIM_SERVICE_PORT=${TRIM_SERVICE_PORT:-<unset>}"
+    echo "  APP_DIR=${APP_DIR}"
+    echo "  DATA_DIR=${DATA_DIR}"
+} >> "${DIAG}" 2>&1
+
+# 兼容两种部署布局（无条件记录 SRC_DIR 判定结果）
 if [ -d "${APP_DIR}/server" ]; then
     SRC_DIR="${APP_DIR}/server"
+    echo "  SRC_DIR=${SRC_DIR} (from APP_DIR/server)" >> "${DIAG}" 2>&1
 elif [ -d "${APP_DIR}/target/server" ]; then
     SRC_DIR="${APP_DIR}/target/server"
+    echo "  SRC_DIR=${SRC_DIR} (from APP_DIR/target/server)" >> "${DIAG}" 2>&1
 else
-    echo "ERROR: server dir not found (tried ${APP_DIR}/server and ${APP_DIR}/target/server)" >&2
-    exit 1
+    echo "  ERROR: server dir not found (APP_DIR=${APP_DIR})" >> "${DIAG}" 2>&1
+    echo "ERROR: server dir not found" >&2; exit 1
 fi
 
 PORT="${TRIM_SERVICE_PORT:-20127}"
 LOG="${DATA_DIR}/strava.log"
 PID_FILE="${DATA_DIR}/strava.pid"
 
-# 杀掉所有本应用残留进程（匹配任意路径的 app.py，防止手动启动的进程残留占端口）
-kill_all() {
+start() {
+    echo "  start() begin, port=${PORT}" >> "${DIAG}" 2>&1
+    mkdir -p "${DATA_DIR}" 2>/dev/null
+    if [ -f "${PID_FILE}" ] && kill -0 "$(cat "${PID_FILE}")" 2>/dev/null; then
+        echo "  already running" >> "${DIAG}" 2>&1
+        echo "already running (pid $(cat "${PID_FILE}"))"; return 0
+    fi
     pkill -f "strava/server/app.py" 2>/dev/null || true
-    pkill -f "/vol4/@appcenter/strava/server/app.py" 2>/dev/null || true
-    pkill -f "python3 app.py" 2>/dev/null || true
     pkill -f "python3.*strava.*app\.py" 2>/dev/null || true
     sleep 1
-}
-
-start() {
-    mkdir -p "${DATA_DIR}"
-    kill_all
-    rm -f "${PID_FILE}"
     if ss -tln 2>/dev/null | grep -q ":${PORT} "; then
-        echo "ERROR: port ${PORT} already in use by another process"
-        return 1
+        echo "  port ${PORT} busy" >> "${DIAG}" 2>&1
+        echo "ERROR: port ${PORT} already in use"; return 1
     fi
-    cd "${SRC_DIR}"
-    # 用 setsid 脱离会话，避免 SSH 断开后 SIGHUP 杀掉；-u 无缓冲；重定向 stdin 防止挂起
-    DATA_DIR="${DATA_DIR}" PORT="${PORT}" setsid python3 -u app.py >> "${LOG}" 2>&1 < /dev/null &
+    cd "${SRC_DIR}" || { echo "  cd ${SRC_DIR} FAILED" >> "${DIAG}" 2>&1; return 1; }
+    echo "  launching: python3 -u app.py" >> "${DIAG}" 2>&1
+    DATA_DIR="${DATA_DIR}" PORT="${PORT}" \
+        nohup /usr/bin/python3 -u app.py >> "${LOG}" 2>&1 < /dev/null &
     PID=$!
     echo "${PID}" > "${PID_FILE}"
-    for i in $(seq 1 30); do
+    echo "  launched pid=${PID}" >> "${DIAG}" 2>&1
+    for i in $(seq 1 15); do
         if curl -sf "http://127.0.0.1:${PORT}/api/status" >/dev/null 2>&1; then
-            echo "started (pid ${PID})"
-            return 0
+            echo "  health ok" >> "${DIAG}" 2>&1
+            echo "started (pid ${PID})"; return 0
         fi
         sleep 1
     done
-    echo "started, but health check timed out (check ${LOG})"
-    return 0
+    echo "  health timeout; LOG tail:" >> "${DIAG}" 2>&1
+    tail -5 "${LOG}" >> "${DIAG}" 2>&1
+    echo "started, health check timed out"; return 0
 }
 
 stop() {
-    kill_all
-    rm -f "${PID_FILE}"
+    if [ -f "${PID_FILE}" ]; then
+        kill "$(cat "${PID_FILE}")" 2>/dev/null || true
+        rm -f "${PID_FILE}"
+    fi
+    pkill -f "strava/server/app.py" 2>/dev/null || true
+    pkill -f "python3.*strava.*app\.py" 2>/dev/null || true
     echo "stopped"
 }
 
 status() {
-    if curl -sf "http://127.0.0.1:${PORT}/api/status" >/dev/null 2>&1; then
+    if [ -f "${PID_FILE}" ] && kill -0 "$(cat "${PID_FILE}")" 2>/dev/null; then
+        echo "running (pid $(cat "${PID_FILE}"))"
+        return 0
+    elif curl -sf "http://127.0.0.1:${PORT}/api/status" >/dev/null 2>&1; then
         echo "running (port ${PORT})"
+        return 0
     else
         echo "stopped"
+        return 1
     fi
 }
 

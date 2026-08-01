@@ -355,6 +355,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 def main():
     port = int(os.environ.get("PORT", "20127"))
+    # SO_REUSEADDR：避免频繁重启后 TIME_WAIT 导致 "Address already in use"
+    # 必须在实例化前设置类属性（socketserver 在 __init__ 时 bind）
+    socketserver.ThreadingTCPServer.allow_reuse_address = True
     httpd = socketserver.ThreadingTCPServer(("0.0.0.0", port), Handler)
     httpd.daemon_threads = True
     print(f"Strava Panel listening on {port}", flush=True)
