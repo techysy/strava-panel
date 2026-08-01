@@ -2,6 +2,16 @@
 
 ---
 
+## v1.1.1-docs (2026-08-01)
+
+### 文档 / Docs
+
+- 📝 拆出独立 [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)，README 只留简要排障索引
+- 📛 仓库更名为 **strava-panel-fnos**
+- ✍️ README 新增作者署名 + Strava 主页链接
+
+---
+
 ## v1.1.1 (2026-08-01)
 
 ### 新增 / Added

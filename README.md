@@ -1,7 +1,7 @@
 # Strava Panel — fnOS App
 
-[![GitHub release](https://img.shields.io/github/v/release/techysy/strava-fnos?label=Latest&color=blue)](https://github.com/techysy/strava-fnos/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/techysy/strava-fnos/blob/main/LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/techysy/strava-panel-fnos?label=Latest&color=blue)](https://github.com/techysy/strava-panel-fnos/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/techysy/strava-panel-fnos/blob/main/LICENSE)
 [![fnOS 1.1.31xx](https://img.shields.io/badge/fnOS-1.1.31xx+-orange.svg)](https://developer.fnnas.com/docs/guide)
 [![Strava API](https://img.shields.io/badge/API-Strava-orange.svg)](https://developers.strava.com/)
 
@@ -10,6 +10,10 @@
 > Strava cycling panel — credential management, auto token refresh, riding stats visualization
 
 部署到飞牛 NAS (fnOS) 的 Strava 骑行数据面板，纯 Python 标准库零依赖后端。
+
+## 作者 / Author
+
+洋芋 (YangYu) · 🚴 [Strava 主页](https://www.strava.com/athletes/121173304) · 🐂 [fnOS 应用系列](https://github.com/techysy)
 
 ---
 
@@ -107,15 +111,15 @@ python3 scripts/generate-icons.py
 
 ## 问题排查 / Troubleshooting
 
-| 现象 | 原因 | 解决 |
-|------|------|------|
-| 桌面图标打不开（连接拒绝） | `app/ui/config` 的 `port` 与 manifest `service_port` 不一致 | 两者都设为 `20127`，重新打包 |
-| 服务起不来，日志 `Address already in use` | 旧进程残留占端口 | `cmd/main stop` 后清理残留（`pkill -f app.py`）再启动 |
-| 服务起不来，日志无输出 | 旧版 cmd/main 的 `DATA_DIR` 指向不可写目录 | cmd/main 里 `DATA_DIR` 固定用 `/vol4/@appdata/<App>` |
-| iframe 版白屏/跨域 | fnOS 桌面容器 iframe 跨端口受限 | 改用 url 版（新标签页） |
-| Strava 401 `activity:read_permission missing` | 授权时未勾选活动数据权限 | 重新授权，勾选 `activity:read_all` |
+常见问题快速索引（详细排障见 [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)）：
 
-> 💡 端口选择：fnOS 应用建议用**高位不常见端口**（如 20xxx），避开 8080/8081 等易被扫描端口，配合 fnOS 访问控制更安全。
+| 现象 | 快速解决 |
+|------|---------|
+| 桌面图标打不开 | 确认应用在 App Center 里是启用/运行状态，端口为 20127 |
+| `Unexpected token '<'` | 旧进程占端口，杀残留后重启应用 |
+| `Address already in use` | `pkill -9 -f "python3 app.py"` 清理残留 |
+| Strava 401 权限缺失 | 重新授权并勾选 `activity:read_all` |
+| 数据不更新 | 面板「立即同步」或 `curl /api/sync` |
 
 ## 相关链接 / Links
 
