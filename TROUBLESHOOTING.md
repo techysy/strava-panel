@@ -4,7 +4,38 @@
 
 ---
 
-## 1. 桌面图标打不开 / 连接拒绝
+## 1. 服务不自动启动（桌面打开空白 / 连接被拒绝）
+
+### 现象
+应用已安装并在 App Center 里"启用"，但打开桌面图标空白，`ss -tln | grep 20127` 无输出，服务没跑起来。`/var/log/apps/strava.log` 里**只有 `stopped`，从没有 `started`**。
+
+### 根因（关键）
+**fnOS 周期性调用 `cmd/main status`，并依赖退出码判断应用是否运行。**
+- `status` 返回**非零（1）** = 应用未运行 → fnOS **调用 `start`** 启动服务
+- `status` 返回 **0** = 应用"正在运行" → fnOS **从不调用 `start`**
+
+如果 `status()` 的 stopped 分支只 `echo stopped` 而**没有 `return 1`**（函数最后一条是 echo，隐式返回 0），fnOS 误判应用为"运行中"，**永不调 start** → 服务永远不启动 → 桌面打开空白 / 连接被拒绝。
+
+> 参考对比：metacubexd / 9router 的 `status()` 都以 `echo stopped; return 1` 结尾，所以 fnOS 能正常启动它们；而 strava 修复前是 `echo stopped`（返回 0），导致不启动。
+
+### 解决
+确保 `cmd/main status()` 的 stopped 分支返回非零：
+```bash
+status() {
+    if [ -f "${PID_FILE}" ] && kill -0 "$(cat "${PID_FILE}")" 2>/dev/null; then
+        echo "running (pid $(cat "${PID_FILE}"))"; return 0
+    elif curl -sf "http://127.0.0.1:${PORT}/api/status" >/dev/null 2>&1; then
+        echo "running (port ${PORT})"; return 0
+    else
+        echo "stopped"; return 1   # ← 必须 return 1
+    fi
+}
+```
+**验证**：`bash /var/apps/strava/cmd/main status; echo $?` → 服务未运行时必须输出非零退出码。
+
+---
+
+## 2. 桌面图标打不开 / 连接拒绝
 
 ### 现象
 点击 fnOS 桌面图标或手动访问 `http://192.168.31.101:20127/`，显示"拒绝连接"。
@@ -38,7 +69,7 @@ cat /var/log/apps/strava.log | tail -5
 
 ---
 
-## 2. 前端报 `Unexpected token '<'`
+## 3. 前端报 `Unexpected token '<'`
 
 ### 现象
 面板点击「立即同步」或加载时报：`✗ 同步失败 Unexpected token '<', "<!DOCTYPE "... is not valid JSON`
@@ -65,17 +96,18 @@ bash /var/apps/strava/cmd/main restart
 
 ---
 
-## 3. 服务起不来，日志 `Address already in use`
+## 4. 服务起不来，日志 `Address already in use`
 
 ### 现象
 `/vol4/@appdata/strava/strava.log` 报 `OSError: [Errno 98] Address already in use`
 
 ### 根因
-端口被残留进程占用（多次启停后旧进程未清理干净）。
+1. **残留进程占用端口**：多次启停后旧进程未清理干净。
+2. **TIME_WAIT socket**：频繁重启后端口处于 TIME_WAIT，`ThreadingTCPServer` 默认 `allow_reuse_address=False` 导致绑定失败（端口明明空闲却报占用）。
 
 ### 解决
 ```bash
-# 强制杀掉所有 app.py 残留
+# 1. 强制杀掉所有 app.py 残留
 pkill -9 -f "strava/server/app.py"
 pkill -9 -f "python3 app.py"
 sleep 1
@@ -84,9 +116,15 @@ ss -tln | grep 20127   # 应无输出
 bash /var/apps/strava/cmd/main start
 ```
 
+**若端口空闲却仍报 `Address already in use`**（TIME_WAIT 问题），在 app.py 里启用 SO_REUSEADDR（必须在实例化前设置类属性）：
+```python
+socketserver.ThreadingTCPServer.allow_reuse_address = True
+httpd = socketserver.ThreadingTCPServer(("0.0.0.0", port), Handler)
+```
+
 ---
 
-## 4. 服务起不来，日志无输出
+## 5. 服务起不来，日志无输出
 
 ### 现象
 `cmd/main start` 报 `started, but health check timed out`，日志为空。
@@ -103,7 +141,7 @@ DATA_DIR="${TRIM_PKGVAR:-/vol4/@appdata/strava}"
 
 ---
 
-## 5. Strava 401 `activity:read_permission missing`
+## 6. Strava 401 `activity:read_permission missing`
 
 ### 现象
 面板能连，但拉取活动报错：`{"resource":"AccessToken","field":"activity:read_permission","code":"missing"}`
@@ -120,7 +158,7 @@ https://www.strava.com/oauth/authorize?client_id={ClientID}&response_type=code&r
 
 ---
 
-## 6. iframe 版白屏 / 跨域
+## 7. iframe 版白屏 / 跨域
 
 ### 现象
 iframe 版（桌面窗口）打开白屏或无法加载 API。
@@ -133,7 +171,7 @@ fnOS 桌面容器 iframe 跨端口（5666 → 20127）可能受浏览器跨域�
 
 ---
 
-## 7. 数据不更新 / 显示旧数据
+## 8. 数据不更新 / 显示旧数据
 
 ### 现象
 面板显示的数据停留在上次同步时间。
@@ -152,7 +190,7 @@ curl http://127.0.0.1:20127/api/sync
 
 ---
 
-## 8. 凭据安全
+## 9. 凭据安全
 
 `strava.conf` / `strava_tokens.json` 权限应设为 **600**（仅属主可读），避免 Client Secret / Refresh Token 泄露：
 
