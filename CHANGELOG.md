@@ -2,6 +2,14 @@
 
 ---
 
+## v1.1.2 (2026-08-01)
+
+### 修复 / Fixes
+
+- **cmd/main 启动可靠性**：改用 `setsid python3 -u`（无缓冲）+ 更强的残留进程清理（`pkill` 匹配任意路径 app.py），解决后台启动偶发 `Address already in use` / 连接拒绝问题。fnOS App Center 现可可靠自动启动服务（NAS 重启后服务自愈）
+
+---
+
 ## v1.1.1-docs (2026-08-01)
 
 ### 文档 / Docs

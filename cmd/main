@@ -19,30 +19,31 @@ PORT="${TRIM_SERVICE_PORT:-20127}"
 LOG="${DATA_DIR}/strava.log"
 PID_FILE="${DATA_DIR}/strava.pid"
 
-# 杀掉所有可能残留的本应用进程（防止多次启停后旧进程占端口）
+# 杀掉所有本应用残留进程（匹配任意路径的 app.py，防止手动启动的进程残留占端口）
 kill_all() {
-    pkill -f "${SRC_DIR}/app.py" 2>/dev/null || true
-    pkill -f "${APP_DIR}/server/app.py" 2>/dev/null || true
+    pkill -f "strava/server/app.py" 2>/dev/null || true
+    pkill -f "/vol4/@appcenter/strava/server/app.py" 2>/dev/null || true
+    pkill -f "python3 app.py" 2>/dev/null || true
+    pkill -f "python3.*strava.*app\.py" 2>/dev/null || true
     sleep 1
 }
 
 start() {
     mkdir -p "${DATA_DIR}"
-    # 先清理残留进程 + PID 文件
     kill_all
     rm -f "${PID_FILE}"
-    # 若端口仍被占（非本应用），报错退出
     if ss -tln 2>/dev/null | grep -q ":${PORT} "; then
         echo "ERROR: port ${PORT} already in use by another process"
         return 1
     fi
     cd "${SRC_DIR}"
-    DATA_DIR="${DATA_DIR}" PORT="${PORT}" \
-        nohup python3 app.py >> "${LOG}" 2>&1 &
-    echo $! > "${PID_FILE}"
+    # 用 setsid 脱离会话，避免 SSH 断开后 SIGHUP 杀掉；-u 无缓冲；重定向 stdin 防止挂起
+    DATA_DIR="${DATA_DIR}" PORT="${PORT}" setsid python3 -u app.py >> "${LOG}" 2>&1 < /dev/null &
+    PID=$!
+    echo "${PID}" > "${PID_FILE}"
     for i in $(seq 1 30); do
         if curl -sf "http://127.0.0.1:${PORT}/api/status" >/dev/null 2>&1; then
-            echo "started (pid $(cat "${PID_FILE}"))"
+            echo "started (pid ${PID})"
             return 0
         fi
         sleep 1
