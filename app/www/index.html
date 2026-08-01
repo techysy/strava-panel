@@ -78,6 +78,13 @@ a{color:var(--accent)}
     <button class="btn secondary" onclick="refreshStatus()" data-i18n="setup.redetect">重新检测</button>
   </div>
 
+  <div class="panel" id="statsPanel" style="display:none; margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-size:13px;color:var(--muted)" data-i18n="stats.period">统计周期</span>
+      <button class="lang-btn" id="periodYear" onclick="setPeriod('year')" style="border-color:var(--brand);color:var(--brand)" data-i18n="stats.year">本年度</button>
+      <button class="lang-btn" id="periodMonth" onclick="setPeriod('month')" data-i18n="stats.month">本月份</button>
+    </div>
+  </div>
   <div class="grid" id="statsGrid" style="display:none">
     <div class="card"><div class="label" data-i18n="stats.rides">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div></div>
     <div class="card"><div class="label" data-i18n="stats.dist">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div></div>
@@ -92,7 +99,7 @@ a{color:var(--accent)}
 
   <div class="panel" id="recentPanel" style="display:none">
     <h2 data-i18n="panel.recent">🚴 最近骑行</h2>
-    <table id="recentTable"><thead><tr><th data-i18n="col.date">日期</th><th data-i18n="col.name">活动</th><th data-i18n="col.dist">距离</th><th data-i18n="col.dur">时长</th><th data-i18n="col.elev">爬升</th></tr></thead><tbody></tbody></table>
+    <table id="recentTable"><thead><tr><th data-i18n="col.date">日期</th><th data-i18n="col.name">活动</th><th data-i18n="col.dist">距离</th><th data-i18n="col.dur">时长</th><th data-i18n="col.speed">均速</th><th data-i18n="col.elev">爬升</th></tr></thead><tbody></tbody></table>
   </div>
 
   <div class="panel">
@@ -117,9 +124,10 @@ const I18N = {
     "setup.save":"保存并验证","setup.redetect":"重新检测",
     "setup.ok":"✓ 凭据有效，已连接！","setup.fail":"✗ ","setup.progress":"保存中…","setup.saving":"保存中…",
     "stats.rides":"骑行次数","stats.dist":"总距离","stats.dur":"总时长","stats.elev":"总爬升",
+    "stats.period":"统计周期","stats.year":"本年度","stats.month":"本月份",
     "panel.weekly":"📊 每周骑行距离 (km)","panel.recent":"🚴 最近骑行","panel.auto":"🔄 Token 自动刷新","panel.autoHint":"Strava access token 约 6 小时过期。本应用每次访问 API 时自动用 refresh_token 刷新，无需手动干预。凭据保存在 NAS 应用数据目录。",
     "panel.sync":"🗄️ 本地缓存 / Local Cache","panel.syncHint":"骑行数据缓存到本地 SQLite，读取更快；本地 agent 可通过 /api/export 直接查询。","panel.syncNow":"立即同步","panel.syncing":"同步中…","panel.syncDone":"✓ 同步完成","panel.syncFail":"✗ 同步失败",
-    "col.date":"日期","col.name":"活动","col.dist":"距离","col.dur":"时长","col.elev":"爬升",
+    "col.date":"日期","col.name":"活动","col.dist":"距离","col.dur":"时长","col.speed":"均速","col.elev":"爬升",
     "badge.detect":"检测中…","badge.ok":"已连接 ✓","badge.noConfig":"未配置凭据","badge.fail":"连接失败","badge.empty":"暂无数据",
   },
   en: {
@@ -129,9 +137,10 @@ const I18N = {
     "setup.save":"Save & Verify","setup.redetect":"Re-detect",
     "setup.ok":"✓ Credentials valid, connected!","setup.fail":"✗ ","setup.saving":"Saving…",
     "stats.rides":"Rides","stats.dist":"Distance","stats.dur":"Duration","stats.elev":"Elevation",
+    "stats.period":"Period","stats.year":"This Year","stats.month":"This Month",
     "panel.weekly":"📊 Weekly Distance (km)","panel.recent":"🚴 Recent Rides","panel.auto":"🔄 Auto Token Refresh","panel.autoHint":"Strava access token expires in ~6h. This app auto-refreshes via refresh_token on every API call. Credentials stored in NAS app data dir.",
     "panel.sync":"🗄️ Local Cache","panel.syncHint":"Ride data cached to local SQLite for faster reads; local agents can query via /api/export.","panel.syncNow":"Sync Now","panel.syncing":"Syncing…","panel.syncDone":"✓ Sync Complete","panel.syncFail":"✗ Sync Failed",
-    "col.date":"Date","col.name":"Activity","col.dist":"Distance","col.dur":"Duration","col.elev":"Elevation",
+    "col.date":"Date","col.name":"Activity","col.dist":"Distance","col.dur":"Duration","col.speed":"Avg Spd","col.elev":"Elevation",
     "badge.detect":"Detecting…","badge.ok":"Connected ✓","badge.noConfig":"Not Configured","badge.fail":"Connection Failed","badge.empty":"No data",
   }
 };
@@ -201,8 +210,15 @@ async function refreshStatus(){
 
 async function loadData(){
   document.getElementById("statsGrid").style.display = "grid";
+  document.getElementById("statsPanel").style.display = "block";
+  // 计算当前周期的 start 日期
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth()+1).padStart(2,"0");
+  let periodStart = `${y}-01-01`;   // 年度默认
+  if(period === "month") periodStart = `${y}-${m}-01`;
   try{
-    const r = await fetch(API + "/api/stats");
+    const r = await fetch(API + `/api/stats?start=${periodStart}`);
     const s = await r.json();
     if(s.error){ return; }
     document.getElementById("cRides").textContent = s.total_rides;
@@ -213,21 +229,32 @@ async function loadData(){
     document.getElementById("weeklyPanel").style.display = "block";
   }catch(e){}
   try{
-    const r = await fetch(API + "/api/activities");
+    const r = await fetch(API + "/api/activities?type=Ride&limit=10");
     const d = await r.json();
     if(d.activities){
-      const rides = d.activities.filter(a=>a.type==="Ride").slice(0,10);
+      const rides = d.activities.slice(0,10);
       const tbody = document.getElementById("recentTable").querySelector("tbody");
       tbody.innerHTML = rides.map(a=>{
         const date = (a.start_date||"").slice(0,10);
         const km = ((a.distance||0)/1000).toFixed(1);
         const h = ((a.moving_time||0)/3600).toFixed(1);
+        const spd = ((a.average_speed||0)*3.6).toFixed(1); // m/s -> km/h
         const el = Math.round(a.total_elevation_gain||0);
-        return `<tr><td>${date}</td><td>${escapeHtml(a.name||"")}</td><td>${km} km</td><td>${h} h</td><td>${el} m</td></tr>`;
+        return `<tr><td>${date}</td><td>${escapeHtml(a.name||"")}</td><td>${km} km</td><td>${h} h</td><td>${spd} km/h</td><td>${el} m</td></tr>`;
       }).join("");
       document.getElementById("recentPanel").style.display = "block";
     }
   }catch(e){}
+}
+
+let period = "year"; // 年度/月度统计周期
+function setPeriod(p){
+  period = p;
+  document.getElementById("periodYear").style.borderColor = p==="year" ? "var(--brand)" : "var(--border)";
+  document.getElementById("periodYear").style.color = p==="year" ? "var(--brand)" : "var(--text)";
+  document.getElementById("periodMonth").style.borderColor = p==="month" ? "var(--brand)" : "var(--border)";
+  document.getElementById("periodMonth").style.color = p==="month" ? "var(--brand)" : "var(--text)";
+  loadData();
 }
 
 function renderWeekly(weeks){
