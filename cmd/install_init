@@ -1,0 +1,3 @@
+#!/bin/bash
+# install_init — no-op (all source bundled in app/)
+exit 0

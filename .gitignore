@@ -1,0 +1,16 @@
+# 构建产物
+*.fpk
+*.tar.gz
+build/
+dist/
+
+# Python
+__pycache__/
+*.pyc
+
+# 凭据/密钥 — 防止意外提交
+*.conf
+*_tokens.json
+.env
+*.secret
+**/strava_tokens.json

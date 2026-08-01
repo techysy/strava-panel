@@ -1,0 +1,8 @@
+#!/bin/bash
+# install_callback — ensure data dir exists
+set -euo pipefail
+APP_NAME="${TRIM_APPNAME:-strava}"
+DATA_DIR="${TRIM_PKGVAR:-/vol4/@appdata/${APP_NAME}}"
+mkdir -p "${DATA_DIR}"
+chmod 755 "${DATA_DIR}" 2>/dev/null || true
+exit 0

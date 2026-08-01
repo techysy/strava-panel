@@ -1,0 +1,21 @@
+{
+    "data-share":
+    {
+        "shares": [
+            {
+                "name": "strava",
+                "permission":
+                {
+                    "rw": ["strava"]
+                }
+            },
+            {
+                "name": "strava/data",
+                "permission":
+                {
+                    "rw": ["strava"]
+                }
+            }
+        ]
+    }
+}

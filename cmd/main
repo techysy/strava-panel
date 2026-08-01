@@ -1,0 +1,74 @@
+#!/bin/bash
+set -uo pipefail
+APP_NAME="${TRIM_APPNAME:-strava}"
+APP_DIR="${TRIM_APPDEST:-/var/apps/${APP_NAME}}"
+# 数据目录始终用 fnOS 标准数据目录 /vol4/@appdata/<App>（不管 TRIM_APPDEST 传哪种布局）
+DATA_DIR="${TRIM_PKGVAR:-/vol4/@appdata/${APP_NAME}}"
+
+# 兼容两种部署布局
+if [ -d "${APP_DIR}/server" ]; then
+    SRC_DIR="${APP_DIR}/server"
+elif [ -d "${APP_DIR}/target/server" ]; then
+    SRC_DIR="${APP_DIR}/target/server"
+else
+    echo "ERROR: server dir not found (tried ${APP_DIR}/server and ${APP_DIR}/target/server)" >&2
+    exit 1
+fi
+
+PORT="${TRIM_SERVICE_PORT:-20127}"
+LOG="${DATA_DIR}/strava.log"
+PID_FILE="${DATA_DIR}/strava.pid"
+
+# 杀掉所有可能残留的本应用进程（防止多次启停后旧进程占端口）
+kill_all() {
+    pkill -f "${SRC_DIR}/app.py" 2>/dev/null || true
+    pkill -f "${APP_DIR}/server/app.py" 2>/dev/null || true
+    sleep 1
+}
+
+start() {
+    mkdir -p "${DATA_DIR}"
+    # 先清理残留进程 + PID 文件
+    kill_all
+    rm -f "${PID_FILE}"
+    # 若端口仍被占（非本应用），报错退出
+    if ss -tln 2>/dev/null | grep -q ":${PORT} "; then
+        echo "ERROR: port ${PORT} already in use by another process"
+        return 1
+    fi
+    cd "${SRC_DIR}"
+    DATA_DIR="${DATA_DIR}" PORT="${PORT}" \
+        nohup python3 app.py >> "${LOG}" 2>&1 &
+    echo $! > "${PID_FILE}"
+    for i in $(seq 1 30); do
+        if curl -sf "http://127.0.0.1:${PORT}/api/status" >/dev/null 2>&1; then
+            echo "started (pid $(cat "${PID_FILE}"))"
+            return 0
+        fi
+        sleep 1
+    done
+    echo "started, but health check timed out (check ${LOG})"
+    return 0
+}
+
+stop() {
+    kill_all
+    rm -f "${PID_FILE}"
+    echo "stopped"
+}
+
+status() {
+    if curl -sf "http://127.0.0.1:${PORT}/api/status" >/dev/null 2>&1; then
+        echo "running (port ${PORT})"
+    else
+        echo "stopped"
+    fi
+}
+
+case "${1:-start}" in
+    start) start ;;
+    stop) stop ;;
+    status) status ;;
+    restart) stop; sleep 1; start ;;
+    *) echo "Usage: $0 {start|stop|status|restart}"; exit 1 ;;
+esac

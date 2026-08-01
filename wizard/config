@@ -1,0 +1,28 @@
+[
+  {
+    "stepTitle": "Strava 凭据配置",
+    "items": [
+      {
+        "type": "text",
+        "field": "client_id",
+        "label": "Client ID",
+        "initValue": "",
+        "rules": []
+      },
+      {
+        "type": "text",
+        "field": "client_secret",
+        "label": "Client Secret",
+        "initValue": "",
+        "rules": []
+      },
+      {
+        "type": "text",
+        "field": "refresh_token",
+        "label": "Refresh Token",
+        "initValue": "",
+        "rules": []
+      }
+    ]
+  }
+]
