@@ -25,6 +25,7 @@ import os
 import re
 import sys
 import time
+import secrets
 import urllib.request
 import urllib.parse
 import threading
@@ -68,6 +69,7 @@ def save_config(cfg):
         f"client_secret={cfg.get('client_secret','')}",
         f"refresh_token={cfg.get('refresh_token','')}",
         f"athlete_id={cfg.get('athlete_id','')}",
+        f"api_token={cfg.get('api_token','')}",
     ]
     CONF_FILE.write_text("\n".join(lines) + "\n")
     os.chmod(CONF_FILE, 0o600)  # 权限 600，仅属主可读
@@ -78,6 +80,27 @@ def save_config(cfg):
 def has_credentials():
     cfg = load_config()
     return bool(cfg.get("client_id") and cfg.get("client_secret") and cfg.get("refresh_token"))
+
+
+# ---------- API Token 保护 ----------
+def get_or_create_api_token():
+    """获取/生成 API 访问 token（存 strava.conf 的 api_token 字段）"""
+    cfg = load_config()
+    tok = cfg.get("api_token", "").strip()
+    if not tok:
+        tok = secrets.token_urlsafe(32)
+        cfg["api_token"] = tok
+        save_config(cfg)
+    return tok
+
+
+def api_token_valid(token):
+    """校验 API token"""
+    if not token:
+        return False
+    cfg = load_config()
+    expected = cfg.get("api_token", "")
+    return token == expected
 
 
 # ---------- Strava token ----------
@@ -210,10 +233,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return None, err
         return tok, None
 
+    def _require_api_token(self):
+        """校验 API 访问 token（数据接口保护）。返回是否通过。"""
+        # 从 Authorization header 或 ?token= 参数读取
+        token = None
+        auth = self.headers.get("Authorization", "")
+        if auth.lower().startswith("bearer "):
+            token = auth[7:].strip()
+        if not token:
+            token = self._get_qs().get("token")
+        if not api_token_valid(token):
+            self._send_json({"error": "无效的 API token，请使用 Authorization: Bearer <token>"}, 401)
+            return False
+        return True
+
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
         qs = self._get_qs()
-        if path == "/api/status":
+        if path == "/api/bootstrap":
+            # 免认证：返回 API token，供面板前端初始加载使用
+            self._send_json({"api_token": get_or_create_api_token(), "configured": has_credentials()})
+        elif path == "/api/status":
             cfg = load_config()
             tok, err = get_access_token()
             self._send_json({
@@ -225,6 +265,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "last_sync": db.get_meta("last_sync"),
             })
         elif path == "/api/stats":
+            if not self._require_api_token():
+                return
             tok, err = self._require_token()
             if not tok:
                 return
@@ -239,6 +281,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"error": str(e)}, 500)
         elif path == "/api/weekly":
+            if not self._require_api_token():
+                return
             tok, err = self._require_token()
             if not tok:
                 return
@@ -249,6 +293,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"error": str(e)}, 500)
         elif path == "/api/activities":
+            if not self._require_api_token():
+                return
             tok, err = self._require_token()
             if not tok:
                 return
@@ -264,6 +310,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"error": str(e)}, 500)
         elif path == "/api/sync":
+            if not self._require_api_token():
+                return
             tok, err = self._require_token()
             if not tok:
                 return
@@ -274,6 +322,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"error": str(e)}, 500)
         elif path == "/api/export":
+            if not self._require_api_token():
+                return
             tok, err = self._require_token()
             if not tok:
                 return
@@ -303,7 +353,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"error": str(e)}, 500)
         elif path == "/api/config":
-            self._send_json(load_config())
+            if not self._require_api_token():
+                return
+            cfg = load_config()
+            # 不返回敏感字段（client_secret/refresh_token/api_token）
+            self._send_json({
+                "client_id": cfg.get("client_id", ""),
+                "configured": has_credentials(),
+            })
         elif path == "/" or path == "":
             self._send_file("index.html")
         elif path.startswith("/static/"):
@@ -314,6 +371,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         path = urllib.parse.urlparse(self.path).path
         if path == "/api/config":
+            if not self._require_api_token():
+                return
             try:
                 data = json.loads(self._read_body())
                 with _lock:
@@ -333,6 +392,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"error": str(e)}, 500)
         elif path == "/api/sync":
+            if not self._require_api_token():
+                return
             tok, err = get_access_token()
             if not tok:
                 self._send_json({"error": err or "未配置"}, 400); return

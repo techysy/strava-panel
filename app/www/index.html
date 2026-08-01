@@ -187,12 +187,32 @@ function toggleTheme(){
 // ===== Main =====
 const API = "";
 let cfg = {};
+let apiToken = localStorage.getItem("sv_api_token") || "";
+
+// 带 token 的 fetch：为所有 API 请求附加 Authorization 头
+async function apiFetch(url, options={}){
+  const headers = Object.assign({}, options.headers || {});
+  if(apiToken) headers["Authorization"] = "Bearer " + apiToken;
+  return fetch(url, Object.assign({}, options, {headers}));
+}
+
+// 初始化：从 /api/bootstrap 获取 API token（免认证）
+async function initToken(){
+  try{
+    const r = await fetch(API + "/api/bootstrap");
+    const d = await r.json();
+    if(d.api_token){
+      apiToken = d.api_token;
+      localStorage.setItem("sv_api_token", apiToken);
+    }
+  }catch(e){ /* 忽略 */ }
+}
 
 async function refreshStatus(){
   const badge = document.getElementById("statusBadge");
   badge.className = "badge"; badge.innerHTML = t("badge.detect") + "<span class='spinner'></span>";
   try{
-    const r = await fetch(API + "/api/status");
+    const r = await apiFetch(API + "/api/status");
     const s = await r.json();
     if(s.configured && s.has_token){
       badge.className = "badge ok"; badge.textContent = t("badge.ok");
@@ -218,7 +238,7 @@ async function loadData(){
   let periodStart = `${y}-01-01`;   // 年度默认
   if(period === "month") periodStart = `${y}-${m}-01`;
   try{
-    const r = await fetch(API + `/api/stats?start=${periodStart}`);
+    const r = await apiFetch(API + `/api/stats?start=${periodStart}`);
     const s = await r.json();
     if(s.error){ return; }
     document.getElementById("cRides").textContent = s.total_rides;
@@ -229,7 +249,7 @@ async function loadData(){
     document.getElementById("weeklyPanel").style.display = "block";
   }catch(e){}
   try{
-    const r = await fetch(API + "/api/activities?type=Ride&limit=10");
+    const r = await apiFetch(API + "/api/activities?type=Ride&limit=10");
     const d = await r.json();
     if(d.activities){
       const rides = d.activities.slice(0,10);
@@ -276,7 +296,7 @@ async function saveConfig(){
   btn.disabled = true; btn.innerHTML = t("setup.saving");
   const msg = document.getElementById("setupMsg");
   try{
-    const r = await fetch(API + "/api/config", {
+    const r = await apiFetch(API + "/api/config", {
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({
         client_id: document.getElementById("client_id").value,
@@ -298,7 +318,7 @@ async function doSync(){
   const info = document.getElementById("syncInfo");
   btn.disabled = true; btn.textContent = t("panel.syncing");
   try{
-    const r = await fetch(API + "/api/sync");
+    const r = await apiFetch(API + "/api/sync");
     const d = await r.json();
     if(d.ok){
       info.textContent = t("panel.syncDone") + ` (${d.new} new / ${d.activities} total)`;
@@ -310,7 +330,7 @@ async function doSync(){
 
 initTheme();
 applyI18n();
-refreshStatus();
+initToken().then(() => refreshStatus());
 </script>
 </body>
 </html>

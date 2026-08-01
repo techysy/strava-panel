@@ -58,32 +58,28 @@
 
 ## HTTP API（本地 agent 查询）
 
-应用提供 REST API，本地 Hermes agent 或其他工具可直接查询（`http://192.168.31.101:20127`）：
+应用提供 REST API，本地 Hermes agent 或其他工具可直接查询（`http://192.168.31.101:20127`）。
+
+> 🔐 **v1.2.0 起需要 API Token**：数据接口均需携带 `Authorization: Bearer <token>`。token 通过免认证的 `/api/bootstrap` 获取：
 
 ```bash
-# 骑行统计（读缓存，快）
-curl http://192.168.31.101:20127/api/stats
-curl "http://192.168.31.101:20127/api/stats?start=2026-07-01&end=2026-07-31"   # 按月
+# 1. 获取 API token（免认证）
+TOKEN=$(curl -s http://192.168.31.101:20127/api/bootstrap | jq -r '.api_token')
 
-# 活动列表（支持过滤）
-curl "http://192.168.31.101:20127/api/activities?type=Ride&limit=10"
-curl "http://192.168.31.101:20127/api/activities?start=2026-07-01"
-
-# 每周聚合
-curl "http://192.168.31.101:20127/api/weekly"
-
-# 手动同步 Strava→SQLite
-curl http://192.168.31.101:20127/api/sync
-
-# 导出全量数据（给 agent）
-curl "http://192.168.31.101:20127/api/export?fmt=json"
-curl "http://192.168.31.101:20127/api/export?fmt=csv" -o strava.csv
-
-# 状态（含 db 缓存数、最后同步时间）
-curl http://192.168.31.101:20127/api/status
+# 2. 带 token 访问（数据接口）
+curl -s -H "Authorization: Bearer $TOKEN" http://192.168.31.101:20127/api/stats
+curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20127/api/stats?start=2026-07-01&end=2026-07-31"   # 按月
+curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20127/api/activities?type=Ride&limit=10"
+curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20127/api/weekly"
+curl -s -H "Authorization: Bearer $TOKEN" http://192.168.31.101:20127/api/sync
+curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20127/api/export?fmt=json"
+curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20127/api/export?fmt=csv" -o strava.csv
+curl -s -H "Authorization: Bearer $TOKEN" http://192.168.31.101:20127/api/status
 ```
 
-> 💡 agent 用法示例：`curl -s "http://192.168.31.101:20127/api/stats?start=2026-07-01&end=2026-07-31" | jq '.total_distance_km'`
+> 💡 agent 用法示例：`curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20127/api/stats?start=2026-07-01&end=2026-07-31" | jq '.total_distance_km'`
+
+> ⚠️ 未带 token 的请求返回 **401**。前端面板自动处理 token，无需手动配置。token 存储在 `/vol4/@appdata/strava/strava.conf`（权限 600），如需重置删除该行后重启应用即可。
 
 ## 构建 / Build
 

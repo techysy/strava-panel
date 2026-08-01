@@ -2,6 +2,29 @@
 
 ---
 
+## v1.2.0 (2026-08-01)
+
+### 新增 / Added
+
+- 🔐 **API Token 认证**：所有数据接口（`/api/stats`、`/api/activities`、`/api/weekly`、`/api/export`、`/api/sync`、`/api/config`）新增访问 token 保护。前端面板通过 `/api/bootstrap`（免认证）自动获取 token，agent 需用 `Authorization: Bearer <token>` 访问。
+- ⚙️ `api_token` 自动生成，存储在 `strava.conf`（权限 600）
+
+### 使用 / Usage
+
+```bash
+# 获取 token
+TOKEN=$(curl -s http://<NAS>:20127/api/bootstrap | jq -r '.api_token')
+# 带 token 访问
+curl -s -H "Authorization: Bearer $TOKEN" "http://<NAS>:20127/api/stats?start=2026-01-01"
+```
+
+### 兼容性 / Note
+
+- 未带 token 的 API 请求返回 **401**
+- 前端面板自动处理 token（无需手动配置），行为不变
+
+---
+
 ## v1.1.5 (2026-08-01)
 
 ### 修复 / Fixes
