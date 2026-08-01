@@ -18,6 +18,8 @@
 - 🔑 **凭据管理**：面板内配置 Client ID / Client Secret / Refresh Token
 - 🔄 **Token 自动刷新**：每次访问 API 自动用 refresh_token 刷新 access_token（Strava token 6h 过期）
 - 📊 **可视化面板**：骑行次数、总距离、总时长、总爬升 + 每周骑行图表 + 最近骑行列表
+- 🌗 **日夜模式**：暗/亮主题切换（记忆选择，默认跟随系统）
+- 🌐 **i18n**：中/英双语界面切换
 - 🔒 **零依赖**：纯 Python 标准库（http.server），无第三方包
 
 ## 快速开始 / Quick Start

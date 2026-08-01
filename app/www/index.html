@@ -3,39 +3,47 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Strava Panel — 骑行统计</title>
+<title>Strava Panel</title>
 <style>
 :root{
   --bg:#0f1420; --card:#1a2130; --card2:#202a3d; --text:#e8edf5; --muted:#8a97ab;
-  --brand:#fc4c02; --brand2:#e84300; --accent:#38bdf8; --good:#22c55e;
+  --brand:#fc4c02; --brand2:#e84300; --accent:#38bdf8; --good:#22c55e; --border:rgba(255,255,255,.06);
+}
+[data-theme="light"]{
+  --bg:#f5f6fa; --card:#ffffff; --card2:#eef1f6; --text:#1a2130; --muted:#6b7686;
+  --brand:#fc4c02; --brand2:#e84300; --accent:#0284c7; --good:#16a34a; --border:rgba(0,0,0,.08);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;min-height:100vh;transition:background .2s,color .2s}
 .container{max-width:960px;margin:0 auto;padding:24px 16px 48px}
 header{display:flex;align-items:center;gap:12px;margin-bottom:24px;flex-wrap:wrap}
 .logo{width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,var(--brand),var(--brand2));display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:20px}
 h1{font-size:22px;font-weight:700}
-.badge{margin-left:auto;font-size:12px;padding:4px 10px;border-radius:999px;background:var(--card2);color:var(--muted)}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.badge{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--card2);color:var(--muted)}
 .badge.ok{background:rgba(34,197,94,.15);color:var(--good)}
 .badge.warn{background:rgba(252,76,2,.15);color:var(--brand)}
+.icon-btn{width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+.icon-btn:hover{opacity:.85}
+.lang-btn{padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);cursor:pointer;font-size:13px;font-weight:600}
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
-.card{background:var(--card);border:1px solid rgba(255,255,255,.05);border-radius:14px;padding:18px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px}
 .card .label{font-size:12px;color:var(--muted);margin-bottom:6px}
 .card .value{font-size:28px;font-weight:800}
 .card .unit{font-size:14px;color:var(--muted);font-weight:500;margin-left:2px}
-.panel{background:var(--card);border:1px solid rgba(255,255,255,.05);border-radius:14px;padding:18px;margin-bottom:24px}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:24px}
 .panel h2{font-size:15px;margin-bottom:14px;color:var(--text)}
 .setup{background:var(--card);border:1px solid rgba(252,76,2,.3);border-radius:14px;padding:20px;margin-bottom:24px;display:none}
 .setup.show{display:block}
 .setup h2{font-size:16px;color:var(--brand);margin-bottom:10px}
 .setup label{display:block;font-size:12px;color:var(--muted);margin:12px 0 4px}
-.setup input{width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:var(--card2);color:var(--text);font-size:14px}
+.setup input{width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:14px}
 .btn{margin-top:16px;padding:10px 18px;border:none;border-radius:8px;background:var(--brand);color:#fff;font-size:14px;font-weight:600;cursor:pointer}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .btn.secondary{background:var(--card2);color:var(--text);margin-left:8px}
 .msg{font-size:13px;margin-top:10px;color:var(--accent);min-height:18px}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{text-align:left;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.06)}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
 th{color:var(--muted);font-weight:500;font-size:12px}
 tr:last-child td{border-bottom:none}
 .bar{height:6px;border-radius:3px;background:var(--card2);overflow:hidden;margin-top:4px}
@@ -44,75 +52,143 @@ tr:last-child td{border-bottom:none}
 a{color:var(--accent)}
 .spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--card2);border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-left:8px}
 @keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:600px){.grid{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
 <div class="container">
   <header>
     <div class="logo">S</div>
-    <h1>Strava 骑行面板</h1>
-    <span class="badge" id="statusBadge">检测中…</span>
+    <h1>Strava Panel</h1>
+    <div class="header-right">
+      <span class="badge" id="statusBadge">…</span>
+      <button class="lang-btn" id="langBtn" onclick="toggleLang()">EN</button>
+      <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+    </div>
   </header>
 
   <div class="setup" id="setup">
-    <h2>⚙️ 配置 Strava 凭据</h2>
-    <p class="tips" style="margin-bottom:8px">
-      在 <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a> 查看 Client ID / Client Secret。
-      Refresh Token 需通过 OAuth 授权获取。
-    </p>
-    <label>Client ID</label><input id="client_id" placeholder="你的 Client ID">
-    <label>Client Secret</label><input id="client_secret" placeholder="你的 Client Secret">
-    <label>Refresh Token</label><input id="refresh_token" placeholder="你的 Refresh Token">
+    <h2 data-i18n="setup.title">⚙️ 配置 Strava 凭据</h2>
+    <p class="tips" style="margin-bottom:8px" data-i18n="setup.hint">在 <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a> 查看 Client ID / Client Secret。Refresh Token 需通过 OAuth 授权获取。</p>
+    <label data-i18n="setup.clientId">Client ID</label><input id="client_id" placeholder="Client ID">
+    <label data-i18n="setup.clientSecret">Client Secret</label><input id="client_secret" placeholder="Client Secret">
+    <label data-i18n="setup.refreshToken">Refresh Token</label><input id="refresh_token" placeholder="Refresh Token">
     <div class="msg" id="setupMsg"></div>
-    <button class="btn" id="saveBtn" onclick="saveConfig()">保存并验证</button>
-    <button class="btn secondary" onclick="refreshStatus()">重新检测</button>
+    <button class="btn" id="saveBtn" onclick="saveConfig()" data-i18n="setup.save">保存并验证</button>
+    <button class="btn secondary" onclick="refreshStatus()" data-i18n="setup.redetect">重新检测</button>
   </div>
 
   <div class="grid" id="statsGrid" style="display:none">
-    <div class="card"><div class="label">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div></div>
-    <div class="card"><div class="label">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div></div>
-    <div class="card"><div class="label">总时长</div><div class="value"><span id="cDur">-</span><span class="unit">h</span></div></div>
-    <div class="card"><div class="label">总爬升</div><div class="value"><span id="cElev">-</span><span class="unit">m</span></div></div>
+    <div class="card"><div class="label" data-i18n="stats.rides">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div></div>
+    <div class="card"><div class="label" data-i18n="stats.dist">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div></div>
+    <div class="card"><div class="label" data-i18n="stats.dur">总时长</div><div class="value"><span id="cDur">-</span><span class="unit">h</span></div></div>
+    <div class="card"><div class="label" data-i18n="stats.elev">总爬升</div><div class="value"><span id="cElev">-</span><span class="unit">m</span></div></div>
   </div>
 
   <div class="panel" id="weeklyPanel" style="display:none">
-    <h2>📊 每周骑行距离 (km)</h2>
+    <h2 data-i18n="panel.weekly">📊 每周骑行距离 (km)</h2>
     <div id="weeklyChart"></div>
   </div>
 
   <div class="panel" id="recentPanel" style="display:none">
-    <h2>🚴 最近骑行</h2>
-    <table id="recentTable"><thead><tr><th>日期</th><th>活动</th><th>距离</th><th>时长</th><th>爬升</th></tr></thead><tbody></tbody></table>
+    <h2 data-i18n="panel.recent">🚴 最近骑行</h2>
+    <table id="recentTable"><thead><tr><th data-i18n="col.date">日期</th><th data-i18n="col.name">活动</th><th data-i18n="col.dist">距离</th><th data-i18n="col.dur">时长</th><th data-i18n="col.elev">爬升</th></tr></thead><tbody></tbody></table>
   </div>
 
   <div class="panel">
-    <h2>🔄 Token 自动刷新</h2>
-    <p class="tips">Strava access token 约 6 小时过期。本应用每次访问 API 时自动用 refresh_token 刷新，无需手动干预。凭据保存在 NAS 应用数据目录。</p>
+    <h2 data-i18n="panel.auto">🔄 Token 自动刷新</h2>
+    <p class="tips" data-i18n="panel.autoHint">Strava access token 约 6 小时过期。本应用每次访问 API 时自动用 refresh_token 刷新，无需手动干预。凭据保存在 NAS 应用数据目录。</p>
   </div>
 </div>
 
 <script>
+// ===== i18n =====
+const I18N = {
+  zh: {
+    "setup.title":"⚙️ 配置 Strava 凭据",
+    "setup.hint":"在 <a href='https://www.strava.com/settings/api' target='_blank'>Strava My API Application</a> 查看 Client ID / Client Secret。Refresh Token 需通过 OAuth 授权获取。",
+    "setup.clientId":"Client ID","setup.clientSecret":"Client Secret","setup.refreshToken":"Refresh Token",
+    "setup.save":"保存并验证","setup.redetect":"重新检测",
+    "setup.ok":"✓ 凭据有效，已连接！","setup.fail":"✗ ","setup.progress":"保存中…","setup.saving":"保存中…",
+    "stats.rides":"骑行次数","stats.dist":"总距离","stats.dur":"总时长","stats.elev":"总爬升",
+    "panel.weekly":"📊 每周骑行距离 (km)","panel.recent":"🚴 最近骑行","panel.auto":"🔄 Token 自动刷新","panel.autoHint":"Strava access token 约 6 小时过期。本应用每次访问 API 时自动用 refresh_token 刷新，无需手动干预。凭据保存在 NAS 应用数据目录。",
+    "col.date":"日期","col.name":"活动","col.dist":"距离","col.dur":"时长","col.elev":"爬升",
+    "badge.detect":"检测中…","badge.ok":"已连接 ✓","badge.noConfig":"未配置凭据","badge.fail":"连接失败","badge.empty":"暂无数据",
+  },
+  en: {
+    "setup.title":"⚙️ Configure Strava Credentials",
+    "setup.hint":"View Client ID / Client Secret at <a href='https://www.strava.com/settings/api' target='_blank'>Strava My API Application</a>. Refresh Token obtained via OAuth.",
+    "setup.clientId":"Client ID","setup.clientSecret":"Client Secret","setup.refreshToken":"Refresh Token",
+    "setup.save":"Save & Verify","setup.redetect":"Re-detect",
+    "setup.ok":"✓ Credentials valid, connected!","setup.fail":"✗ ","setup.saving":"Saving…",
+    "stats.rides":"Rides","stats.dist":"Distance","stats.dur":"Duration","stats.elev":"Elevation",
+    "panel.weekly":"📊 Weekly Distance (km)","panel.recent":"🚴 Recent Rides","panel.auto":"🔄 Auto Token Refresh","panel.autoHint":"Strava access token expires in ~6h. This app auto-refreshes via refresh_token on every API call. Credentials stored in NAS app data dir.",
+    "col.date":"Date","col.name":"Activity","col.dist":"Distance","col.dur":"Duration","col.elev":"Elevation",
+    "badge.detect":"Detecting…","badge.ok":"Connected ✓","badge.noConfig":"Not Configured","badge.fail":"Connection Failed","badge.empty":"No data",
+  }
+};
+let lang = localStorage.getItem("sv_lang") || "zh";
+
+function t(key){
+  const d = I18N[lang] || I18N.zh;
+  return d[key] !== undefined ? d[key] : (I18N.zh[key] || key);
+}
+function applyI18n(){
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i18n]").forEach(el=>{
+    const raw = t(el.dataset.i18n);
+    el.innerHTML = raw;
+  });
+  document.getElementById("langBtn").textContent = lang === "zh" ? "EN" : "中文";
+}
+function toggleLang(){
+  lang = lang === "zh" ? "en" : "zh";
+  localStorage.setItem("sv_lang", lang);
+  applyI18n();
+  refreshStatus();
+}
+
+// ===== Theme =====
+function applyTheme(theme){
+  document.documentElement.setAttribute("data-theme", theme);
+  document.getElementById("themeBtn").textContent = theme === "dark" ? "🌙" : "☀️";
+}
+function initTheme(){
+  let saved = localStorage.getItem("sv_theme");
+  if(!saved){
+    saved = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  }
+  applyTheme(saved);
+}
+function toggleTheme(){
+  const cur = document.documentElement.getAttribute("data-theme") || "dark";
+  const next = cur === "dark" ? "light" : "dark";
+  localStorage.setItem("sv_theme", next);
+  applyTheme(next);
+}
+
+// ===== Main =====
 const API = "";
 let cfg = {};
 
 async function refreshStatus(){
   const badge = document.getElementById("statusBadge");
-  badge.className = "badge"; badge.innerHTML = "检测中…<span class='spinner'></span>";
+  badge.className = "badge"; badge.innerHTML = t("badge.detect") + "<span class='spinner'></span>";
   try{
     const r = await fetch(API + "/api/status");
     const s = await r.json();
     if(s.configured && s.has_token){
-      badge.className = "badge ok"; badge.textContent = "已连接 ✓";
+      badge.className = "badge ok"; badge.textContent = t("badge.ok");
       document.getElementById("setup").classList.remove("show");
       loadData();
     } else {
-      badge.className = "badge warn"; badge.textContent = "未配置凭据";
+      badge.className = "badge warn"; badge.textContent = t("badge.noConfig");
       document.getElementById("setup").classList.add("show");
       document.getElementById("statsGrid").style.display = "none";
       document.getElementById("weeklyPanel").style.display = "none";
       document.getElementById("recentPanel").style.display = "none";
     }
-  }catch(e){ badge.className="badge warn"; badge.textContent="连接失败"; }
+  }catch(e){ badge.className="badge warn"; badge.textContent=t("badge.fail"); }
 }
 
 async function loadData(){
@@ -120,15 +196,14 @@ async function loadData(){
   try{
     const r = await fetch(API + "/api/stats");
     const s = await r.json();
-    if(s.error){ showError(s.error); return; }
+    if(s.error){ return; }
     document.getElementById("cRides").textContent = s.total_rides;
     document.getElementById("cDist").textContent = s.total_distance_km;
     document.getElementById("cDur").textContent = s.total_duration_h;
     document.getElementById("cElev").textContent = s.total_elevation_m;
     renderWeekly(s.weekly||[]);
     document.getElementById("weeklyPanel").style.display = "block";
-  }catch(e){ showError(e.message); }
-
+  }catch(e){}
   try{
     const r = await fetch(API + "/api/activities");
     const d = await r.json();
@@ -154,16 +229,16 @@ function renderWeekly(weeks){
       const pct = (w.dist_km/max*100).toFixed(1);
       return `<div style="margin-bottom:10px">
         <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)">
-          <span>${w.week}</span><span>${w.dist_km.toFixed(1)} km · ${w.count}次</span>
+          <span>${w.week}</span><span>${w.dist_km.toFixed(1)} km · ${w.count}×</span>
         </div>
         <div class="bar"><div style="width:${pct}%"></div></div>
       </div>`;
-    }).join("") || "暂无数据";
+    }).join("") || `<div style="color:var(--muted);font-size:13px">${t("badge.empty")}</div>`;
 }
 
 async function saveConfig(){
   const btn = document.getElementById("saveBtn");
-  btn.disabled = true; btn.innerHTML = "保存中…";
+  btn.disabled = true; btn.innerHTML = t("setup.saving");
   const msg = document.getElementById("setupMsg");
   try{
     const r = await fetch(API + "/api/config", {
@@ -175,24 +250,16 @@ async function saveConfig(){
       })
     });
     const d = await r.json();
-    if(d.ok){ msg.textContent = "✓ 凭据有效，已连接！"; setTimeout(refreshStatus, 800); }
-    else msg.textContent = "✗ " + (d.error||"验证失败");
-  }catch(e){ msg.textContent = "✗ " + e.message; }
-  btn.disabled = false; btn.innerHTML = "保存并验证";
+    if(d.ok){ msg.textContent = t("setup.ok"); setTimeout(refreshStatus, 800); }
+    else msg.textContent = t("setup.fail") + (d.error||"");
+  }catch(e){ msg.textContent = t("setup.fail") + e.message; }
+  btn.disabled = false; btn.innerHTML = t("setup.save");
 }
 
-async function loadConfig(){
-  try{
-    const r = await fetch(API + "/api/config");
-    const c = await r.json();
-    document.getElementById("client_id").value = c.client_id || "";
-    if(c.client_secret) document.getElementById("client_secret").value = "••••••••";
-  }catch(e){}
-}
-
-function showError(m){ console.error(m); }
 function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
+initTheme();
+applyI18n();
 refreshStatus();
 </script>
 </body>
