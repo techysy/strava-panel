@@ -20,9 +20,6 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang 
 /* 侧边栏布局 (参考 Hermes Core / 9Router / 飞牛官方) */
 .layout{display:flex;min-height:100vh}
 .sidebar{width:200px;background:var(--card);border-right:1px solid var(--border);padding:16px 10px;flex-shrink:0}
-.sidebar .brand{display:flex;align-items:center;gap:10px;padding:4px 12px 16px;border-bottom:1px solid var(--border);margin-bottom:8px}
-.sidebar .logo{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,var(--brand),var(--brand2));display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:18px}
-.sidebar .brand-name{font-size:14px;font-weight:700;white-space:nowrap}
 .nav-item{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--muted);margin-bottom:2px;position:relative}
 .nav-item:hover{background:var(--card2)}
 .nav-item.active{background:var(--ok-bg);color:var(--accent);font-weight:600}
@@ -67,6 +64,7 @@ tr:last-child td{border-bottom:none}
 .bar{height:6px;border-radius:3px;background:var(--card2);overflow:hidden;margin-top:4px}
 .bar>div{height:100%;background:var(--brand);border-radius:3px}
 .tips{font-size:12px;color:var(--muted);line-height:1.7;background:var(--card2);padding:12px 16px;border-radius:10px}
+.meta{color:var(--muted);font-size:12px;margin-top:20px;text-align:center;word-break:break-all;line-height:1.6}
 a{color:var(--accent)}
 .spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--card2);border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-left:8px}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -88,10 +86,6 @@ a{color:var(--accent)}
 <div class="layout">
   <!-- 侧边栏导航 -->
   <div class="sidebar" id="sidebar">
-    <div class="brand">
-      <div class="logo">S</div>
-      <div class="brand-name">Strava Panel</div>
-    </div>
     <div class="nav-item active" data-nav="dashboard" onclick="switchNav('dashboard')">
       <span class="ico">📊</span> <span data-i18n="nav.dashboard">仪表盘</span>
     </div>
@@ -110,7 +104,6 @@ a{color:var(--accent)}
     <div class="topbar">
       <div style="display:flex;align-items:center;gap:10px;">
         <button class="hamburger" onclick="toggleSidebar()">☰</button>
-        <h1>Strava Panel</h1>
       </div>
       <div class="topbar-actions">
         <span class="badge" id="statusBadge">…</span>
@@ -171,6 +164,9 @@ a{color:var(--accent)}
         <button class="btn secondary" onclick="doSync()" id="syncBtn" data-i18n="panel.syncNow">立即同步</button>
       </div>
     </div>
+
+    <!-- 底部版本号 -->
+    <div class="meta" id="appFooter">Strava Panel · <b>v1.2.1</b></div>
   </div>
 </div>
 
