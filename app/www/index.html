@@ -8,24 +8,42 @@
 :root{
   --bg:#0f1420; --card:#1a2130; --card2:#202a3d; --text:#e8edf5; --muted:#8a97ab;
   --brand:#fc4c02; --brand2:#e84300; --accent:#38bdf8; --good:#22c55e; --border:rgba(255,255,255,.06);
+  --ok-bg:rgba(56,189,248,.12); --shadow:rgba(0,0,0,.4);
 }
 [data-theme="light"]{
   --bg:#f5f6fa; --card:#ffffff; --card2:#eef1f6; --text:#1a2130; --muted:#6b7686;
   --brand:#fc4c02; --brand2:#e84300; --accent:#0284c7; --good:#16a34a; --border:rgba(0,0,0,.08);
+  --ok-bg:rgba(2,132,199,.1); --shadow:rgba(0,0,0,.08);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;min-height:100vh;transition:background .2s,color .2s}
-.container{max-width:960px;margin:0 auto;padding:24px 16px 48px}
-header{display:flex;align-items:center;gap:12px;margin-bottom:24px;flex-wrap:wrap}
-.logo{width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,var(--brand),var(--brand2));display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:20px}
-h1{font-size:22px;font-weight:700}
-.header-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;min-height:100vh;transition:background .2s,color .2s;-webkit-text-size-adjust:100%}
+/* 侧边栏布局 (参考 Hermes Core / 9Router / 飞牛官方) */
+.layout{display:flex;min-height:100vh}
+.sidebar{width:200px;background:var(--card);border-right:1px solid var(--border);padding:16px 10px;flex-shrink:0}
+.sidebar .brand{display:flex;align-items:center;gap:10px;padding:4px 12px 16px;border-bottom:1px solid var(--border);margin-bottom:8px}
+.sidebar .logo{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,var(--brand),var(--brand2));display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:18px}
+.sidebar .brand-name{font-size:14px;font-weight:700;white-space:nowrap}
+.nav-item{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--muted);margin-bottom:2px;position:relative}
+.nav-item:hover{background:var(--card2)}
+.nav-item.active{background:var(--ok-bg);color:var(--accent);font-weight:600}
+.nav-item.active::before{content:"";position:absolute;left:-10px;top:8px;bottom:8px;width:3px;border-radius:2px;background:var(--accent)}
+.nav-item .ico{font-size:15px}
+.nav-section{font-size:11px;color:var(--muted);padding:14px 12px 4px;text-transform:uppercase;letter-spacing:.5px}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40}
+.main{flex:1;padding:16px;min-width:0}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px;flex-wrap:wrap}
+.topbar h1{font-size:20px;margin:0;font-weight:700}
+.topbar-actions{display:flex;align-items:center;gap:8px}
+.hamburger{display:none;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:16px;cursor:pointer}
+.hamburger:hover{opacity:.85}
 .badge{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--card2);color:var(--muted)}
 .badge.ok{background:rgba(34,197,94,.15);color:var(--good)}
 .badge.warn{background:rgba(252,76,2,.15);color:var(--brand)}
 .icon-btn{width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
 .icon-btn:hover{opacity:.85}
 .lang-btn{padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);cursor:pointer;font-size:13px;font-weight:600}
+.lang-btn:hover{opacity:.85}
+/* 内容区块 */
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
 .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px}
 .card .label{font-size:12px;color:var(--muted);margin-bottom:6px}
@@ -52,72 +70,129 @@ tr:last-child td{border-bottom:none}
 a{color:var(--accent)}
 .spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--card2);border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-left:8px}
 @keyframes spin{to{transform:rotate(360deg)}}
-@media(max-width:600px){.grid{grid-template-columns:repeat(2,1fr)}}
+/* 移动端: 汉堡收起侧栏 */
+@media(max-width:768px){
+  .hamburger{display:block}
+  .sidebar{position:fixed;left:-200px;top:0;bottom:0;z-index:50;transition:left .2s}
+  .sidebar.open{left:0}
+  .sidebar-overlay.show{display:block}
+  .main{padding:12px}
+  .grid{grid-template-columns:repeat(2,1fr)}
+  table{font-size:12px}
+  th,td{padding:6px 8px}
+  .topbar h1{font-size:18px}
+}
 </style>
 </head>
 <body>
-<div class="container">
-  <header>
-    <div class="logo">S</div>
-    <h1>Strava Panel</h1>
-    <div class="header-right">
-      <span class="badge" id="statusBadge">…</span>
-      <button class="lang-btn" id="langBtn" onclick="toggleLang()">EN</button>
-      <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+<div class="layout">
+  <!-- 侧边栏导航 -->
+  <div class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="logo">S</div>
+      <div class="brand-name">Strava Panel</div>
     </div>
-  </header>
-
-  <div class="setup" id="setup">
-    <h2 data-i18n="setup.title">⚙️ 配置 Strava 凭据</h2>
-    <p class="tips" style="margin-bottom:8px" data-i18n="setup.hint">在 <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a> 查看 Client ID / Client Secret。Refresh Token 需通过 OAuth 授权获取。</p>
-    <label data-i18n="setup.clientId">Client ID</label><input id="client_id" placeholder="Client ID">
-    <label data-i18n="setup.clientSecret">Client Secret</label><input id="client_secret" placeholder="Client Secret">
-    <label data-i18n="setup.refreshToken">Refresh Token</label><input id="refresh_token" placeholder="Refresh Token">
-    <div class="msg" id="setupMsg"></div>
-    <button class="btn" id="saveBtn" onclick="saveConfig()" data-i18n="setup.save">保存并验证</button>
-    <button class="btn secondary" onclick="refreshStatus()" data-i18n="setup.redetect">重新检测</button>
-  </div>
-
-  <div class="panel" id="statsPanel" style="display:none; margin-bottom:16px">
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <span style="font-size:13px;color:var(--muted)" data-i18n="stats.period">统计周期</span>
-      <button class="lang-btn" id="periodYear" onclick="setPeriod('year')" style="border-color:var(--brand);color:var(--brand)" data-i18n="stats.year">本年度</button>
-      <button class="lang-btn" id="periodMonth" onclick="setPeriod('month')" data-i18n="stats.month">本月份</button>
+    <div class="nav-item active" data-nav="dashboard" onclick="switchNav('dashboard')">
+      <span class="ico">📊</span> <span data-i18n="nav.dashboard">仪表盘</span>
+    </div>
+    <div class="nav-item" data-nav="rides" onclick="switchNav('rides')">
+      <span class="ico">🚴</span> <span data-i18n="nav.rides">骑行记录</span>
+    </div>
+    <div class="nav-section" data-i18n="nav.system">系统</div>
+    <div class="nav-item" data-nav="config" onclick="switchNav('config')">
+      <span class="ico">⚙️</span> <span data-i18n="nav.config">配置</span>
     </div>
   </div>
-  <div class="grid" id="statsGrid" style="display:none">
-    <div class="card"><div class="label" data-i18n="stats.rides">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div></div>
-    <div class="card"><div class="label" data-i18n="stats.dist">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div></div>
-    <div class="card"><div class="label" data-i18n="stats.dur">总时长</div><div class="value"><span id="cDur">-</span><span class="unit">h</span></div></div>
-    <div class="card"><div class="label" data-i18n="stats.elev">总爬升</div><div class="value"><span id="cElev">-</span><span class="unit">m</span></div></div>
-  </div>
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
 
-  <div class="panel" id="weeklyPanel" style="display:none">
-    <h2 data-i18n="panel.weekly">📊 每周骑行距离 (km)</h2>
-    <div id="weeklyChart"></div>
-  </div>
+  <!-- 主内容区 -->
+  <div class="main">
+    <div class="topbar">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="hamburger" onclick="toggleSidebar()">☰</button>
+        <h1>Strava Panel</h1>
+      </div>
+      <div class="topbar-actions">
+        <span class="badge" id="statusBadge">…</span>
+        <button class="lang-btn" id="langBtn" onclick="toggleLang()">EN</button>
+        <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+      </div>
+    </div>
 
-  <div class="panel" id="recentPanel" style="display:none">
-    <h2 data-i18n="panel.recent">🚴 最近骑行</h2>
-    <table id="recentTable"><thead><tr><th data-i18n="col.date">日期</th><th data-i18n="col.name">活动</th><th data-i18n="col.dist">距离</th><th data-i18n="col.dur">时长</th><th data-i18n="col.speed">均速</th><th data-i18n="col.elev">爬升</th></tr></thead><tbody></tbody></table>
-  </div>
+    <!-- 仪表盘 -->
+    <div class="nav-panel" id="panel-dashboard">
+      <div class="setup" id="setup">
+        <h2 data-i18n="setup.title">⚙️ 配置 Strava 凭据</h2>
+        <p class="tips" style="margin-bottom:8px" data-i18n="setup.hint">在 <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a> 查看 Client ID / Client Secret。Refresh Token 需通过 OAuth 授权获取。</p>
+        <label data-i18n="setup.clientId">Client ID</label><input id="client_id" placeholder="Client ID">
+        <label data-i18n="setup.clientSecret">Client Secret</label><input id="client_secret" placeholder="Client Secret">
+        <label data-i18n="setup.refreshToken">Refresh Token</label><input id="refresh_token" placeholder="Refresh Token">
+        <div class="msg" id="setupMsg"></div>
+        <button class="btn" id="saveBtn" onclick="saveConfig()" data-i18n="setup.save">保存并验证</button>
+        <button class="btn secondary" onclick="refreshStatus()" data-i18n="setup.redetect">重新检测</button>
+      </div>
 
-  <div class="panel">
-    <h2 data-i18n="panel.auto">🔄 Token 自动刷新</h2>
-    <p class="tips" data-i18n="panel.autoHint">Strava access token 约 6 小时过期。本应用每次访问 API 时自动用 refresh_token 刷新，无需手动干预。凭据保存在 NAS 应用数据目录。</p>
-  </div>
+      <div class="panel" id="statsPanel" style="display:none; margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:13px;color:var(--muted)" data-i18n="stats.period">统计周期</span>
+          <button class="lang-btn" id="periodYear" onclick="setPeriod('year')" style="border-color:var(--brand);color:var(--brand)" data-i18n="stats.year">本年度</button>
+          <button class="lang-btn" id="periodMonth" onclick="setPeriod('month')" data-i18n="stats.month">本月份</button>
+        </div>
+      </div>
+      <div class="grid" id="statsGrid" style="display:none">
+        <div class="card"><div class="label" data-i18n="stats.rides">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div></div>
+        <div class="card"><div class="label" data-i18n="stats.dist">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div></div>
+        <div class="card"><div class="label" data-i18n="stats.dur">总时长</div><div class="value"><span id="cDur">-</span><span class="unit">h</span></div></div>
+        <div class="card"><div class="label" data-i18n="stats.elev">总爬升</div><div class="value"><span id="cElev">-</span><span class="unit">m</span></div></div>
+      </div>
+      <div class="panel" id="weeklyPanel" style="display:none">
+        <h2 data-i18n="panel.weekly">📊 每周骑行距离 (km)</h2>
+        <div id="weeklyChart"></div>
+      </div>
+    </div>
 
-  <div class="panel">
-    <h2 data-i18n="panel.sync">🗄️ 本地缓存 / Local Cache</h2>
-    <p class="tips" id="syncInfo" data-i18n="panel.syncHint">骑行数据缓存到本地 SQLite，读取更快；本地 agent 可通过 /api/export 直接查询。</p>
-    <button class="btn secondary" onclick="doSync()" id="syncBtn" data-i18n="panel.syncNow">立即同步</button>
+    <!-- 骑行记录 -->
+    <div class="nav-panel" id="panel-rides" style="display:none">
+      <div class="panel">
+        <h2 data-i18n="panel.recent">🚴 最近骑行</h2>
+        <table id="recentTable"><thead><tr><th data-i18n="col.date">日期</th><th data-i18n="col.name">活动</th><th data-i18n="col.dist">距离</th><th data-i18n="col.dur">时长</th><th data-i18n="col.speed">均速</th><th data-i18n="col.elev">爬升</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <!-- 配置 -->
+    <div class="nav-panel" id="panel-config" style="display:none">
+      <div class="panel">
+        <h2 data-i18n="panel.auto">🔄 Token 自动刷新</h2>
+        <p class="tips" data-i18n="panel.autoHint">Strava access token 约 6 小时过期。本应用每次访问 API 时自动用 refresh_token 刷新，无需手动干预。凭据保存在 NAS 应用数据目录。</p>
+      </div>
+      <div class="panel">
+        <h2 data-i18n="panel.sync">🗄️ 本地缓存 / Local Cache</h2>
+        <p class="tips" id="syncInfo" data-i18n="panel.syncHint">骑行数据缓存到本地 SQLite，读取更快；本地 agent 可通过 /api/export 直接查询。</p>
+        <button class="btn secondary" onclick="doSync()" id="syncBtn" data-i18n="panel.syncNow">立即同步</button>
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
+// ===== 导航切换 =====
+function switchNav(nav){
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.nav === nav));
+  document.querySelectorAll('.nav-panel').forEach(p => p.style.display = (p.id === 'panel-' + nav) ? 'block' : 'none');
+  if (window.innerWidth <= 768) toggleSidebar(false);
+}
+function toggleSidebar(open){
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  const isOpen = open === undefined ? !sidebar.classList.contains('open') : open;
+  sidebar.classList.toggle('open', isOpen);
+  overlay.classList.toggle('show', isOpen);
+}
+
 // ===== i18n =====
 const I18N = {
   zh: {
+    "nav.dashboard":"仪表盘","nav.rides":"骑行记录","nav.system":"系统","nav.config":"配置",
     "setup.title":"⚙️ 配置 Strava 凭据",
     "setup.hint":"在 <a href='https://www.strava.com/settings/api' target='_blank'>Strava My API Application</a> 查看 Client ID / Client Secret。Refresh Token 需通过 OAuth 授权获取。",
     "setup.clientId":"Client ID","setup.clientSecret":"Client Secret","setup.refreshToken":"Refresh Token",
@@ -131,6 +206,7 @@ const I18N = {
     "badge.detect":"检测中…","badge.ok":"已连接 ✓","badge.noConfig":"未配置凭据","badge.fail":"连接失败","badge.empty":"暂无数据",
   },
   en: {
+    "nav.dashboard":"Dashboard","nav.rides":"Rides","nav.system":"System","nav.config":"Config",
     "setup.title":"⚙️ Configure Strava Credentials",
     "setup.hint":"View Client ID / Client Secret at <a href='https://www.strava.com/settings/api' target='_blank'>Strava My API Application</a>. Refresh Token obtained via OAuth.",
     "setup.clientId":"Client ID","setup.clientSecret":"Client Secret","setup.refreshToken":"Refresh Token",
@@ -189,14 +265,12 @@ const API = "";
 let cfg = {};
 let apiToken = localStorage.getItem("sv_api_token") || "";
 
-// 带 token 的 fetch：为所有 API 请求附加 Authorization 头
 async function apiFetch(url, options={}){
   const headers = Object.assign({}, options.headers || {});
   if(apiToken) headers["Authorization"] = "Bearer " + apiToken;
   return fetch(url, Object.assign({}, options, {headers}));
 }
 
-// 初始化：从 /api/bootstrap 获取 API token（免认证）
 async function initToken(){
   try{
     const r = await fetch(API + "/api/bootstrap");
@@ -223,7 +297,6 @@ async function refreshStatus(){
       document.getElementById("setup").classList.add("show");
       document.getElementById("statsGrid").style.display = "none";
       document.getElementById("weeklyPanel").style.display = "none";
-      document.getElementById("recentPanel").style.display = "none";
     }
   }catch(e){ badge.className="badge warn"; badge.textContent=t("badge.fail"); }
 }
@@ -231,11 +304,10 @@ async function refreshStatus(){
 async function loadData(){
   document.getElementById("statsGrid").style.display = "grid";
   document.getElementById("statsPanel").style.display = "block";
-  // 计算当前周期的 start 日期
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth()+1).padStart(2,"0");
-  let periodStart = `${y}-01-01`;   // 年度默认
+  let periodStart = `${y}-01-01`;
   if(period === "month") periodStart = `${y}-${m}-01`;
   try{
     const r = await apiFetch(API + `/api/stats?start=${periodStart}`);
@@ -258,16 +330,15 @@ async function loadData(){
         const date = (a.start_date||"").slice(0,10);
         const km = ((a.distance||0)/1000).toFixed(1);
         const h = ((a.moving_time||0)/3600).toFixed(1);
-        const spd = ((a.average_speed||0)*3.6).toFixed(1); // m/s -> km/h
+        const spd = ((a.average_speed||0)*3.6).toFixed(1);
         const el = Math.round(a.total_elevation_gain||0);
         return `<tr><td>${date}</td><td>${escapeHtml(a.name||"")}</td><td>${km} km</td><td>${h} h</td><td>${spd} km/h</td><td>${el} m</td></tr>`;
       }).join("");
-      document.getElementById("recentPanel").style.display = "block";
     }
   }catch(e){}
 }
 
-let period = "year"; // 年度/月度统计周期
+let period = "year";
 function setPeriod(p){
   period = p;
   document.getElementById("periodYear").style.borderColor = p==="year" ? "var(--brand)" : "var(--border)";
