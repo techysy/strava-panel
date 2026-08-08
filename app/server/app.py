@@ -49,6 +49,28 @@ _lock = threading.Lock()
 db = StravaDB(DB_FILE)
 
 
+def _app_version():
+    """从已安装 manifest 动态读取应用版本.
+    返回如 '1.2.1', 读不到时返回 '' (footer 不显示版本号)."""
+    candidates = [
+        "/var/apps/strava/manifest",
+        "/vol4/@appcenter/strava/manifest",
+    ]
+    for path in candidates:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("version") and "=" in line:
+                        return line.split("=", 1)[1].strip()
+        except (OSError, IOError):
+            continue
+    return ""
+
+
+APP_VERSION = _app_version()
+
+
 # ---------- 配置 ----------
 def load_config():
     cfg = {}
@@ -212,6 +234,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             ".png": "image/png",
         }.get(p.suffix, "application/octet-stream")
         body = p.read_bytes()
+        # 对 index.html 注入版本号 (替换 __APP_VERSION__ 占位符)
+        if rel == "index.html" and APP_VERSION:
+            body = body.replace(b"__APP_VERSION__", APP_VERSION.encode("utf-8"))
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
