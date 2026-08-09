@@ -612,9 +612,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             ".png": "image/png",
         }.get(p.suffix, "application/octet-stream")
         body = p.read_bytes()
-        # 对 index.html 注入版本号 (替换 __APP_VERSION__ 占位符)
-        if rel == "index.html" and APP_VERSION:
-            body = body.replace(b"__APP_VERSION__", APP_VERSION.encode("utf-8"))
+        # 对 index.html 注入版本号 (替换 __APP_VERSION__ 占位符，读不到时用兜底值，避免残留占位符)
+        if rel == "index.html":
+            ver = (APP_VERSION or "").encode("utf-8")
+            body = body.replace(b"__APP_VERSION__", ver)
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))

@@ -98,7 +98,6 @@ textarea{min-height:120px;resize:vertical}
     <div class="topbar">
       <div style="display:flex;align-items:center;gap:8px">
         <button class="hamburger" onclick="toggleSidebar()">☰</button>
-        <h1 id="pageTitle" data-i18n="nav_dash">📊 仪表板</h1>
       </div>
       <div class="topbar-actions">
         <span class="badge" id="statusBadge">…</span>
@@ -298,7 +297,6 @@ function applyI18n(){
     else { el.innerHTML = txt; }
   });
   document.getElementById('langToggle').textContent = currentLang === 'zh' ? 'EN' : '中文';
-  document.getElementById('pageTitle').textContent = t('nav_' + currentNav);
 }
 function toggleLang(){
   currentLang = currentLang === 'zh' ? 'en' : 'zh';
@@ -330,7 +328,6 @@ function switchNav(nav){
   document.querySelector('.nav-item[onclick="switchNav(\''+nav+'\')"]').classList.add('active');
   document.querySelectorAll('.tab-panel').forEach(el=>el.classList.remove('active'));
   document.getElementById('tab-'+nav).classList.add('active');
-  document.getElementById('pageTitle').textContent = t('nav_'+nav);
   toggleSidebar(true);
   if(nav==='dash'){ loadInfo(); loadLogDates(); }
   if(nav==='data'){ loadData(); }
