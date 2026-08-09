@@ -5,348 +5,459 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Strava Panel</title>
 <style>
-:root{
-  --bg:#0f1420; --card:#1a2130; --card2:#202a3d; --text:#e8edf5; --muted:#8a97ab;
-  --brand:#fc4c02; --brand2:#e84300; --accent:#38bdf8; --good:#22c55e; --border:rgba(255,255,255,.06);
-  --ok-bg:rgba(56,189,248,.12); --shadow:rgba(0,0,0,.4);
-}
-[data-theme="light"]{
-  --bg:#f5f6fa; --card:#ffffff; --card2:#eef1f6; --text:#1a2130; --muted:#6b7686;
-  --brand:#fc4c02; --brand2:#e84300; --accent:#0284c7; --good:#16a34a; --border:rgba(0,0,0,.08);
-  --ok-bg:rgba(2,132,199,.1); --shadow:rgba(0,0,0,.08);
-}
+:root{--bg:#0f1420;--card:#1a2130;--card2:#202a3d;--text:#e8edf5;--muted:#8a97ab;--brand:#fc4c02;--brand2:#e84300;--accent:#38bdf8;--good:#22c55e;--border:rgba(255,255,255,.08)}
+[data-theme="light"]{--bg:#f5f6fa;--card:#fff;--card2:#eef1f6;--text:#1a2130;--muted:#6b7686;--brand:#e84300;--brand2:#c73500;--accent:#0284c7;--good:#16a34a;--border:rgba(0,0,0,.08)}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;min-height:100vh;transition:background .2s,color .2s;-webkit-text-size-adjust:100%}
-/* 侧边栏布局 (参考 Hermes Core / 9Router / 飞牛官方) */
+body{background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;transition:background .2s,color .2s}
 .layout{display:flex;min-height:100vh}
 .sidebar{width:200px;background:var(--card);border-right:1px solid var(--border);padding:16px 10px;flex-shrink:0}
-.nav-item{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--muted);margin-bottom:2px;position:relative}
-.nav-item:hover{background:var(--card2)}
-.nav-item.active{background:var(--ok-bg);color:var(--accent);font-weight:600}
-.nav-item.active::before{content:"";position:absolute;left:-10px;top:8px;bottom:8px;width:3px;border-radius:2px;background:var(--accent)}
-.nav-item .ico{font-size:15px}
-.nav-section{font-size:11px;color:var(--muted);padding:14px 12px 4px;text-transform:uppercase;letter-spacing:.5px}
-.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40}
-.main{flex:1;padding:16px;min-width:0;display:flex;flex-direction:column;min-height:100vh}
-.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px;flex-wrap:wrap}
-.topbar h1{font-size:20px;margin:0;font-weight:700}
-.topbar-actions{display:flex;align-items:center;gap:8px}
-.hamburger{display:none;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:16px;cursor:pointer}
-.hamburger:hover{opacity:.85}
-.badge{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--card2);color:var(--muted)}
-.badge.ok{background:rgba(34,197,94,.15);color:var(--good)}
-.badge.warn{background:rgba(252,76,2,.15);color:var(--brand)}
-.icon-btn{width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
-.icon-btn:hover{opacity:.85}
-.lang-btn{padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);cursor:pointer;font-size:13px;font-weight:600}
-.lang-btn:hover{opacity:.85}
-/* 内容区块 */
-.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.sidebar .brand{font-size:16px;font-weight:700;padding:4px 12px 14px;border-bottom:1px solid var(--border);margin-bottom:10px;display:flex;flex-direction:column;align-items:flex-start}
+.sidebar .brand-ver{font-size:12px;font-weight:400;color:var(--muted);line-height:1;margin-top:4px}
+.nav-item{display:flex;align-items:center;gap:8px;padding:11px 12px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--muted);margin-bottom:2px}
+.nav-item.active{background:rgba(56,189,248,.12);color:var(--accent);font-weight:600}
+.main{flex:1;padding:16px;min-width:0;display:flex;flex-direction:column;height:100vh;overflow:hidden;box-sizing:border-box}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:8px;flex-wrap:wrap}
+.topbar h1{font-size:20px}
+.topbar-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.hamburger{display:none;background:none;border:none;font-size:20px;color:var(--text);cursor:pointer;padding:4px 6px}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999}
+.tab-panel{display:none}
+.tab-panel.active{display:block;overflow-y:auto;flex:1;min-height:0}
+.btn{padding:8px 14px;border:none;border-radius:8px;background:var(--brand);color:#fff;font-size:13px;font-weight:600;cursor:pointer}
+.btn.secondary{background:var(--card2);color:var(--text)}
+.btn.danger{background:transparent;color:var(--brand)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px}
+.panel h2{font-size:14px;margin-bottom:12px}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:8px}
+.stat-group{margin-bottom:14px}
+.stat-group-title{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.stat-card{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:12px}
+.stat-card .k{font-size:11px;color:var(--muted);margin-bottom:4px}
+.stat-card .v{font-size:16px;font-weight:600;word-break:break-all}
+.stat-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.dot-on{background:#22c55e}.dot-off{background:#ef4444}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-bottom:24px}
 .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px}
 .card .label{font-size:12px;color:var(--muted);margin-bottom:6px}
-.card .value{font-size:28px;font-weight:800}
+.card .value{font-size:26px;font-weight:800}
 .card .unit{font-size:14px;color:var(--muted);font-weight:500;margin-left:2px}
-.panel{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:24px}
-.panel h2{font-size:15px;margin-bottom:14px;color:var(--text)}
-.setup{background:var(--card);border:1px solid rgba(252,76,2,.3);border-radius:14px;padding:20px;margin-bottom:24px;display:none}
-.setup.show{display:block}
-.setup h2{font-size:16px;color:var(--brand);margin-bottom:10px}
-.setup label{display:block;font-size:12px;color:var(--muted);margin:12px 0 4px}
-.setup input{width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:14px}
-.btn{margin-top:16px;padding:10px 18px;border:none;border-radius:8px;background:var(--brand);color:#fff;font-size:14px;font-weight:600;cursor:pointer}
-.btn:disabled{opacity:.5;cursor:not-allowed}
-.btn.secondary{background:var(--card2);color:var(--text);margin-left:8px}
-.msg{font-size:13px;margin-top:10px;color:var(--accent);min-height:18px}
+.seg{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.seg button{padding:7px 16px;border:1px solid var(--border);border-radius:8px;background:var(--card2);color:var(--muted);cursor:pointer;font-size:13px}
+.seg button.active{background:rgba(56,189,248,.12);color:var(--accent);font-weight:600;border-color:rgba(56,189,248,.3)}
+.bar{height:6px;border-radius:3px;background:var(--card2);overflow:hidden;margin-top:4px}
+.bar>div{height:100%;background:var(--brand);border-radius:3px}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
 th{color:var(--muted);font-weight:500;font-size:12px}
-tr:last-child td{border-bottom:none}
-.bar{height:6px;border-radius:3px;background:var(--card2);overflow:hidden;margin-top:4px}
-.bar>div{height:100%;background:var(--brand);border-radius:3px}
-.tips{font-size:12px;color:var(--muted);line-height:1.7;background:var(--card2);padding:12px 16px;border-radius:10px}
-.meta{color:var(--muted);font-size:12px;margin-top:auto;padding-top:20px;text-align:center;word-break:break-all;line-height:1.6}
-a{color:var(--accent)}
+.pager{display:flex;align-items:center;gap:8px;margin-top:12px;justify-content:center}
+.pager button{padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:var(--card2);color:var(--text);cursor:pointer;font-size:12px}
+.pager button:disabled{opacity:.4;cursor:not-allowed}
+.pager .pager-info{font-size:12px;color:var(--muted)}
+.log-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.log-controls select,.log-controls button{flex:0 0 auto}
+select{width:auto;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card2);color:var(--text);font-size:13px}
+.log-view{background:rgba(0,0,0,0.82);color:#d4d4d4;border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:12px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;max-height:70vh;overflow-y:auto;line-height:1.5}
+label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+input,textarea{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--card2);color:var(--text);font-size:13px;font-family:inherit}
+textarea{min-height:120px;resize:vertical}
+.msg{font-size:13px;margin-top:10px;color:var(--accent);min-height:18px}
+.hint{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.6}
+.api-doc{background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:12px;line-height:1.7;max-height:70vh;overflow-y:auto;white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,Menlo,Consolas,monospace}
+.subtabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.subtab{padding:7px 16px;border:1px solid var(--border);border-radius:8px;background:var(--card2);color:var(--muted);cursor:pointer;font-size:13px}
+.subtab.active{background:rgba(56,189,248,.12);color:var(--accent);font-weight:600;border-color:rgba(56,189,248,.3)}
+.subpanel{display:none}
+.subpanel.active{display:block}
 .spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--card2);border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-left:8px}
 @keyframes spin{to{transform:rotate(360deg)}}
-/* 移动端: 汉堡收起侧栏 */
-@media(max-width:768px){
-  .hamburger{display:block}
-  .sidebar{position:fixed;left:-200px;top:0;bottom:0;z-index:50;transition:left .2s}
+.badge{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--card2);color:var(--muted)}
+.badge.ok{background:rgba(34,197,94,.15);color:var(--good)}
+.badge.warn{background:rgba(252,76,2,.15);color:var(--brand)}
+@media (max-width:768px){
+  .sidebar{position:fixed;left:-220px;top:0;bottom:0;z-index:1000;transition:left .25s ease;height:100vh;overflow-y:auto}
   .sidebar.open{left:0}
+  .hamburger{display:inline-block}
   .sidebar-overlay.show{display:block}
-  .main{padding:12px}
   .grid{grid-template-columns:repeat(2,1fr)}
-  table{font-size:12px}
-  th,td{padding:6px 8px}
-  .topbar h1{font-size:18px}
+  .log-controls select{flex:1 1 auto;min-width:0}
+  .log-controls button{flex:1 1 auto}
 }
 </style>
 </head>
-<body>
+<body data-theme="light">
 <div class="layout">
-  <!-- 侧边栏导航 -->
   <div class="sidebar" id="sidebar">
-    <div class="nav-item active" data-nav="dashboard" onclick="switchNav('dashboard')">
-      <span class="ico">📊</span> <span data-i18n="nav.dashboard">仪表盘</span>
-    </div>
-    <div class="nav-item" data-nav="rides" onclick="switchNav('rides')">
-      <span class="ico">🚴</span> <span data-i18n="nav.rides">骑行记录</span>
-    </div>
-    <div class="nav-section" data-i18n="nav.system">系统</div>
-    <div class="nav-item" data-nav="config" onclick="switchNav('config')">
-      <span class="ico">⚙️</span> <span data-i18n="nav.config">配置</span>
-    </div>
+    <div class="brand">🚴 Strava Panel<div class="brand-ver" id="brandVer">v__APP_VERSION__</div></div>
+    <div class="nav-item active" onclick="switchNav('dash')" data-i18n="nav_dash">📊 仪表板</div>
+    <div class="nav-item" onclick="switchNav('data')" data-i18n="nav_data">🚴 骑行数据</div>
+    <div class="nav-item" onclick="switchNav('settings')" data-i18n="nav_settings">⚙️ 设置</div>
   </div>
-  <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
-
-  <!-- 主内容区 -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
   <div class="main">
     <div class="topbar">
-      <div style="display:flex;align-items:center;gap:10px;">
+      <div style="display:flex;align-items:center;gap:8px">
         <button class="hamburger" onclick="toggleSidebar()">☰</button>
+        <h1 id="pageTitle" data-i18n="nav_dash">📊 仪表板</h1>
       </div>
       <div class="topbar-actions">
         <span class="badge" id="statusBadge">…</span>
-        <button class="lang-btn" id="langBtn" onclick="toggleLang()">EN</button>
-        <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+        <button class="btn secondary" id="langToggle" onclick="toggleLang()" style="width:auto;padding:6px 10px">EN</button>
+        <button class="btn secondary" id="themeToggle" onclick="toggleTheme()" style="width:auto;padding:6px 10px">🌙</button>
       </div>
     </div>
 
-    <!-- 仪表盘 -->
-    <div class="nav-panel" id="panel-dashboard">
-      <div class="setup" id="setup">
-        <h2 data-i18n="setup.title">⚙️ 配置 Strava 凭据</h2>
-        <p class="tips" style="margin-bottom:8px" data-i18n="setup.hint">在 <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a> 查看 Client ID / Client Secret。Refresh Token 需通过 OAuth 授权获取。</p>
-        <label data-i18n="setup.clientId">Client ID</label><input id="client_id" placeholder="Client ID">
-        <label data-i18n="setup.clientSecret">Client Secret</label><input id="client_secret" placeholder="Client Secret">
-        <label data-i18n="setup.refreshToken">Refresh Token</label><input id="refresh_token" placeholder="Refresh Token">
-        <div class="msg" id="setupMsg"></div>
-        <button class="btn" id="saveBtn" onclick="saveConfig()" data-i18n="setup.save">保存并验证</button>
-        <button class="btn secondary" onclick="refreshStatus()" data-i18n="setup.redetect">重新检测</button>
-      </div>
-
-      <div class="panel" id="statsPanel" style="display:none; margin-bottom:16px">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span style="font-size:13px;color:var(--muted)" data-i18n="stats.period">统计周期</span>
-          <button class="lang-btn" id="periodYear" onclick="setPeriod('year')" style="border-color:var(--brand);color:var(--brand)" data-i18n="stats.year">本年度</button>
-          <button class="lang-btn" id="periodMonth" onclick="setPeriod('month')" data-i18n="stats.month">本月份</button>
+    <!-- 仪表板 -->
+    <div class="tab-panel active" id="tab-dash">
+      <div class="panel">
+        <h2 data-i18n="dash_title">📊 服务状态</h2>
+        <div class="stat-group">
+          <div class="stat-group-title" data-i18n="stat_group_strava">🔗 Strava API</div>
+          <div class="stat-grid" id="statStrava"></div>
+        </div>
+        <div class="stat-group">
+          <div class="stat-group-title" data-i18n="stat_group_db">🗄️ 本地数据库</div>
+          <div class="stat-grid" id="statDb"></div>
+        </div>
+        <div class="stat-group">
+          <div class="stat-group-title" data-i18n="stat_group_agent">🤖 Agent 外部调用</div>
+          <div class="stat-grid" id="statAgent"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap">
+          <button class="btn secondary" onclick="syncNow()" data-i18n="sync_btn">🔄 立即同步</button>
+          <button class="btn secondary" onclick="recreateToken()" data-i18n="token_btn">🔑 创建 token</button>
+          <span class="hint" id="dashMsg" style="margin:0"></span>
         </div>
       </div>
-      <div class="grid" id="statsGrid" style="display:none">
-        <div class="card"><div class="label" data-i18n="stats.rides">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div></div>
-        <div class="card"><div class="label" data-i18n="stats.dist">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div></div>
-        <div class="card"><div class="label" data-i18n="stats.dur">总时长</div><div class="value"><span id="cDur">-</span><span class="unit">h</span></div></div>
-        <div class="card"><div class="label" data-i18n="stats.elev">总爬升</div><div class="value"><span id="cElev">-</span><span class="unit">m</span></div></div>
+      <div class="panel">
+        <h2 data-i18n="console_title">📜 日志控制台</h2>
+        <div class="log-controls">
+          <select id="logSource" onchange="loadLogDates()">
+            <option value="strava" data-i18n="log_src">Strava 日志</option>
+          </select>
+          <select id="logDate" onchange="loadLogs()"><option value="" data-i18n="current">当前</option></select>
+          <button class="btn secondary" onclick="loadLogs()" data-i18n="refresh">🔄 刷新</button>
+          <button class="btn secondary" onclick="downloadLog()" data-i18n="download">⬇️ 下载</button>
+        </div>
+        <div class="hint" id="logInfo" style="margin-bottom:8px"></div>
+        <pre id="logView" class="log-view" data-i18n-holder="(暂无日志)"></pre>
+        <div class="hint" style="margin-top:8px" data-i18n="console_hint">日志按日期归档，可查看历史日期。当前日志仅保留当天，历史自动归档到 data/logs/ 目录。</div>
       </div>
-      <div class="panel" id="weeklyPanel" style="display:none">
-        <h2 data-i18n="panel.weekly">📊 每周骑行距离 (km)</h2>
+    </div>
+
+    <!-- 骑行数据 -->
+    <div class="tab-panel" id="tab-data">
+      <div class="seg" id="periodSeg">
+        <button class="active" id="periodYear" onclick="setPeriod('year')" data-i18n="stats_year">本年度</button>
+        <button id="periodMonth" onclick="setPeriod('month')" data-i18n="stats_month">本月份</button>
+      </div>
+      <div class="grid" id="statsGrid">
+        <div class="card"><div class="label" data-i18n="stats_rides">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div></div>
+        <div class="card"><div class="label" data-i18n="stats_dist">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div></div>
+        <div class="card"><div class="label" data-i18n="stats_dur">总时长</div><div class="value"><span id="cDur">-</span><span class="unit">h</span></div></div>
+        <div class="card"><div class="label" data-i18n="stats_elev">总爬升</div><div class="value"><span id="cElev">-</span><span class="unit">m</span></div></div>
+      </div>
+      <div class="panel">
+        <h2 data-i18n="panel_weekly">📊 每周骑行距离 (km)</h2>
         <div id="weeklyChart"></div>
       </div>
-    </div>
-
-    <!-- 骑行记录 -->
-    <div class="nav-panel" id="panel-rides" style="display:none">
       <div class="panel">
-        <h2 data-i18n="panel.recent">🚴 最近骑行</h2>
-        <table id="recentTable"><thead><tr><th data-i18n="col.date">日期</th><th data-i18n="col.name">活动</th><th data-i18n="col.dist">距离</th><th data-i18n="col.dur">时长</th><th data-i18n="col.speed">均速</th><th data-i18n="col.elev">爬升</th></tr></thead><tbody></tbody></table>
+        <h2 data-i18n="panel_recent">🚴 最近骑行</h2>
+        <table id="recentTable"><thead><tr><th data-i18n="col_date">日期</th><th data-i18n="col_name">活动</th><th data-i18n="col_dist">距离</th><th data-i18n="col_dur">时长</th><th data-i18n="col_speed">均速</th><th data-i18n="col_elev">爬升</th></tr></thead><tbody></tbody></table>
+        <div class="pager" id="pager" style="display:none">
+          <button id="prevPage" onclick="changePage(-1)" data-i18n="prev_page">‹ 上一页</button>
+          <span class="pager-info" id="pagerInfo"></span>
+          <button id="nextPage" onclick="changePage(1)" data-i18n="next_page">下一页 ›</button>
+        </div>
       </div>
     </div>
 
-    <!-- 配置 -->
-    <div class="nav-panel" id="panel-config" style="display:none">
-      <div class="panel">
-        <h2 data-i18n="panel.auto">🔄 Token 自动刷新</h2>
-        <p class="tips" data-i18n="panel.autoHint">Strava access token 约 6 小时过期。本应用每次访问 API 时自动用 refresh_token 刷新，无需手动干预。凭据保存在 NAS 应用数据目录。</p>
+    <!-- 设置 -->
+    <div class="tab-panel" id="tab-settings">
+      <div class="subtabs">
+        <button class="subtab active" onclick="switchSubTab('cred')" data-i18n="sub_cred">🔑 凭据</button>
+        <button class="subtab" onclick="switchSubTab('api')" data-i18n="sub_api">🤖 API</button>
+        <button class="subtab" onclick="switchSubTab('data')" data-i18n="sub_data">🗄️ 数据</button>
       </div>
-      <div class="panel">
-        <h2 data-i18n="panel.sync">🗄️ 本地缓存 / Local Cache</h2>
-        <p class="tips" id="syncInfo" data-i18n="panel.syncHint">骑行数据缓存到本地 SQLite，读取更快；本地 agent 可通过 /api/export 直接查询。</p>
-        <button class="btn secondary" onclick="doSync()" id="syncBtn" data-i18n="panel.syncNow">立即同步</button>
+      <div class="subpanel active" id="sub-cred">
+        <div class="panel">
+          <h2 data-i18n="setup_title">⚙️ 配置 Strava 凭据</h2>
+          <p class="hint" style="margin-bottom:8px" data-i18n="setup_hint">在 <a href="https://www.strava.com/settings/api" target="_blank" style="color:var(--accent)">Strava My API Application</a> 查看 Client ID / Client Secret，并添加回调地址 <code id="callbackHint" style="background:var(--card2);padding:2px 6px;border-radius:6px">/oauth/callback</code>。Refresh Token 通过 OAuth 授权自动获取。</p>
+          <label data-i18n="setup_clientId">Client ID</label><input id="client_id" placeholder="Client ID">
+          <label data-i18n="setup_clientSecret">Client Secret</label><input id="client_secret" placeholder="Client Secret">
+          <label data-i18n="setup_redirectUri">回调地址 (redirect_uri)</label><input id="redirect_uri" placeholder="http://<NAS-IP>:20127/oauth/callback">
+          <div class="msg" id="setupMsg"></div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button class="btn" onclick="connectStrava()" data-i18n="setup_connect">🔗 连接 Strava</button>
+            <button class="btn secondary" onclick="saveConfig()" id="saveBtn" data-i18n="setup_save">保存凭据</button>
+          </div>
+          <div class="hint" style="margin-top:10px" data-i18n="setup_connectHint">「连接 Strava」会在独立窗口打开 Strava 授权页，授权后自动回填并保存 refresh_token。</div>
+        </div>
+      </div>
+      <div class="subpanel" id="sub-api">
+        <div class="panel">
+          <h2 data-i18n="api_title">🤖 API 使用指南</h2>
+          <p class="hint" style="margin-bottom:10px" data-i18n="api_hint">以下为管理面板 REST API 的 Markdown 文档，可直接复制给 agent 使用。</p>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+            <button class="btn secondary" onclick="copyApiDoc()" data-i18n="api_copy">📋 复制文档</button>
+            <button class="btn secondary" onclick="viewToken()" data-i18n="view_token">🔑 查看 token</button>
+            <button class="btn secondary" onclick="recreateToken()" data-i18n="token_btn">🔄 创建新 token</button>
+          </div>
+          <div class="hint" id="apiTokenMsg" style="margin-bottom:8px;display:none;word-break:break-all"></div>
+          <div id="apiDoc" class="api-doc"></div>
+        </div>
+      </div>
+      <div class="subpanel" id="sub-data">
+        <div class="panel">
+          <h2 data-i18n="data_title">🗄️ 数据管理</h2>
+          <p class="hint" data-i18n="data_hint">骑行数据缓存到本地 SQLite。可手动同步 Strava→SQLite，或导出全量数据给 agent 使用。</p>
+          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+            <button class="btn" onclick="syncNow()" data-i18n="sync_btn">🔄 立即同步</button>
+            <button class="btn secondary" onclick="exportCsv()" data-i18n="export_csv">⬇️ 导出 CSV</button>
+            <button class="btn secondary" onclick="exportJson()" data-i18n="export_json">⬇️ 导出 JSON</button>
+          </div>
+          <div class="msg" id="dataMsg"></div>
+        </div>
       </div>
     </div>
-
-    <!-- 底部版本号 (后端从 manifest 动态注入) -->
-    <div class="meta" id="appFooter">Strava Panel · <b>__APP_VERSION__</b></div>
   </div>
 </div>
 
 <script>
-// ===== 导航切换 =====
-function switchNav(nav){
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.nav === nav));
-  document.querySelectorAll('.nav-panel').forEach(p => p.style.display = (p.id === 'panel-' + nav) ? 'block' : 'none');
-  if (window.innerWidth <= 768) toggleSidebar(false);
-}
-function toggleSidebar(open){
-  const sidebar = document.getElementById('sidebar');
-  const overlay = document.getElementById('sidebar-overlay');
-  const isOpen = open === undefined ? !sidebar.classList.contains('open') : open;
-  sidebar.classList.toggle('open', isOpen);
-  overlay.classList.toggle('show', isOpen);
-}
-
 // ===== i18n =====
 const I18N = {
   zh: {
-    "nav.dashboard":"仪表盘","nav.rides":"骑行记录","nav.system":"系统","nav.config":"配置",
-    "setup.title":"⚙️ 配置 Strava 凭据",
-    "setup.hint":"在 <a href='https://www.strava.com/settings/api' target='_blank'>Strava My API Application</a> 查看 Client ID / Client Secret。Refresh Token 需通过 OAuth 授权获取。",
-    "setup.clientId":"Client ID","setup.clientSecret":"Client Secret","setup.refreshToken":"Refresh Token",
-    "setup.save":"保存并验证","setup.redetect":"重新检测",
-    "setup.ok":"✓ 凭据有效，已连接！","setup.fail":"✗ ","setup.progress":"保存中…","setup.saving":"保存中…",
-    "stats.rides":"骑行次数","stats.dist":"总距离","stats.dur":"总时长","stats.elev":"总爬升",
-    "stats.period":"统计周期","stats.year":"本年度","stats.month":"本月份",
-    "panel.weekly":"📊 每周骑行距离 (km)","panel.recent":"🚴 最近骑行","panel.auto":"🔄 Token 自动刷新","panel.autoHint":"Strava access token 约 6 小时过期。本应用每次访问 API 时自动用 refresh_token 刷新，无需手动干预。凭据保存在 NAS 应用数据目录。",
-    "panel.sync":"🗄️ 本地缓存 / Local Cache","panel.syncHint":"骑行数据缓存到本地 SQLite，读取更快；本地 agent 可通过 /api/export 直接查询。","panel.syncNow":"立即同步","panel.syncing":"同步中…","panel.syncDone":"✓ 同步完成","panel.syncFail":"✗ 同步失败",
-    "col.date":"日期","col.name":"活动","col.dist":"距离","col.dur":"时长","col.speed":"均速","col.elev":"爬升",
-    "badge.detect":"检测中…","badge.ok":"已连接 ✓","badge.noConfig":"未配置凭据","badge.fail":"连接失败","badge.empty":"暂无数据",
+    app_title:'Strava Panel', nav_dash:'📊 仪表板', nav_data:'🚴 骑行数据', nav_settings:'⚙️ 设置',
+    dash_title:'📊 服务状态', console_title:'📜 日志控制台', refresh:'🔄 刷新', download:'⬇️ 下载', current:'当前', log_src:'Strava 日志',
+    console_hint:'日志按日期归档，可查看历史日期。当前日志仅保留当天，历史自动归档到 data/logs/ 目录。',
+    sync_btn:'🔄 立即同步', token_btn:'🔑 创建 token',
+    stat_group_strava:'🔗 Strava API', stat_group_db:'🗄️ 本地数据库', stat_group_agent:'🤖 Agent 外部调用',
+    stat_configured:'凭据', stat_token:'授权', stat_activities:'缓存活动', stat_sync:'最后同步', stat_port:'端口', stat_version:'版本', stat_connected:'已连接', stat_not_configured:'未配置', stat_error:'异常',
+    stat_athlete:'Athlete ID', stat_dbsize:'DB 大小', stat_dbpath:'DB 路径', stat_apitoken:'API token', stat_calls:'调用次数', stat_lastcall:'最后调用',
+    stats_period:'统计周期', stats_year:'本年度', stats_month:'本月份',
+    stats_rides:'骑行次数', stats_dist:'总距离', stats_dur:'总时长', stats_elev:'总爬升',
+    panel_weekly:'📊 每周骑行距离 (km)', panel_recent:'🚴 最近骑行',
+    col_date:'日期', col_name:'活动', col_dist:'距离', col_dur:'时长', col_speed:'均速', col_elev:'爬升',
+    prev_page:'‹ 上一页', next_page:'下一页 ›', empty:'暂无数据',
+    sub_cred:'🔑 凭据', sub_api:'🤖 API', sub_data:'🗄️ 数据',
+    setup_title:'⚙️ 配置 Strava 凭据', setup_hint:'在 <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a> 查看 Client ID / Client Secret。Refresh Token 需通过 OAuth 授权获取。',
+    setup_clientId:'Client ID', setup_clientSecret:'Client Secret', setup_refreshToken:'Refresh Token', setup_redirectUri:'回调地址 (redirect_uri)', setup_save:'保存凭据', setup_connect:'🔗 连接 Strava', setup_connectHint:'「连接 Strava」会在独立窗口打开 Strava 授权页，授权后自动回填并保存 refresh_token。',
+    setup_oauthOpen:'⏳ 已打开授权窗口，请在新窗口完成 Strava 授权…', setup_oauthBlocked:'⚠️ 弹窗被拦截，已在本窗口打开授权页', setup_oauthTimeout:'⏱️ 授权超时，请重新点击「连接 Strava」',
+    setup_ok:'✓ 凭据有效，已连接！', setup_fail:'✗ ', setup_saving:'保存中…',
+    api_title:'🤖 API 使用指南', api_hint:'以下为管理面板 REST API 的 Markdown 文档，可直接复制给 agent 使用。',
+    api_copy:'📋 复制文档', api_copied:'✓ 已复制到剪贴板', view_token:'🔑 查看 token',
+    data_title:'🗄️ 数据管理', data_hint:'骑行数据缓存到本地 SQLite。可手动同步 Strava→SQLite，或导出全量数据给 agent 使用。',
+    export_csv:'⬇️ 导出 CSV', export_json:'⬇️ 导出 JSON',
+    badge_detect:'检测中…', badge_ok:'运行正常 ✓', badge_noConfig:'未配置', badge_fail:'连接失败', badge_attention:'需关注',
+    syncing:'同步中…', sync_done:'✓ 同步完成', sync_fail:'✗ 同步失败',
+    token_creating:'正在生成新 token…', token_done:'✓ 新 token (立即生效):', token_fail:'创建失败:',
+    load_log:'加载中…', no_log:'(暂无日志)', log_fmt:'{src} 日志 · {disp} · 共 {total} 行',
   },
   en: {
-    "nav.dashboard":"Dashboard","nav.rides":"Rides","nav.system":"System","nav.config":"Config",
-    "setup.title":"⚙️ Configure Strava Credentials",
-    "setup.hint":"View Client ID / Client Secret at <a href='https://www.strava.com/settings/api' target='_blank'>Strava My API Application</a>. Refresh Token obtained via OAuth.",
-    "setup.clientId":"Client ID","setup.clientSecret":"Client Secret","setup.refreshToken":"Refresh Token",
-    "setup.save":"Save & Verify","setup.redetect":"Re-detect",
-    "setup.ok":"✓ Credentials valid, connected!","setup.fail":"✗ ","setup.saving":"Saving…",
-    "stats.rides":"Rides","stats.dist":"Distance","stats.dur":"Duration","stats.elev":"Elevation",
-    "stats.period":"Period","stats.year":"This Year","stats.month":"This Month",
-    "panel.weekly":"📊 Weekly Distance (km)","panel.recent":"🚴 Recent Rides","panel.auto":"🔄 Auto Token Refresh","panel.autoHint":"Strava access token expires in ~6h. This app auto-refreshes via refresh_token on every API call. Credentials stored in NAS app data dir.",
-    "panel.sync":"🗄️ Local Cache","panel.syncHint":"Ride data cached to local SQLite for faster reads; local agents can query via /api/export.","panel.syncNow":"Sync Now","panel.syncing":"Syncing…","panel.syncDone":"✓ Sync Complete","panel.syncFail":"✗ Sync Failed",
-    "col.date":"Date","col.name":"Activity","col.dist":"Distance","col.dur":"Duration","col.speed":"Avg Spd","col.elev":"Elevation",
-    "badge.detect":"Detecting…","badge.ok":"Connected ✓","badge.noConfig":"Not Configured","badge.fail":"Connection Failed","badge.empty":"No data",
+    app_title:'Strava Panel', nav_dash:'📊 Dashboard', nav_data:'🚴 Rides', nav_settings:'⚙️ Settings',
+    dash_title:'📊 Service Status', console_title:'📜 Log Console', refresh:'🔄 Refresh', download:'⬇️ Download', current:'Current', log_src:'Strava Log',
+    console_hint:'Logs archived by date. Current file keeps today only; history moves to data/logs/.',
+    sync_btn:'🔄 Sync Now', token_btn:'🔑 Create Token',
+    stat_group_strava:'🔗 Strava API', stat_group_db:'🗄️ Local Database', stat_group_agent:'🤖 Agent Calls',
+    stat_configured:'Credentials', stat_token:'Auth', stat_activities:'Cached Acts', stat_sync:'Last Sync', stat_port:'Port', stat_version:'Version', stat_connected:'Connected', stat_not_configured:'Not Configured', stat_error:'Error',
+    stat_athlete:'Athlete ID', stat_dbsize:'DB Size', stat_dbpath:'DB Path', stat_apitoken:'API token', stat_calls:'Call Count', stat_lastcall:'Last Call',
+    stats_period:'Period', stats_year:'This Year', stats_month:'This Month',
+    stats_rides:'Rides', stats_dist:'Distance', stats_dur:'Duration', stats_elev:'Elevation',
+    panel_weekly:'📊 Weekly Distance (km)', panel_recent:'🚴 Recent Rides',
+    col_date:'Date', col_name:'Activity', col_dist:'Distance', col_dur:'Duration', col_speed:'Avg Spd', col_elev:'Elevation',
+    prev_page:'‹ Prev', next_page:'Next ›', empty:'No data',
+    sub_cred:'🔑 Credentials', sub_api:'🤖 API', sub_data:'🗄️ Data',
+    setup_title:'⚙️ Configure Strava Credentials', setup_hint:'View Client ID / Client Secret at <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a>. Refresh Token obtained via OAuth.',
+    setup_clientId:'Client ID', setup_clientSecret:'Client Secret', setup_refreshToken:'Refresh Token', setup_redirectUri:'Redirect URI', setup_save:'Save Credentials', setup_connect:'🔗 Connect Strava', setup_connectHint:'Connect Strava opens an authorization window; refresh_token is saved automatically after approval.',
+    setup_oauthOpen:'⏳ Auth window opened, please approve in the new window…', setup_oauthBlocked:'⚠️ Popup blocked, opened auth page in this window', setup_oauthTimeout:'⏱️ Auth timed out, please click Connect Strava again',
+    setup_ok:'✓ Credentials valid, connected!', setup_fail:'✗ ', setup_saving:'Saving…',
+    api_title:'🤖 API Guide', api_hint:'Markdown doc of the admin REST API, copy-paste for an agent.',
+    api_copy:'📋 Copy Doc', api_copied:'✓ Copied to clipboard', view_token:'🔑 View Token',
+    data_title:'🗄️ Data Management', data_hint:'Ride data cached to local SQLite. Sync Strava→SQLite manually, or export all data for an agent.',
+    export_csv:'⬇️ Export CSV', export_json:'⬇️ Export JSON',
+    badge_detect:'Detecting…', badge_ok:'Healthy ✓', badge_noConfig:'Not Configured', badge_fail:'Connection Failed', badge_attention:'Needs Attention',
+    syncing:'Syncing…', sync_done:'✓ Sync Complete', sync_fail:'✗ Sync Failed',
+    token_creating:'Generating new token…', token_done:'✓ New token (effective now):', token_fail:'Failed:',
+    load_log:'Loading…', no_log:'(no log)', log_fmt:'{src} log · {disp} · {total} lines',
   }
 };
-let lang = localStorage.getItem("sv_lang") || "zh";
-
-function t(key){
-  const d = I18N[lang] || I18N.zh;
-  return d[key] !== undefined ? d[key] : (I18N.zh[key] || key);
+let currentLang = localStorage.getItem('sv_lang') || 'zh';
+let currentTheme = localStorage.getItem('sv_theme') || 'light';
+function t(key, vars){
+  const dict = I18N[currentLang] || I18N.zh;
+  let s = dict[key] !== undefined ? dict[key] : (I18N.zh[key] || key);
+  if(vars) for(const k in vars) s = s.replace('{'+k+'}', vars[k]);
+  return s;
 }
 function applyI18n(){
-  document.documentElement.lang = lang;
-  document.querySelectorAll("[data-i18n]").forEach(el=>{
-    const raw = t(el.dataset.i18n);
-    el.innerHTML = raw;
+  document.documentElement.lang = currentLang;
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const k = el.dataset.i18n;
+    const txt = t(k);
+    if(el.dataset.i18nHolder){ el.textContent = txt; }
+    else { el.innerHTML = txt; }
   });
-  document.getElementById("langBtn").textContent = lang === "zh" ? "EN" : "中文";
+  document.getElementById('langToggle').textContent = currentLang === 'zh' ? 'EN' : '中文';
+  document.getElementById('pageTitle').textContent = t('nav_' + currentNav);
 }
 function toggleLang(){
-  lang = lang === "zh" ? "en" : "zh";
-  localStorage.setItem("sv_lang", lang);
+  currentLang = currentLang === 'zh' ? 'en' : 'zh';
+  localStorage.setItem('sv_lang', currentLang);
   applyI18n();
   refreshStatus();
 }
 
 // ===== Theme =====
 function applyTheme(theme){
-  document.documentElement.setAttribute("data-theme", theme);
-  document.getElementById("themeBtn").textContent = theme === "dark" ? "🌙" : "☀️";
-}
-function initTheme(){
-  let saved = localStorage.getItem("sv_theme");
-  if(!saved){
-    saved = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-  }
-  applyTheme(saved);
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('themeToggle').textContent = theme === 'dark' ? '🌙' : '☀️';
 }
 function toggleTheme(){
-  const cur = document.documentElement.getAttribute("data-theme") || "dark";
-  const next = cur === "dark" ? "light" : "dark";
-  localStorage.setItem("sv_theme", next);
-  applyTheme(next);
+  const next = (document.documentElement.getAttribute('data-theme') || 'light') === 'dark' ? 'light' : 'dark';
+  currentTheme = next; localStorage.setItem('sv_theme', next); applyTheme(next);
+}
+function initTheme(){
+  let saved = localStorage.getItem('sv_theme');
+  if(!saved) saved = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  currentTheme = saved; applyTheme(saved);
 }
 
-// ===== Main =====
-const API = "";
-let cfg = {};
-let apiToken = localStorage.getItem("sv_api_token") || "";
-
-async function apiFetch(url, options={}){
-  const headers = Object.assign({}, options.headers || {});
-  if(apiToken) headers["Authorization"] = "Bearer " + apiToken;
-  return fetch(url, Object.assign({}, options, {headers}));
+// ===== Nav =====
+let currentNav = 'dash';
+function switchNav(nav){
+  currentNav = nav;
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
+  document.querySelector('.nav-item[onclick="switchNav(\''+nav+'\')"]').classList.add('active');
+  document.querySelectorAll('.tab-panel').forEach(el=>el.classList.remove('active'));
+  document.getElementById('tab-'+nav).classList.add('active');
+  document.getElementById('pageTitle').textContent = t('nav_'+nav);
+  toggleSidebar(true);
+  if(nav==='dash'){ loadInfo(); loadLogDates(); }
+  if(nav==='data'){ loadData(); }
+  if(nav==='api'||nav==='settings'){ /* handled by subtab */ }
+}
+function switchSubTab(name){
+  document.querySelectorAll('.subtab').forEach(el=>el.classList.remove('active'));
+  document.querySelector('.subtab[onclick="switchSubTab(\''+name+'\')"]').classList.add('active');
+  document.querySelectorAll('.subpanel').forEach(el=>el.classList.remove('active'));
+  document.getElementById('sub-'+name).classList.add('active');
+  if(name==='api') loadApiDoc();
+}
+function toggleSidebar(forceClose){
+  const sb = document.getElementById('sidebar');
+  if(forceClose){ sb.classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('show'); return; }
+  sb.classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('show');
 }
 
-async function initToken(){
-  try{
-    const r = await fetch(API + "/api/bootstrap");
-    const d = await r.json();
-    if(d.api_token){
-      apiToken = d.api_token;
-      localStorage.setItem("sv_api_token", apiToken);
-    }
-  }catch(e){ /* 忽略 */ }
+// ===== API helper =====
+const API = '';
+let apiToken = '';
+async function apiGet(path, qs){
+  const url = API + path + (qs ? (path.includes('?')?'&':'?')+qs : '');
+  const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + apiToken } });
+  return r.json();
+}
+async function apiPost(path, body){
+  const r = await fetch(API + path, { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+apiToken }, body: JSON.stringify(body||{}) });
+  return r.json();
 }
 
+// ===== Status / Info =====
 async function refreshStatus(){
-  const badge = document.getElementById("statusBadge");
-  badge.className = "badge"; badge.innerHTML = t("badge.detect") + "<span class='spinner'></span>";
+  const badge = document.getElementById('statusBadge');
+  badge.className = 'badge'; badge.innerHTML = t('badge_detect') + "<span class='spinner'></span>";
   try{
-    const r = await apiFetch(API + "/api/status");
-    const s = await r.json();
-    if(s.configured && s.has_token){
-      badge.className = "badge ok"; badge.textContent = t("badge.ok");
-      document.getElementById("setup").classList.remove("show");
-      loadData();
+    const boot = await (await fetch(API + '/api/bootstrap')).json();
+    if(boot.api_token){ apiToken = boot.api_token; }
+    // 顶部 badge = 整体健康指示（与仪表盘三组状态不冲突，只做摘要）
+    const s = await apiGet('/api/info');
+    const st = s.strava || {};
+    const db = s.db || {};
+    if(!st.configured){
+      badge.className = 'badge warn'; badge.textContent = t('badge_noConfig');
+    } else if(st.has_token && (db.activities||0) > 0){
+      badge.className = 'badge ok'; badge.textContent = t('badge_ok');
     } else {
-      badge.className = "badge warn"; badge.textContent = t("badge.noConfig");
-      document.getElementById("setup").classList.add("show");
-      document.getElementById("statsGrid").style.display = "none";
-      document.getElementById("weeklyPanel").style.display = "none";
+      badge.className = 'badge warn'; badge.textContent = t('badge_attention');
     }
-  }catch(e){ badge.className="badge warn"; badge.textContent=t("badge.fail"); }
+    // 只要配置了凭据就加载仪表盘 + 数据（读本地 DB，不依赖 token）
+    if(st.configured){
+      loadInfo();
+      if(currentNav==='data') loadData();
+    }
+  }catch(e){ badge.className='badge warn'; badge.textContent=t('badge_fail'); }
 }
 
-async function loadData(){
-  document.getElementById("statsGrid").style.display = "grid";
-  document.getElementById("statsPanel").style.display = "block";
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth()+1).padStart(2,"0");
-  let periodStart = `${y}-01-01`;
-  if(period === "month") periodStart = `${y}-${m}-01`;
+async function loadInfo(){
+  const grids = { strava: document.getElementById('statStrava'), db: document.getElementById('statDb'), agent: document.getElementById('statAgent') };
   try{
-    const r = await apiFetch(API + `/api/stats?start=${periodStart}`);
-    const s = await r.json();
-    if(s.error){ return; }
-    document.getElementById("cRides").textContent = s.total_rides;
-    document.getElementById("cDist").textContent = s.total_distance_km;
-    document.getElementById("cDur").textContent = s.total_duration_h;
-    document.getElementById("cElev").textContent = s.total_elevation_m;
-    renderWeekly(s.weekly||[]);
-    document.getElementById("weeklyPanel").style.display = "block";
-  }catch(e){}
-  try{
-    const r = await apiFetch(API + "/api/activities?type=Ride&limit=10");
-    const d = await r.json();
-    if(d.activities){
-      const rides = d.activities.slice(0,10);
-      const tbody = document.getElementById("recentTable").querySelector("tbody");
-      tbody.innerHTML = rides.map(a=>{
-        const date = (a.start_date||"").slice(0,10);
-        const km = ((a.distance||0)/1000).toFixed(1);
-        const h = ((a.moving_time||0)/3600).toFixed(1);
-        const spd = ((a.average_speed||0)*3.6).toFixed(1);
-        const el = Math.round(a.total_elevation_gain||0);
-        return `<tr><td>${date}</td><td>${escapeHtml(a.name||"")}</td><td>${km} km</td><td>${h} h</td><td>${spd} km/h</td><td>${el} m</td></tr>`;
-      }).join("");
-    }
-  }catch(e){}
+    const s = await apiGet('/api/info');
+    const st = s.strava || {};
+    const db = s.db || {};
+    const ag = s.agent || {};
+    // Strava API 状态
+    grids.strava.innerHTML = [
+      {k:t('stat_configured'), v:(st.configured ? '✓' : '✗')},
+      {k:t('stat_token'), v:(st.has_token ? '✓' : (st.token_error||'✗'))},
+      {k:t('stat_sync'), v:(st.last_sync||'—').replace('T',' ').slice(0,19)},
+      {k:t('stat_athlete'), v:(st.athlete_id||'—')},
+    ].map(r=>`<div class="stat-card"><div class="k">${r.k}</div><div class="v">${escapeHtml(r.v)}</div></div>`).join('');
+    // 本地数据库状态
+    grids.db.innerHTML = [
+      {k:t('stat_activities'), v:db.activities||0},
+      {k:t('stat_dbsize'), v:fmtBytes(db.size_bytes||0)},
+      {k:t('stat_dbpath'), v:(db.path||'—')},
+    ].map(r=>`<div class="stat-card"><div class="k">${r.k}</div><div class="v">${escapeHtml(r.v)}</div></div>`).join('');
+    // Agent 外部调用状态
+    grids.agent.innerHTML = [
+      {k:t('stat_apitoken'), v:(ag.api_token ? '✓' : '✗')},
+      {k:t('stat_calls'), v:ag.call_count||0},
+      {k:t('stat_lastcall'), v:(ag.last_call||'—').replace('T',' ').slice(0,19)},
+      {k:t('stat_port'), v:s.port||'20127'},
+      {k:t('stat_version'), v:s.version||'—'},
+    ].map(r=>`<div class="stat-card"><div class="k">${r.k}</div><div class="v">${escapeHtml(r.v)}</div></div>`).join('');
+  }catch(e){
+    Object.values(grids).forEach(g=>g.innerHTML = `<div class="stat-card"><div class="k">${t('stat_error')}</div><div class="v">${escapeHtml(e.message)}</div></div>`);
+  }
+}
+function fmtBytes(b){
+  if(b>=1048576) return (b/1048576).toFixed(1)+' MB';
+  if(b>=1024) return (b/1024).toFixed(1)+' KB';
+  return b+' B';
 }
 
-let period = "year";
+// ===== Data =====
+let period = 'year';
 function setPeriod(p){
   period = p;
-  document.getElementById("periodYear").style.borderColor = p==="year" ? "var(--brand)" : "var(--border)";
-  document.getElementById("periodYear").style.color = p==="year" ? "var(--brand)" : "var(--text)";
-  document.getElementById("periodMonth").style.borderColor = p==="month" ? "var(--brand)" : "var(--border)";
-  document.getElementById("periodMonth").style.color = p==="month" ? "var(--brand)" : "var(--text)";
+  document.getElementById('periodYear').classList.toggle('active', p==='year');
+  document.getElementById('periodMonth').classList.toggle('active', p==='month');
   loadData();
 }
-
+function periodStart(){
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth()+1).padStart(2,'0');
+  return period === 'month' ? `${y}-${m}-01` : `${y}-01-01`;
+}
+async function loadData(){
+  try{
+    const start = periodStart();
+    const s = await apiGet('/api/stats', `start=${start}`);
+    if(!s.error){
+      document.getElementById('cRides').textContent = s.total_rides;
+      document.getElementById('cDist').textContent = s.total_distance_km;
+      document.getElementById('cDur').textContent = s.total_duration_h;
+      document.getElementById('cElev').textContent = s.total_elevation_m;
+      renderWeekly(s.weekly||[]);
+    }
+  }catch(e){}
+  await loadActivities();
+}
 function renderWeekly(weeks){
   const max = Math.max(...weeks.map(w=>w.dist_km), 1);
-  document.getElementById("weeklyChart").innerHTML =
+  document.getElementById('weeklyChart').innerHTML =
     weeks.slice(-8).map(w=>{
       const pct = (w.dist_km/max*100).toFixed(1);
       return `<div style="margin-bottom:10px">
@@ -355,49 +466,192 @@ function renderWeekly(weeks){
         </div>
         <div class="bar"><div style="width:${pct}%"></div></div>
       </div>`;
-    }).join("") || `<div style="color:var(--muted);font-size:13px">${t("badge.empty")}</div>`;
+    }).join('') || `<div style="color:var(--muted);font-size:13px">${t('empty')}</div>`;
 }
-
-async function saveConfig(){
-  const btn = document.getElementById("saveBtn");
-  btn.disabled = true; btn.innerHTML = t("setup.saving");
-  const msg = document.getElementById("setupMsg");
+let allActivities = [];
+let page = 1;
+const PAGE_SIZE = 10;
+async function loadActivities(){
   try{
-    const r = await apiFetch(API + "/api/config", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({
-        client_id: document.getElementById("client_id").value,
-        client_secret: document.getElementById("client_secret").value,
-        refresh_token: document.getElementById("refresh_token").value,
-      })
-    });
-    const d = await r.json();
-    if(d.ok){ msg.textContent = t("setup.ok"); setTimeout(refreshStatus, 800); }
-    else msg.textContent = t("setup.fail") + (d.error||"");
-  }catch(e){ msg.textContent = t("setup.fail") + e.message; }
-  btn.disabled = false; btn.innerHTML = t("setup.save");
+    const d = await apiGet('/api/activities', 'type=Ride&limit=200');
+    if(d.activities){
+      allActivities = d.activities;
+      page = 1;
+      renderActivities();
+    }
+  }catch(e){}
 }
+function renderActivities(){
+  const tbody = document.getElementById('recentTable').querySelector('tbody');
+  const total = allActivities.length;
+  const pages = Math.max(1, Math.ceil(total/PAGE_SIZE));
+  if(page>pages) page=pages;
+  const slice = allActivities.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
+  tbody.innerHTML = slice.map(a=>{
+    const date = (a.start_date_local||a.start_date||'').slice(0,10);
+    const km = ((a.distance||0)/1000).toFixed(1);
+    const h = ((a.moving_time||0)/3600).toFixed(1);
+    const spd = ((a.average_speed||0)*3.6).toFixed(1);
+    const el = Math.round(a.total_elevation_gain||0);
+    return `<tr><td>${date}</td><td>${escapeHtml(a.name||'')}</td><td>${km} km</td><td>${h} h</td><td>${spd} km/h</td><td>${el} m</td></tr>`;
+  }).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--muted)">${t('empty')}</td></tr>`;
+  const pager = document.getElementById('pager');
+  if(pages>1){
+    pager.style.display='flex';
+    document.getElementById('prevPage').disabled = page<=1;
+    document.getElementById('nextPage').disabled = page>=pages;
+    document.getElementById('pagerInfo').textContent = `${page}/${pages}`;
+  } else pager.style.display='none';
+}
+function changePage(d){ page+=d; renderActivities(); }
 
-function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
-
-async function doSync(){
-  const btn = document.getElementById("syncBtn");
-  const info = document.getElementById("syncInfo");
-  btn.disabled = true; btn.textContent = t("panel.syncing");
+// ===== Sync =====
+async function syncNow(){
+  const el = document.getElementById('dashMsg') || document.getElementById('dataMsg');
+  if(el) el.textContent = t('syncing');
   try{
-    const r = await apiFetch(API + "/api/sync");
-    const d = await r.json();
+    const d = await apiPost('/api/sync');
     if(d.ok){
-      info.textContent = t("panel.syncDone") + ` (${d.new} new / ${d.activities} total)`;
-      loadData();
-    } else info.textContent = t("panel.syncFail") + " " + (d.error||"");
-  }catch(e){ info.textContent = t("panel.syncFail") + " " + e.message; }
-  btn.disabled = false; btn.innerHTML = t("panel.syncNow");
+      const msg = t('sync_done') + ` (${d.new} new / ${d.activities} total)`;
+      if(el) el.textContent = msg;
+      loadInfo(); if(currentNav==='data') loadData();
+    } else if(el) el.textContent = t('sync_fail') + ' ' + (d.error||'');
+  }catch(e){ if(el) el.textContent = t('sync_fail') + ' ' + e.message; }
 }
 
+// ===== Logs =====
+async function loadLogDates(){
+  const sel = document.getElementById('logDate');
+  sel.innerHTML = `<option value="" ${t('current')==='Current'?'':'selected'}>${t('current')}</option>`;
+  try{
+    const d = await apiGet('/api/logs/list', 'source=strava');
+    (d.dates||[]).forEach(x=>{
+      const o = document.createElement('option');
+      o.value = x.date; o.textContent = x.display; sel.appendChild(o);
+    });
+    loadLogs();
+  }catch(e){ loadLogs(); }
+}
+async function loadLogs(){
+  const view = document.getElementById('logView');
+  const info = document.getElementById('logInfo');
+  view.textContent = t('load_log');
+  const date = document.getElementById('logDate').value;
+  try{
+    const d = await apiGet('/api/logs', `source=strava&date=${encodeURIComponent(date)}&tail=500`);
+    view.textContent = d.content || t('no_log');
+    info.textContent = t('log_fmt', { src:'Strava', disp:d.display||t('current'), total:d.total||0 });
+  }catch(e){ view.textContent = t('sync_fail') + ' ' + e.message; }
+}
+function downloadLog(){
+  const date = document.getElementById('logDate').value;
+  window.open(`${API}/api/logs/download?source=strava&date=${encodeURIComponent(date)}&token=${encodeURIComponent(apiToken)}`, '_blank');
+}
+
+// ===== Token =====
+async function recreateToken(){
+  const el = document.getElementById('dashMsg') || document.getElementById('apiTokenMsg');
+  if(el){ el.style.display='block'; el.textContent = t('token_creating'); }
+  try{
+    const d = await apiPost('/api/token/recreate');
+    if(d.ok){
+      apiToken = d.api_token;
+      if(el) el.textContent = t('token_done') + ' ' + d.api_token;
+    } else if(el) el.textContent = t('token_fail') + ' ' + (d.error||'');
+  }catch(e){ if(el) el.textContent = t('token_fail') + ' ' + e.message; }
+}
+async function viewToken(){
+  const el = document.getElementById('apiTokenMsg');
+  try{
+    const d = await apiGet('/api/token/view');
+    el.style.display='block'; el.textContent = t('view_token') + ': ' + (d.api_token||'');
+  }catch(e){ el.style.display='block'; el.textContent = t('token_fail') + ' ' + e.message; }
+}
+
+// ===== Config / API Doc / Export =====
+async function loadApiDoc(){
+  const box = document.getElementById('apiDoc');
+  try{
+    const d = await apiGet('/api/doc', 'lang=' + (currentLang==='zh'?'zh':'en'));
+    box.textContent = d.doc || '';
+  }catch(e){ box.textContent = t('sync_fail') + ' ' + e.message; }
+}
+async function copyApiDoc(){
+  const box = document.getElementById('apiDoc');
+  try{
+    await navigator.clipboard.writeText(box.textContent);
+    const msg = document.getElementById('apiTokenMsg');
+    msg.style.display='block'; msg.textContent = t('api_copied');
+  }catch(e){}
+}
+async function saveConfig(){
+  const btn = document.getElementById('saveBtn');
+  const msg = document.getElementById('setupMsg');
+  btn.disabled = true; btn.textContent = t('setup_saving');
+  try{
+    const d = await apiPost('/api/config', {
+      client_id: document.getElementById('client_id').value,
+      client_secret: document.getElementById('client_secret').value,
+      redirect_uri: document.getElementById('redirect_uri').value,
+    });
+    if(d.ok){ msg.textContent = t('setup_ok'); setTimeout(refreshStatus, 800); }
+    else msg.textContent = t('setup_fail') + (d.error||'');
+  }catch(e){ msg.textContent = t('setup_fail') + e.message; }
+  btn.disabled = false; btn.textContent = t('setup_save');
+}
+
+// ===== Strava OAuth =====
+async function connectStrava(){
+  const msg = document.getElementById('setupMsg');
+  // 先保存 client_id/client_secret/redirect_uri
+  try{
+    const d = await apiPost('/api/config', {
+      client_id: document.getElementById('client_id').value,
+      client_secret: document.getElementById('client_secret').value,
+      redirect_uri: document.getElementById('redirect_uri').value,
+    });
+  }catch(e){}
+  try{
+    const r = await apiGet('/api/oauth/start');
+    if(r.url){
+      msg.textContent = t('setup_oauthOpen');
+      // 打开独立授权窗口
+      const win = window.open(r.url, '_blank', 'width=520,height=700');
+      if(!win){
+        // 弹窗被拦截：降级为当前窗口打开
+        msg.textContent = t('setup_oauthBlocked');
+        window.location.href = r.url;
+        return;
+      }
+      // 轮询检测授权完成（回调成功会保存 token 并清除 oauth_state）
+      let tries = 0;
+      const timer = setInterval(async ()=>{
+        tries++;
+        try{
+          const info = await apiGet('/api/info');
+          if(info.strava && info.strava.has_token){
+            clearInterval(timer);
+            msg.textContent = t('setup_ok');
+            refreshStatus();
+            if(win && !win.closed) setTimeout(()=>win.close(), 500);
+          }
+        }catch(e){}
+        if(tries > 120){ clearInterval(timer); msg.textContent = t('setup_oauthTimeout'); }
+      }, 1000);
+    } else {
+      msg.textContent = t('setup_fail') + (r.error||'');
+    }
+  }catch(e){ msg.textContent = t('setup_fail') + e.message; }
+}
+function exportCsv(){ window.open(`${API}/api/export?fmt=csv&token=${encodeURIComponent(apiToken)}`, '_blank'); }
+function exportJson(){ window.open(`${API}/api/export?fmt=json&token=${encodeURIComponent(apiToken)}`, '_blank'); }
+
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ===== Init =====
 initTheme();
 applyI18n();
-initToken().then(() => refreshStatus());
+refreshStatus();
 </script>
 </body>
 </html>

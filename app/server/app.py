@@ -4,19 +4,30 @@ Strava Panel — fnOS 后端服务 (零依赖, 纯标准库)
 凭据管理 + Token 自动刷新 + SQLite 本地缓存 + 骑行数据 API
 
 数据目录结构 (TRIM_PKGVAR / 或 --data):
-  strava.conf           # client_id / client_secret / refresh_token
+  strava.conf           # client_id / client_secret / refresh_token / api_token
   strava_tokens.json    # 缓存的 access_token (自动刷新)
   strava.db             # SQLite 缓存 (activities 表)
+  strava.log            # 应用运行日志 (cmd/main 重定向), 按日期归档到 logs/
 
-API:
-  GET  /api/status        # 凭据/授权/缓存状态
+API (除 bootstrap/status 外均需 Authorization: Bearer <api_token>):
+  GET  /api/bootstrap     # 免认证: 返回 api_token
+  GET  /api/status        # 免认证: 凭据/授权/缓存状态
+  GET  /api/info          # 服务状态 (版本/端口/数据统计/api_token)
+  GET  /api/config        # 读取非敏感配置
   POST /api/config        # 保存凭据 (JSON)
   GET  /api/stats         # 骑行统计 (读 SQLite 缓存，快)
-  GET  /api/activities    # 最近活动列表 (读缓存)
   GET  /api/weekly        # 每周聚合
+  GET  /api/activities    # 最近活动列表 (读缓存)
   GET  /api/sync          # 手动触发 Strava→SQLite 同步
+  POST /api/sync          # 同上 (POST)
   GET  /api/export?fmt=json|csv   # 导出全量数据 (给 agent)
-  GET  /                   # 前端面板
+  GET  /api/token/view    # 查看当前 api_token
+  POST /api/token/recreate # 重新生成 api_token
+  GET  /api/doc?lang=zh|en # API 使用指南 (Markdown)
+  GET  /api/logs/list     # 日志来源/可查看日期
+  GET  /api/logs          # 读取日志 (source/date/tail)
+  GET  /api/logs/download # 下载日志
+  GET  /                  # 前端面板
 """
 import csv
 import io
@@ -92,6 +103,8 @@ def save_config(cfg):
         f"refresh_token={cfg.get('refresh_token','')}",
         f"athlete_id={cfg.get('athlete_id','')}",
         f"api_token={cfg.get('api_token','')}",
+        f"oauth_state={cfg.get('oauth_state','')}",
+        f"redirect_uri={cfg.get('redirect_uri','')}",
     ]
     CONF_FILE.write_text("\n".join(lines) + "\n")
     os.chmod(CONF_FILE, 0o600)  # 权限 600，仅属主可读
@@ -123,6 +136,85 @@ def api_token_valid(token):
     cfg = load_config()
     expected = cfg.get("api_token", "")
     return token == expected
+
+
+def recreate_api_token():
+    """重新生成 API token（写入 strava.conf，立即生效）."""
+    cfg = load_config()
+    new = secrets.token_urlsafe(32)
+    cfg["api_token"] = new
+    save_config(cfg)
+    return new
+
+
+# ---------- Strava OAuth 授权 ----------
+OAUTH_AUTHORIZE_URL = "https://www.strava.com/oauth/authorize"
+OAUTH_SCOPE = "read,activity:read_all"
+
+
+def get_redirect_uri():
+    """回调地址：优先用配置的，否则默认 http://localhost/（用户需在 Strava 设置里注册）."""
+    cfg = load_config()
+    uri = cfg.get("redirect_uri", "").strip()
+    if uri:
+        return uri
+    # 默认：面板回调（需在 Strava API 设置添加 http://<NAS-IP>:20127/oauth/callback）
+    port = int(os.environ.get("PORT", "20127"))
+    host = os.environ.get("NAS_IP", "")
+    if host:
+        return f"http://{host}:{port}/oauth/callback"
+    return "http://localhost/"
+
+
+def build_oauth_url():
+    """生成 Strava OAuth 授权 URL，并保存 state 供回调校验."""
+    cfg = load_config()
+    client_id = cfg.get("client_id", "").strip()
+    if not client_id:
+        return None, "请先填写 Client ID"
+    state = secrets.token_urlsafe(16)
+    cfg["oauth_state"] = state
+    save_config(cfg)
+    redirect_uri = get_redirect_uri()
+    params = urllib.parse.urlencode({
+        "client_id": client_id,
+        "response_type": "code",
+        "redirect_uri": redirect_uri,
+        "approval_prompt": "force",
+        "scope": OAUTH_SCOPE,
+        "state": state,
+    })
+    return f"{OAUTH_AUTHORIZE_URL}?{params}", redirect_uri
+
+
+def exchange_code(code):
+    """用 authorization code 换 access_token + refresh_token，保存凭据."""
+    cfg = load_config()
+    data = urllib.parse.urlencode({
+        "client_id": cfg.get("client_id", ""),
+        "client_secret": cfg.get("client_secret", ""),
+        "code": code,
+        "grant_type": "authorization_code",
+    }).encode()
+    req = urllib.request.Request(STRAVA_AUTH_URL, data=data, method="POST")
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        r = json.loads(resp.read().decode())
+    cfg["refresh_token"] = r.get("refresh_token", "")
+    if r.get("athlete"):
+        cfg["athlete_id"] = str(r["athlete"].get("id", ""))
+    # 保存 access token
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    tok = {
+        "access_token": r["access_token"],
+        "refresh_token": r.get("refresh_token", ""),
+        "scope": r.get("scope", ""),
+        "expires_at": r.get("expires_at"),
+    }
+    TOKEN_FILE.write_text(json.dumps(tok))
+    os.chmod(TOKEN_FILE, 0o600)
+    cfg["oauth_state"] = ""
+    save_config(cfg)
+    return True, None
 
 
 # ---------- Strava token ----------
@@ -206,6 +298,292 @@ def sync_from_strava(token, limit_pages=20):
     return {"activities": len(all_acts), "new": added, "page": page - 1}
 
 
+def ensure_local_data():
+    """确保本地 DB 有数据：若为空则尝试从 Strava 同步（best-effort）。
+
+    数据接口优先读本地 SQLite，只有本地为空时才尝试调 Strava。
+    Strava token 失效/未配置时静默降级，不影响读本地缓存。
+    返回 (ok, err)：ok 表示已保证本地有数据（或失败但可继续读本地）。
+    """
+    if db.count() > 0:
+        return True, None
+    try:
+        tok, err = get_access_token()
+        if not tok:
+            return False, err or "未配置"
+        sync_from_strava(tok)
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+
+# ---------- 服务状态 / 日志 ----------
+LOG_FILE = DATA_DIR / "strava.log"
+LOG_ARCHIVE_DIR = DATA_DIR / "logs"
+# 日志来源: 名称 -> 文件
+LOG_SOURCES = {
+    "strava": LOG_FILE,
+}
+
+
+def _archive_date():
+    now = datetime.datetime.now()
+    return now.strftime("%Y%m%d"), now.strftime("%Y-%m-%d")
+
+
+def _fmt_date(compact):
+    if len(compact) == 8:
+        return f"{compact[:4]}-{compact[4:6]}-{compact[6:]}"
+    return compact
+
+
+def archive_logs():
+    """启动时归档: 把非当天的日志文件滚到 LOG_ARCHIVE_DIR/strava.log.YYYYMMDD.
+
+    规则: 当前日志文件若修改日期不是今天, 则归档 (移动) 到归档目录,
+    并清空当前文件, 让新日志只记录当天. 避免单文件无限增长.
+    """
+    today_compact, _ = _archive_date()
+    for name, path in LOG_SOURCES.items():
+        try:
+            if not path.exists():
+                continue
+            mtime = datetime.datetime.fromtimestamp(path.stat().st_mtime)
+            mday = mtime.strftime("%Y%m%d")
+            if mday == today_compact:
+                continue
+            LOG_ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+            dest = LOG_ARCHIVE_DIR / f"{name}.log.{mday}"
+            content = b""
+            try:
+                content = path.read_bytes()
+            except OSError:
+                content = b""
+            if dest.exists():
+                with dest.open("ab") as f:
+                    f.write(content)
+            else:
+                dest.write_bytes(content)
+            path.write_bytes(b"")
+        except OSError:
+            continue
+
+
+def list_log_dates(name):
+    """返回某日志来源可用的日期列表 (含归档 + 当前). 倒序."""
+    dates = []
+    base = LOG_SOURCES.get(name)
+    if not base:
+        return dates
+    try:
+        if LOG_ARCHIVE_DIR.exists():
+            for f in LOG_ARCHIVE_DIR.glob(f"{name}.log.[0-9]*"):
+                m = re.search(rf"{name}\.log\.(\d{{8}})$", f.name)
+                if m:
+                    d = m.group(1)
+                    dates.append((d, _fmt_date(d)))
+    except OSError:
+        pass
+    try:
+        if base.exists() and base.stat().st_size > 0:
+            dates.append(_archive_date())
+    except OSError:
+        pass
+    seen = set()
+    result = []
+    for compact, disp in sorted(dates, key=lambda x: x[0], reverse=True):
+        if compact not in seen:
+            seen.add(compact)
+            result.append({"date": compact, "display": disp})
+    return result
+
+
+def read_logs(name, date=None, tail=500):
+    """读取日志内容. name: strava. date: YYYYMMDD 或 None(当前). tail: 返回最后 N 行."""
+    base = LOG_SOURCES.get(name)
+    if not base:
+        return None
+    target = base
+    display = "当前"
+    if date:
+        compact = date.replace("-", "")
+        target = LOG_ARCHIVE_DIR / f"{name}.log.{compact}"
+        display = _fmt_date(compact)
+    try:
+        if not target.exists():
+            return {"source": name, "date": date or "current", "display": display,
+                    "total": 0, "content": ""}
+        raw = target.read_text(encoding="utf-8", errors="replace")
+        lines = raw.splitlines()
+        if tail and tail > 0 and len(lines) > tail:
+            lines = lines[-tail:]
+        content = "\n".join(lines)
+        return {
+            "source": name,
+            "date": date or "current",
+            "display": display,
+            "total": len(raw.splitlines()),
+            "content": content,
+        }
+    except OSError as e:
+        return {"source": name, "date": date or "current", "display": display,
+                "total": 0, "content": f"读取日志失败: {e}"}
+
+
+def get_service_info():
+    """返回服务状态，分三组: strava (API 状态) / db (本地数据库状态) / agent (外部调用状态)."""
+    cfg = load_config()
+    tok, err = get_access_token()
+    # 本地数据库文件信息
+    db_size = DB_FILE.stat().st_size if DB_FILE.exists() else 0
+    # agent 外部调用统计
+    try:
+        agent_count = int(db.get_meta("agent_call_count") or 0)
+    except (TypeError, ValueError):
+        agent_count = 0
+    agent_last = db.get_meta("agent_last_call")
+    return {
+        # Strava API 状态
+        "strava": {
+            "configured": has_credentials(),
+            "has_token": bool(tok),
+            "token_error": err,
+            "athlete_id": cfg.get("athlete_id"),
+            "last_sync": db.get_meta("last_sync"),
+        },
+        # 本地数据库状态
+        "db": {
+            "activities": db.count(),
+            "size_bytes": db_size,
+            "path": str(DB_FILE),
+        },
+        # Agent 外部调用状态
+        "agent": {
+            "api_token": bool(get_or_create_api_token()),
+            "call_count": agent_count,
+            "last_call": agent_last,
+        },
+        # 通用
+        "version": APP_VERSION or "",
+        "port": int(os.environ.get("PORT", "20127")),
+    }
+
+
+def record_agent_call():
+    """记录一次 agent 外部 API 调用（计数 + 最后调用时间），持久化到 DB meta."""
+    try:
+        n = 0
+        try:
+            n = int(db.get_meta("agent_call_count") or 0)
+        except (TypeError, ValueError):
+            n = 0
+        db.set_meta("agent_call_count", str(n + 1))
+        db.set_meta("agent_last_call", datetime.datetime.now().isoformat(timespec="seconds"))
+    except Exception:
+        pass
+
+
+def build_api_doc(lang="zh"):
+    """生成 API 使用指南 Markdown 文档 (中/英)."""
+    base = "http://<NAS-IP>:20127"
+    en = lang != "zh"
+    if en:
+        return (
+            "# Strava Panel Admin API Guide\n\n"
+            "> Port **20127**. All endpoints except `/api/bootstrap`/`/api/status` "
+            "require `Authorization: Bearer <api_token>`. Get/create the token in the "
+            "panel (Dashboard → Create Token, or Settings → API).\n\n"
+            "## Endpoints\n\n"
+            "```bash\n"
+            'BASE="http://<NAS-IP>:20127"\n'
+            'export TOKEN="<your-token>"\n'
+            'AUTH="Authorization: Bearer $TOKEN"\n'
+            "\n"
+            "# 1. Get token (no auth)\n"
+            'curl -s "$BASE/api/bootstrap"\n'
+            "\n"
+            "# 2. Service status (no auth)\n"
+            'curl -s "$BASE/api/status"\n'
+            "\n"
+            "# 3. Riding stats (date range optional)\n"
+            'curl -s -H "$AUTH" "$BASE/api/stats?start=2026-01-01&end=2026-01-31"\n'
+            "\n"
+            "# 4. Weekly aggregation\n"
+            'curl -s -H "$AUTH" "$BASE/api/weekly"\n'
+            "\n"
+            "# 5. Activities list (filter)\n"
+            'curl -s -H "$AUTH" "$BASE/api/activities?type=Ride&limit=10"\n'
+            "\n"
+            "# 6. Trigger Strava→SQLite sync\n"
+            'curl -s -H "$AUTH" "$BASE/api/sync"\n'
+            "\n"
+            "# 7. Export all data (json/csv)\n"
+            'curl -s -H "$AUTH" "$BASE/api/export?fmt=json"\n'
+            'curl -s -H "$AUTH" "$BASE/api/export?fmt=csv" -o strava.csv\n'
+            "\n"
+            "# 8. Logs (console)\n"
+            'curl -s -H "$AUTH" "$BASE/api/logs/list?source=strava"\n'
+            'curl -s -H "$AUTH" "$BASE/api/logs?source=strava&tail=200"\n'
+            'curl -s -H "$AUTH" -o strava.log "$BASE/api/logs/download?source=strava"\n'
+            "\n"
+            "# 9. Token management\n"
+            'curl -s -H "$AUTH" "$BASE/api/token/view"\n'
+            'curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" -d "{}" "$BASE/api/token/recreate"\n'
+            "\n"
+            "# 10. This doc\n"
+            'curl -s -H "$AUTH" "$BASE/api/doc"\n'
+            "```\n\n"
+            "> Parse JSON with `python3 -m json.tool` (no jq needed).\n"
+        )
+    return (
+        "# Strava Panel 管理面板 API 指南\n\n"
+        "> 面板端口 **20127**。除 `/api/bootstrap` 和 `/api/status` 外，所有接口需 "
+        "`Authorization: Bearer <api_token>`。token 在面板「仪表板 → 创建 token」或「设置 → API」查看/生成。\n\n"
+        "## 各接口\n\n"
+        "```bash\n"
+        'BASE="http://<NAS-IP>:20127"\n'
+        'export TOKEN="<your-token>"\n'
+        'AUTH="Authorization: Bearer $TOKEN"\n'
+        "\n"
+        "# 1. 获取 token（免认证）\n"
+        'curl -s "$BASE/api/bootstrap"\n'
+        "\n"
+        "# 2. 服务状态（免认证）\n"
+        'curl -s "$BASE/api/status"\n'
+        "\n"
+        "# 3. 骑行统计（可带日期范围）\n"
+        'curl -s -H "$AUTH" "$BASE/api/stats?start=2026-01-01&end=2026-01-31"\n'
+        "\n"
+        "# 4. 每周聚合\n"
+        'curl -s -H "$AUTH" "$BASE/api/weekly"\n'
+        "\n"
+        "# 5. 活动列表（支持过滤）\n"
+        'curl -s -H "$AUTH" "$BASE/api/activities?type=Ride&limit=10"\n'
+        "\n"
+        "# 6. 触发 Strava→SQLite 同步\n"
+        'curl -s -H "$AUTH" "$BASE/api/sync"\n'
+        "\n"
+        "# 7. 导出全量数据（json/csv）\n"
+        'curl -s -H "$AUTH" "$BASE/api/export?fmt=json"\n'
+        'curl -s -H "$AUTH" "$BASE/api/export?fmt=csv" -o strava.csv\n'
+        "\n"
+        "# 8. 日志（控制台）\n"
+        'curl -s -H "$AUTH" "$BASE/api/logs/list?source=strava"\n'
+        'curl -s -H "$AUTH" "$BASE/api/logs?source=strava&tail=200"\n'
+        'curl -s -H "$AUTH" -o strava.log "$BASE/api/logs/download?source=strava"\n'
+        "\n"
+        "# 9. token 管理\n"
+        'curl -s -H "$AUTH" "$BASE/api/token/view"\n'
+        'curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" -d "{}" "$BASE/api/token/recreate"\n'
+        "\n"
+        "# 10. 本指南\n"
+        'curl -s -H "$AUTH" "$BASE/api/doc"\n'
+        "```\n\n"
+        "> 解析 JSON 用 `python3 -m json.tool`（无需 jq）。\n"
+    )
+
+
+
 # ---------- HTTP server ----------
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
@@ -268,13 +646,47 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not token:
             token = self._get_qs().get("token")
         if not api_token_valid(token):
-            self._send_json({"error": "无效的 API token，请使用 Authorization: Bearer <token>"}, 401)
+            self._send_json({"error": "无效的 API token，请使用 Authorization: Bearer ***"}, 401)
             return False
+        # 记录一次 agent 外部调用（计数 + 最后调用时间）
+        record_agent_call()
         return True
 
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
         qs = self._get_qs()
+        # Strava OAuth 回调（免认证：Strava 授权后重定向到这里）
+        if path == "/oauth/callback":
+            code = qs.get("code", "")
+            state = qs.get("state", "")
+            cfg = load_config()
+            ok = False
+            err = ""
+            if not code:
+                err = "缺少授权 code"
+            elif not state or state != cfg.get("oauth_state", ""):
+                err = "state 校验失败（授权已过期或来自未知请求）"
+            else:
+                try:
+                    ok, err = exchange_code(code)
+                except Exception as e:
+                    err = str(e)
+            # 返回一个简单的成功/失败页，可自动关闭
+            if ok:
+                body = ("<html><body style='font-family:sans-serif;text-align:center;padding-top:80px'>"
+                        "<h2 style='color:#22c55e'>✓ Strava 授权成功</h2>"
+                        "<p>refresh_token 已保存。此窗口可关闭，返回面板查看。</p>"
+                        "<script>setTimeout(function(){window.close();},1500)</script></body></html>")
+            else:
+                body = (f"<html><body style='font-family:sans-serif;text-align:center;padding-top:80px'>"
+                        f"<h2 style='color:#ef4444'>✗ 授权失败</h2><p>{err}</p>"
+                        f"<p>请返回面板重试。</p></body></html>")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body.encode())))
+            self.end_headers()
+            self.wfile.write(body.encode())
+            return
         if path == "/api/bootstrap":
             # 免认证：返回 API token，供面板前端初始加载使用
             self._send_json({"api_token": get_or_create_api_token(), "configured": has_credentials()})
@@ -292,13 +704,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/stats":
             if not self._require_api_token():
                 return
-            tok, err = self._require_token()
-            if not tok:
-                return
             try:
-                # 确保缓存有数据
-                if db.count() == 0:
-                    sync_from_strava(tok)
+                # 优先读本地缓存；仅本地为空时才尝试 Strava 同步（降级不报错）
+                ensure_local_data()
                 stats = db.stats(start_date=qs.get("start"), end_date=qs.get("end"))
                 stats["weekly"] = db.weekly(start_date=qs.get("start"), end_date=qs.get("end"))
                 stats["last_sync"] = db.get_meta("last_sync")
@@ -308,24 +716,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/weekly":
             if not self._require_api_token():
                 return
-            tok, err = self._require_token()
-            if not tok:
-                return
             try:
-                if db.count() == 0:
-                    sync_from_strava(tok)
+                ensure_local_data()
                 self._send_json({"weekly": db.weekly(start_date=qs.get("start"), end_date=qs.get("end"))})
             except Exception as e:
                 self._send_json({"error": str(e)}, 500)
         elif path == "/api/activities":
             if not self._require_api_token():
                 return
-            tok, err = self._require_token()
-            if not tok:
-                return
             try:
-                if db.count() == 0:
-                    sync_from_strava(tok)
+                ensure_local_data()
                 acts = db.get_activities(
                     type_filter=qs.get("type"),
                     limit=int(qs.get("limit", 50)),
@@ -349,12 +749,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/export":
             if not self._require_api_token():
                 return
-            tok, err = self._require_token()
-            if not tok:
-                return
             try:
-                if db.count() == 0:
-                    sync_from_strava(tok)
+                ensure_local_data()
                 acts = db.get_activities(limit=100000)
                 fmt = qs.get("fmt", "json")
                 if fmt == "csv":
@@ -386,6 +782,78 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "client_id": cfg.get("client_id", ""),
                 "configured": has_credentials(),
             })
+        elif path == "/api/info":
+            # 服务状态（含版本/端口/api_token，供仪表板）
+            if not self._require_api_token():
+                return
+            self._send_json(get_service_info())
+        elif path == "/api/token/view":
+            if not self._require_api_token():
+                return
+            self._send_json({"api_token": get_or_create_api_token()})
+        elif path == "/api/oauth/start":
+            if not self._require_api_token():
+                return
+            url, redirect_uri = build_oauth_url()
+            if not url:
+                self._send_json({"error": redirect_uri}, 400)
+            else:
+                self._send_json({"url": url, "redirect_uri": redirect_uri})
+        elif path == "/api/doc":
+            if not self._require_api_token():
+                return
+            lang = qs.get("lang", "zh")
+            if lang not in ("zh", "en"):
+                lang = "zh"
+            self._send_json({"doc": build_api_doc(lang)})
+        elif path == "/api/logs/list":
+            if not self._require_api_token():
+                return
+            name = qs.get("source", "strava")
+            if name not in LOG_SOURCES:
+                name = "strava"
+            self._send_json({
+                "sources": list(LOG_SOURCES.keys()),
+                "dates": list_log_dates(name),
+                "current": _archive_date()[0],
+            })
+        elif path == "/api/logs":
+            if not self._require_api_token():
+                return
+            name = qs.get("source", "strava")
+            if name not in LOG_SOURCES:
+                name = "strava"
+            date = qs.get("date")
+            try:
+                tail = int(qs.get("tail", "500"))
+            except (TypeError, ValueError):
+                tail = 500
+            result = read_logs(name, date, tail)
+            if result is None:
+                self._send_json({"error": "未知日志来源"}, 404)
+            else:
+                self._send_json(result)
+        elif path == "/api/logs/download":
+            if not self._require_api_token():
+                return
+            name = qs.get("source", "strava")
+            if name not in LOG_SOURCES:
+                name = "strava"
+            date = qs.get("date")
+            result = read_logs(name, date, 0)
+            if result is None:
+                self._send_json({"error": "未知日志来源"}, 404)
+                return
+            fname = "strava.log"
+            if date:
+                fname = f"strava.log.{date.replace('-', '')}"
+            body = result.get("content", "").encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Disposition", f'attachment; filename="{fname}"')
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
         elif path == "/" or path == "":
             self._send_file("index.html")
         elif path.startswith("/static/"):
@@ -402,18 +870,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 data = json.loads(self._read_body())
                 with _lock:
                     cfg = load_config()
-                    for k in ("client_id", "client_secret", "refresh_token"):
+                    for k in ("client_id", "client_secret", "refresh_token", "redirect_uri"):
                         if data.get(k):
                             cfg[k] = str(data[k]).strip()
                     save_config(cfg)
                 tok, err = get_access_token()
-                # 验证通过后自动同步一次
+                # 有凭据且有 token 时自动同步一次
                 if tok:
                     try:
                         sync_from_strava(tok)
                     except Exception:
                         pass
-                self._send_json({"ok": bool(tok), "error": err, "token_ok": bool(tok)})
+                # 保存成功即返回 ok（未拿到 token 时 err 提示 token 状态）
+                self._send_json({"ok": True, "token_ok": bool(tok), "error": err})
             except Exception as e:
                 self._send_json({"error": str(e)}, 500)
         elif path == "/api/sync":
@@ -428,6 +897,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._send_json({"ok": True, **result})
             except Exception as e:
                 self._send_json({"error": str(e)}, 500)
+        elif path == "/api/token/recreate":
+            # 重新生成 API token（立即生效）
+            if not self._require_api_token():
+                return
+            self._send_json({"ok": True, "api_token": recreate_api_token()})
         else:
             self.send_error(404)
 
@@ -441,6 +915,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 def main():
     port = int(os.environ.get("PORT", "20127"))
+    # 启动时归档非当天的日志
+    archive_logs()
     # SO_REUSEADDR：避免频繁重启后 TIME_WAIT 导致 "Address already in use"
     # 必须在实例化前设置类属性（socketserver 在 __init__ 时 bind）
     socketserver.ThreadingTCPServer.allow_reuse_address = True

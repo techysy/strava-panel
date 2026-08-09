@@ -2,66 +2,29 @@
 
 ---
 
-## v1.2.1 (2026-08-08)
+## v2.0.0 (2026-08-10)
 
 ### 新增 / Added
 
-- **侧边栏导航 + 移动端汉堡菜单** — 参考飞牛官方 / Hermes Core / 9Router 风格重构 UI：
-  - 左侧边栏（品牌区 + 导航项 + 系统分组），激活项蓝色高亮 + 左侧蓝条
-  - 导航视图切换（仪表盘 / 骑行记录 / 配置），`switchNav()` 切换
-  - 移动端（≤768px）汉堡菜单：侧边栏滑出/收起 + 遮罩层
+- 🧭 **侧边栏 + 多 Tab 管理面板**：对齐 Hugo Blog 管理面板结构，重构为「仪表板 / 骑行数据 / 设置」三区
+- 📊 **三组服务状态卡片**：仪表板分「🔗 Strava API / 🗄️ 本地数据库 / 🤖 Agent 外部调用」三组展示
+  - Strava API：凭据、授权、最后同步、Athlete ID
+  - 本地数据库：缓存活动数、DB 大小、DB 路径
+  - Agent 外部调用：API token、调用次数、最后调用、端口、版本
+- 📜 **日志控制台**：读取 `strava.log`，支持按日期归档查看、刷新、下载（`/api/logs/list`、`/api/logs`、`/api/logs/download`），启动时自动按天归档到 `logs/`
+- 🔑 **token 管理**：`/api/token/view` 查看、`/api/token/recreate` 重新生成（立即生效，不再需重启）
+- 🤖 **API 使用指南**：`/api/doc?lang=zh|en` 自动生成 Markdown 文档，面板「设置 → API」可一键复制给 agent
+- 🗄️ **数据管理**：设置页新增同步 / 导出 CSV / 导出 JSON 入口
+- 🔗 **Strava OAuth 授权**：设置 → 凭据页「连接 Strava」按钮，在独立窗口完成 Strava 授权，授权后自动回填并保存 refresh_token（`/api/oauth/start` + `/oauth/callback`，含 state 校验）
+- 📄 **骑行数据页**：统计卡片 + 年度/月度切换 + 每周图表 + 最近骑行分页表格
 
 ### 变更 / Changed
 
-- 前端布局重构（`app/www/index.html`），保留原有 i18n / 日夜模式 / 数据统计功能
-
----
-
-## v1.2.0 (2026-08-01)
-
-### 新增 / Added
-
-- 🔐 **API Token 认证**：所有数据接口（`/api/stats`、`/api/activities`、`/api/weekly`、`/api/export`、`/api/sync`、`/api/config`）新增访问 token 保护。前端面板通过 `/api/bootstrap`（免认证）自动获取 token，agent 需用 `Authorization: Bearer <token>` 访问。
-- ⚙️ `api_token` 自动生成，存储在 `strava.conf`（权限 600）
-
-### 使用 / Usage
-
-```bash
-# 获取 token
-TOKEN=$(curl -s http://<NAS>:20127/api/bootstrap | jq -r '.api_token')
-# 带 token 访问
-curl -s -H "Authorization: Bearer $TOKEN" "http://<NAS>:20127/api/stats?start=2026-01-01"
-```
-
-### 兼容性 / Note
-
-- 未带 token 的 API 请求返回 **401**
-- 前端面板自动处理 token（无需手动配置），行为不变
-
----
-
-## v1.1.5 (2026-08-01)
-
-### 修复 / Fixes
-
-- **status 退出码**：修复 `status()` 在服务未运行时返回非零退出码（1），与 metacubexd/9router 一致。fnOS 依赖 status 退出码判断应用是否运行——之前 strava 的 status 在 stopped 时错误返回 0（被 fnOS 误判为 running），导致 fnOS 从不调用 `start`，服务无法自动启动
-
----
-
-## v1.1.4 (2026-08-01)
-
-### 修复 / Fixes
-
-- **SO_REUSEADDR**：app.py 设置 `ThreadingTCPServer.allow_reuse_address = True`，解决频繁重启后 TIME_WAIT 导致 `Address already in use` / 服务起不来的问题（fnOS 以应用用户重启时尤为明显）
-- cmd/main 增强诊断日志（记录 fnOS 调用参数 `$1`、环境变量、SRC_DIR 判定、启动过程）
-
----
-
-## v1.1.3 (2026-08-01)
-
-### 修复 / Fixes
-
-- cmd/main 增加诊断日志（`strava-diag.log`），记录 fnOS 传入的 TRIM 环境变量 + 启动错误，用于排查 fnOS 以应用用户启动失败的问题
+- **数据接口优先读本地 SQLite**：`/api/stats`、`/api/weekly`、`/api/activities`、`/api/export` 直接读本地缓存，不再依赖 Strava token；仅本地为空时才尝试调 Strava 同步（`ensure_local_data()` 静默降级）
+- **Agent 调用统计**：受保护的 `/api/*` 接口记录调用次数 + 最后调用时间（持久化到 DB meta），仪表板展示
+- **顶部状态标签简化**：改为整体健康指示（运行正常 ✓ / 需关注 / 未配置 / 连接失败），不再与仪表盘三组状态重复
+- 前端从单页 dashboard 重构为侧边栏多 Tab 结构，保留日夜主题 + 中/英 i18n
+- 骑行活动列表按 `start_date_local` 显示本地日期
 
 ---
 
