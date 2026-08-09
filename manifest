@@ -1,5 +1,5 @@
 appname               = strava
-version               = 1.2.5
+version               = 1.2.1
 display_name          = Strava Panel
 desc                  = Strava 骑行数据面板 — 凭据管理、Token 自动刷新、骑行统计可视化、日志控制台、Agent API
 arch                  = x86_64
