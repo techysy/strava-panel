@@ -32,9 +32,11 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang 
 .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:8px}
 .stat-group{margin-bottom:14px}
 .stat-group-title{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:6px}
-.stat-card{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:12px}
-.stat-card .k{font-size:11px;color:var(--muted);margin-bottom:4px}
-.stat-card .v{font-size:16px;font-weight:600;word-break:break-all}
+.stat-aggr{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:6px 14px}
+.stat-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)}
+.stat-row:last-child{border-bottom:none}
+.stat-row .k{font-size:12px;color:var(--muted);flex-shrink:0}
+.stat-row .v{font-size:13px;font-weight:600;text-align:right;word-break:break-all}
 .stat-badge{display:inline-block;font-size:12px;padding:3px 12px;border-radius:999px;font-weight:600}
 .stat-badge.ok{background:rgba(34,197,94,.15);color:var(--good)}
 .stat-badge.warn{background:rgba(252,76,2,.15);color:var(--brand)}
@@ -402,35 +404,36 @@ async function loadInfo(){
   const grids = { strava: document.getElementById('statStrava'), db: document.getElementById('statDb'), agent: document.getElementById('statAgent') };
   const badge = (ok, okText, noText) =>
     `<span class="stat-badge ${ok?'ok':'warn'}">${ok ? '✓ '+(okText||'') : '✗ '+(noText||'')}</span>`;
-  const card = (k, vHtml) => `<div class="stat-card"><div class="k">${k}</div><div class="v">${vHtml}</div></div>`;
+  // 聚合卡片：一个业务一张卡片，内部多行（label 左 / value 右）
+  const aggr = (rows) => `<div class="stat-aggr">${rows.map(r=>`<div class="stat-row"><span class="k">${r.k}</span><span class="v">${r.v}</span></div>`).join('')}</div>`;
   try{
     const s = await apiGet('/api/info');
     const st = s.strava || {};
     const db = s.db || {};
     const ag = s.agent || {};
-    // Strava API 状态（凭据/授权用徽章）
-    grids.strava.innerHTML = [
-      card(t('stat_configured'), badge(st.configured, t('stat_configured_ok'), t('stat_configured_no'))),
-      card(t('stat_token'), badge(st.has_token, t('stat_token_ok'), (st.token_error||t('stat_token_no')))),
-      card(t('stat_sync'), escapeHtml((st.last_sync||'—').replace('T',' ').slice(0,19))),
-      card(t('stat_athlete'), escapeHtml(st.athlete_id||'—')),
-    ].join('');
-    // 本地数据库状态（数值/路径）
-    grids.db.innerHTML = [
-      card(t('stat_activities'), db.activities||0),
-      card(t('stat_dbsize'), fmtBytes(db.size_bytes||0)),
-      card(t('stat_dbpath'), escapeHtml(db.path||'—')),
-    ].join('');
-    // Agent 外部调用状态（API token 用徽章）
-    grids.agent.innerHTML = [
-      card(t('stat_apitoken'), badge(ag.api_token, t('stat_apitoken_ok'), t('stat_apitoken_no'))),
-      card(t('stat_calls'), ag.call_count||0),
-      card(t('stat_lastcall'), escapeHtml((ag.last_call||'—').replace('T',' ').slice(0,19))),
-      card(t('stat_port'), s.port||'—'),
-      card(t('stat_version'), escapeHtml(s.version||'—')),
-    ].join('');
+    // Strava API（一张聚合卡片）
+    grids.strava.innerHTML = aggr([
+      {k:t('stat_configured'), v:badge(st.configured, t('stat_configured_ok'), t('stat_configured_no'))},
+      {k:t('stat_token'), v:badge(st.has_token, t('stat_token_ok'), (st.token_error||t('stat_token_no')))},
+      {k:t('stat_sync'), v:escapeHtml((st.last_sync||'—').replace('T',' ').slice(0,19))},
+      {k:t('stat_athlete'), v:escapeHtml(st.athlete_id||'—')},
+    ]);
+    // 本地数据库（一张聚合卡片）
+    grids.db.innerHTML = aggr([
+      {k:t('stat_activities'), v:db.activities||0},
+      {k:t('stat_dbsize'), v:fmtBytes(db.size_bytes||0)},
+      {k:t('stat_dbpath'), v:escapeHtml(db.path||'—')},
+    ]);
+    // Agent 外部调用（一张聚合卡片）
+    grids.agent.innerHTML = aggr([
+      {k:t('stat_apitoken'), v:badge(ag.api_token, t('stat_apitoken_ok'), t('stat_apitoken_no'))},
+      {k:t('stat_calls'), v:ag.call_count||0},
+      {k:t('stat_lastcall'), v:escapeHtml((ag.last_call||'—').replace('T',' ').slice(0,19))},
+      {k:t('stat_port'), v:s.port||'—'},
+      {k:t('stat_version'), v:escapeHtml(s.version||'—')},
+    ]);
   }catch(e){
-    Object.values(grids).forEach(g=>g.innerHTML = card(t('stat_error'), escapeHtml(e.message)));
+    Object.values(grids).forEach(g=>g.innerHTML = `<div class="stat-aggr"><div class="stat-row"><span class="k">${t('stat_error')}</span><span class="v">${escapeHtml(e.message)}</span></div></div>`);
   }
 }
 function fmtBytes(b){
