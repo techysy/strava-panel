@@ -61,8 +61,20 @@ db = StravaDB(DB_FILE)
 
 
 def _app_version():
-    """从已安装 manifest 动态读取应用版本.
-    返回如 '1.2.1', 读不到时返回 '' (footer 不显示版本号)."""
+    """动态读取应用版本（单一来源 VERSION 文件，fallback 到已安装 manifest）.
+
+    优先读 `app/server/VERSION`（打包随源码带），读不到再读已安装 manifest 的 version。
+    """
+    # 1) 优先：打包的 VERSION 文件（单一来源，改这一处即可）
+    try:
+        vfile = Path(__file__).resolve().parent / "VERSION"
+        if vfile.exists():
+            v = vfile.read_text(encoding="utf-8").strip()
+            if v:
+                return v
+    except (OSError, IOError):
+        pass
+    # 2) fallback：已安装 manifest
     candidates = [
         "/var/apps/strava/manifest",
         "/vol4/@appcenter/strava/manifest",
