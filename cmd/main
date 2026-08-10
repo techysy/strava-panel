@@ -43,6 +43,7 @@ start() {
         echo "  already running" >> "${DIAG}" 2>&1
         echo "already running (pid $(cat "${PID_FILE}"))"; return 0
     fi
+    pkill -u strava -f "python3.*app\.py" 2>/dev/null || true
     pkill -f "strava/server/app.py" 2>/dev/null || true
     pkill -f "python3.*strava.*app\.py" 2>/dev/null || true
     sleep 1
@@ -74,8 +75,17 @@ stop() {
         kill "$(cat "${PID_FILE}")" 2>/dev/null || true
         rm -f "${PID_FILE}"
     fi
+    # 清理所有 strava 应用进程（兼容旧孤儿进程：cmdline 是 `python3 -u app.py`，不含路径/“strava”字样）
+    # 限定 -u strava，避免误杀其他应用的 python 进程
+    pkill -u strava -f "python3.*app\.py" 2>/dev/null || true
     pkill -f "strava/server/app.py" 2>/dev/null || true
     pkill -f "python3.*strava.*app\.py" 2>/dev/null || true
+    sleep 1
+    # 兜底：若端口仍被占用，再按端口所在进程清理（限 strava 用户）
+    if ss -tlnp 2>/dev/null | grep -q ":${PORT} "; then
+        pkill -u strava -f "app\.py" 2>/dev/null || true
+        sleep 1
+    fi
     echo "stopped"
 }
 
