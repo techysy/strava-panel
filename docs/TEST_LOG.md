@@ -26,7 +26,9 @@
 - **🏷 顶部状态标签简化** — 改为整体健康指示（运行正常 ✓ / 需关注 / 未配置 / 连接失败），不再与仪表盘三组状态重复
 - **🛡 版本号注入防御** — `__APP_VERSION__` 占位符读不到版本时也替换为空，避免残留占位符
 - **🔧 版本号体系改为 1.2.1** — manifest 版本号统一为 `1.2.1`（基于 v1.2.0 连续递增，废弃 v2.0.0）
-- **🔢 版本号单一来源机制** — 新增 `app/server/VERSION` 声明变量文件（唯一手动改处）；`scripts/sync-version.sh` 打包前同步到 manifest version；后端 `_app_version()` 从 VERSION 读；前端 brandVer 靠后端注入。改 VERSION 一处即全同步
+- **🔢 版本号单一来源机制** — 新增 `app/server/VERSION` 声明变量文件（唯一手动改处）；`scripts/build.sh` 自动累加测试版第4位并打包；后端 APP_VERSION 从 VERSION 读
+- **🏷 版本号显示改 hugo 方式** — `/api/bootstrap` 返回 `version`，前端动态填充 brandVer（不再依赖 `__APP_VERSION__` 占位符注入，兼容旧后端）
+- **📜 日志多源落库** — 日志控制台分三个源切换：`system.log`（系统/初始化/SQLite/同步）、`strava-api.log`（请求 Strava API）、`agent.log`（agent 调用拿数据），各源独立归档
 
 ### 问题点（已解决 / 待解决）
 - **`Unexpected token '<'` 报错** — 根因：运行中的后端进程仍是旧代码（未重启），但它从磁盘实时 serve 了新的 index.html，前端请求新接口（/api/info 等）时旧后端返回 404 HTML，`res.json()` 解析失败。**待解决**：需在 App Center 重启应用加载新后端。

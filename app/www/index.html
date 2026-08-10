@@ -132,7 +132,9 @@ textarea{min-height:120px;resize:vertical}
         <h2 data-i18n="console_title">📜 日志控制台</h2>
         <div class="log-controls">
           <select id="logSource" onchange="loadLogDates()">
-            <option value="strava" data-i18n="log_src">Strava 日志</option>
+            <option value="system" data-i18n="log_src_system">系统日志</option>
+            <option value="strava" data-i18n="log_src_strava">Strava API</option>
+            <option value="agent" data-i18n="log_src_agent">Agent 调用</option>
           </select>
           <select id="logDate" onchange="loadLogs()"><option value="" data-i18n="current">当前</option></select>
           <button class="btn secondary" onclick="loadLogs()" data-i18n="refresh">🔄 刷新</button>
@@ -227,7 +229,7 @@ textarea{min-height:120px;resize:vertical}
 const I18N = {
   zh: {
     app_title:'Strava Panel', nav_dash:'📊 仪表板', nav_data:'🚴 骑行数据', nav_settings:'⚙️ 设置',
-    dash_title:'📊 服务状态', console_title:'📜 日志控制台', refresh:'🔄 刷新', download:'⬇️ 下载', current:'当前', log_src:'Strava 日志',
+    dash_title:'📊 服务状态', console_title:'📜 日志控制台', refresh:'🔄 刷新', download:'⬇️ 下载', current:'当前', log_src_system:'系统日志', log_src_strava:'Strava API', log_src_agent:'Agent 调用',
     console_hint:'日志按日期归档，可查看历史日期。当前日志仅保留当天，历史自动归档到 data/logs/ 目录。',
     sync_btn:'🔄 立即同步', token_btn:'🔑 创建 token',
     stat_group_strava:'🔗 Strava API', stat_group_db:'🗄️ 本地数据库', stat_group_agent:'🤖 Agent 外部调用',
@@ -254,7 +256,7 @@ const I18N = {
   },
   en: {
     app_title:'Strava Panel', nav_dash:'📊 Dashboard', nav_data:'🚴 Rides', nav_settings:'⚙️ Settings',
-    dash_title:'📊 Service Status', console_title:'📜 Log Console', refresh:'🔄 Refresh', download:'⬇️ Download', current:'Current', log_src:'Strava Log',
+    dash_title:'📊 Service Status', console_title:'📜 Log Console', refresh:'🔄 Refresh', download:'⬇️ Download', current:'Current', log_src_system:'System', log_src_strava:'Strava API', log_src_agent:'Agent Calls',
     console_hint:'Logs archived by date. Current file keeps today only; history moves to data/logs/.',
     sync_btn:'🔄 Sync Now', token_btn:'🔑 Create Token',
     stat_group_strava:'🔗 Strava API', stat_group_db:'🗄️ Local Database', stat_group_agent:'🤖 Agent Calls',
@@ -367,6 +369,9 @@ async function refreshStatus(){
   try{
     const boot = await (await fetch(API + '/api/bootstrap')).json();
     if(boot.api_token){ apiToken = boot.api_token; }
+    // hugo 方式：从 bootstrap 拿版本号动态填充 brandVer（不依赖 __APP_VERSION__ 注入）
+    const bv = document.getElementById('brandVer');
+    if(bv && boot.version){ bv.textContent = 'v' + boot.version; }
     // 顶部 badge = 整体健康指示（与仪表盘三组状态不冲突，只做摘要）
     const s = await apiGet('/api/info');
     const st = s.strava || {};
@@ -517,11 +522,18 @@ async function syncNow(){
 }
 
 // ===== Logs =====
+function curLogSource(){
+  return document.getElementById('logSource').value || 'system';
+}
+function logSrcLabel(src){
+  return {system:t('log_src_system'), strava:t('log_src_strava'), agent:t('log_src_agent')}[src] || src;
+}
 async function loadLogDates(){
   const sel = document.getElementById('logDate');
   sel.innerHTML = `<option value="" ${t('current')==='Current'?'':'selected'}>${t('current')}</option>`;
+  const src = curLogSource();
   try{
-    const d = await apiGet('/api/logs/list', 'source=strava');
+    const d = await apiGet('/api/logs/list', 'source=' + src);
     (d.dates||[]).forEach(x=>{
       const o = document.createElement('option');
       o.value = x.date; o.textContent = x.display; sel.appendChild(o);
@@ -533,16 +545,18 @@ async function loadLogs(){
   const view = document.getElementById('logView');
   const info = document.getElementById('logInfo');
   view.textContent = t('load_log');
+  const src = curLogSource();
   const date = document.getElementById('logDate').value;
   try{
-    const d = await apiGet('/api/logs', `source=strava&date=${encodeURIComponent(date)}&tail=500`);
+    const d = await apiGet('/api/logs', `source=${src}&date=${encodeURIComponent(date)}&tail=500`);
     view.textContent = d.content || t('no_log');
-    info.textContent = t('log_fmt', { src:'Strava', disp:d.display||t('current'), total:d.total||0 });
+    info.textContent = t('log_fmt', { src:logSrcLabel(src), disp:d.display||t('current'), total:d.total||0 });
   }catch(e){ view.textContent = t('sync_fail') + ' ' + e.message; }
 }
 function downloadLog(){
   const date = document.getElementById('logDate').value;
-  window.open(`${API}/api/logs/download?source=strava&date=${encodeURIComponent(date)}&token=${encodeURIComponent(apiToken)}`, '_blank');
+  const src = curLogSource();
+  window.open(`${API}/api/logs/download?source=${src}&date=${encodeURIComponent(date)}&token=${encodeURIComponent(apiToken)}`, '_blank');
 }
 
 // ===== Token =====

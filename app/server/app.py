@@ -238,6 +238,7 @@ def refresh_token(cfg):
         "refresh_token": cfg.get("refresh_token", ""),
     }).encode()
     req = urllib.request.Request(STRAVA_AUTH_URL, data=data, method="POST")
+    _log("strava", "POST /oauth/token (refresh_token)")
     with urllib.request.urlopen(req, timeout=20) as resp:
         r = json.loads(resp.read().decode())
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -279,8 +280,14 @@ def _api_get(token, path, params=None):
     if params:
         url += "?" + urllib.parse.urlencode(params)
     req = urllib.request.Request(url, headers={**API_HEADERS, "Authorization": f"Bearer {token}"})
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        return json.loads(resp.read().decode())
+    _log("strava", f"GET {path} params={params or ''}")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            data = json.loads(resp.read().decode())
+            return data
+    except Exception as e:
+        _log("strava", f"GET {path} 失败: {e}")
+        raise
 
 
 def get_activities_page(token, page=1, per_page=100, after=None):
@@ -307,6 +314,7 @@ def sync_from_strava(token, limit_pages=20):
         if page > 1 and len(acts) < 100:
             break
     added = db.upsert_activities(all_acts)
+    _log("system", f"同步完成: 拉取 {len(all_acts)} 条, 新增 {added} 条")
     return {"activities": len(all_acts), "new": added, "page": page - 1}
 
 
@@ -330,12 +338,29 @@ def ensure_local_data():
 
 
 # ---------- 服务状态 / 日志 ----------
-LOG_FILE = DATA_DIR / "strava.log"
 LOG_ARCHIVE_DIR = DATA_DIR / "logs"
-# 日志来源: 名称 -> 文件
+# 日志来源: 名称 -> 文件（三个源分开落库）
 LOG_SOURCES = {
-    "strava": LOG_FILE,
+    "system": DATA_DIR / "system.log",        # 系统状态/初始化/本地SQLite/同步
+    "strava": DATA_DIR / "strava-api.log",    # 请求 Strava API（token刷新/活动拉取）
+    "agent": DATA_DIR / "agent.log",          # agent 外部调用拿数据
 }
+# 兼容旧日志文件名（旧 strava.log）
+_LEGACY_LOG = DATA_DIR / "strava.log"
+
+
+def _log(source, msg):
+    """向指定日志源追加一行（带时间戳）。source 需在 LOG_SOURCES 中。"""
+    path = LOG_SOURCES.get(source)
+    if not path:
+        return
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(f"[{ts}] {msg}\n")
+    except OSError:
+        pass
 
 
 def _archive_date():
@@ -661,8 +686,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not api_token_valid(token):
             self._send_json({"error": "无效的 API token，请使用 Authorization: Bearer ***"}, 401)
             return False
-        # 记录一次 agent 外部调用（计数 + 最后调用时间）
+        # 记录一次 agent 外部调用（计数 + 最后调用时间 + 日志）
         record_agent_call()
+        _log("agent", f"agent 调用 {urllib.parse.urlparse(self.path).path}")
         return True
 
     def do_GET(self):
@@ -701,8 +727,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(body.encode())
             return
         if path == "/api/bootstrap":
-            # 免认证：返回 API token，供面板前端初始加载使用
-            self._send_json({"api_token": get_or_create_api_token(), "configured": has_credentials()})
+            # 免认证：返回 API token + 版本号，供面板前端初始加载/填充 brandVer
+            self._send_json({
+                "api_token": get_or_create_api_token(),
+                "configured": has_credentials(),
+                "version": APP_VERSION or "",
+            })
         elif path == "/api/status":
             cfg = load_config()
             tok, err = get_access_token()
@@ -930,6 +960,7 @@ def main():
     port = int(os.environ.get("PORT", "20127"))
     # 启动时归档非当天的日志
     archive_logs()
+    _log("system", f"Strava Panel 启动 (v{APP_VERSION or '?'}, port={port}, data={DATA_DIR})")
     # SO_REUSEADDR：避免频繁重启后 TIME_WAIT 导致 "Address already in use"
     # 必须在实例化前设置类属性（socketserver 在 __init__ 时 bind）
     socketserver.ThreadingTCPServer.allow_reuse_address = True

@@ -59,7 +59,10 @@
 - 凭据 + API token：`/vol4/@appdata/strava/strava.conf`（权限 600，仅应用用户可读）
 - Token 缓存：`/vol4/@appdata/strava/strava_tokens.json`
 - **SQLite 缓存**：`/vol4/@appdata/strava/strava.db`（activities 表）
-- 应用日志：`/vol4/@appdata/strava/strava.log`（历史按天归档到 `logs/`）
+- **日志**（按源分开落库，历史按天归档到 `logs/`）：
+  - `system.log` — 系统状态 / 初始化 / 本地 SQLite / 同步
+  - `strava-api.log` — 请求 Strava API（token 刷新 / 活动拉取）
+  - `agent.log` — agent 外部调用拿数据
 
 ## HTTP API（本地 agent 查询）
 
