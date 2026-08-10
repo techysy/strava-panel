@@ -30,8 +30,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang 
 .panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px}
 .panel h2{font-size:14px;margin-bottom:12px}
 .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:8px}
-.stat-group{margin-bottom:14px}
-.stat-group-title{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.stat-group{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px}
+.stat-group-title{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:6px}
 .stat-aggr{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:6px 14px}
 .stat-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)}
 .stat-row:last-child{border-bottom:none}
@@ -115,20 +116,22 @@ textarea{min-height:120px;resize:vertical}
     <div class="tab-panel active" id="tab-dash">
       <div class="panel">
         <h2 data-i18n="dash_title">📊 服务状态</h2>
-        <div class="stat-group">
-          <div class="stat-group-title" data-i18n="stat_group_strava">🔗 Strava API</div>
-          <div class="stat-grid" id="statStrava"></div>
-        </div>
-        <div class="stat-group">
-          <div class="stat-group-title" data-i18n="stat_group_db">🗄️ 本地数据库</div>
-          <div class="stat-grid" id="statDb"></div>
-        </div>
-        <div class="stat-group">
-          <div class="stat-group-title" data-i18n="stat_group_agent">🤖 Agent 外部调用</div>
-          <div class="stat-grid" id="statAgent"></div>
+        <div class="stat-cards">
+          <div class="stat-group">
+            <div class="stat-group-title" data-i18n="stat_group_strava">🔗 Strava API</div>
+            <div class="stat-grid" id="statStrava"></div>
+          </div>
+          <div class="stat-group">
+            <div class="stat-group-title" data-i18n="stat_group_db">🗄️ 本地数据库</div>
+            <div class="stat-grid" id="statDb"></div>
+          </div>
+          <div class="stat-group">
+            <div class="stat-group-title" data-i18n="stat_group_agent">🤖 Agent 外部调用</div>
+            <div class="stat-grid" id="statAgent"></div>
+          </div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap">
-          <button class="btn secondary" onclick="syncNow()" data-i18n="sync_btn">🔄 立即同步</button>
+          <button class="btn primary" onclick="syncNow()" data-i18n="sync_btn">🔄 立即同步</button>
           <button class="btn secondary" onclick="recreateToken()" data-i18n="token_btn">🔑 创建 token</button>
           <span class="hint" id="dashMsg" style="margin:0"></span>
         </div>
