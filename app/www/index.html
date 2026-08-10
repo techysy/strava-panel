@@ -35,6 +35,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang 
 .stat-card{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:12px}
 .stat-card .k{font-size:11px;color:var(--muted);margin-bottom:4px}
 .stat-card .v{font-size:16px;font-weight:600;word-break:break-all}
+.stat-badge{display:inline-block;font-size:12px;padding:3px 12px;border-radius:999px;font-weight:600}
+.stat-badge.ok{background:rgba(34,197,94,.15);color:var(--good)}
+.stat-badge.warn{background:rgba(252,76,2,.15);color:var(--brand)}
 .stat-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
 .dot-on{background:#22c55e}.dot-off{background:#ef4444}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-bottom:24px}
@@ -237,6 +240,7 @@ const I18N = {
     stat_group_strava:'🔗 Strava API', stat_group_db:'🗄️ 本地数据库', stat_group_agent:'🤖 Agent 外部调用',
     stat_configured:'凭据', stat_token:'授权', stat_activities:'缓存活动', stat_sync:'最后同步', stat_port:'端口', stat_version:'版本', stat_connected:'已连接', stat_not_configured:'未配置', stat_error:'异常',
     stat_athlete:'Athlete ID', stat_dbsize:'DB 大小', stat_dbpath:'DB 路径', stat_apitoken:'API token', stat_calls:'调用次数', stat_lastcall:'最后调用',
+    stat_configured_ok:'已配置', stat_configured_no:'未配置', stat_token_ok:'正常', stat_token_no:'失效', stat_apitoken_ok:'已生成', stat_apitoken_no:'未生成',
     stats_period:'统计周期', stats_year:'本年度', stats_month:'本月份', stats_lastyear:'上年度', stats_all:'所有数据',
     stats_rides:'骑行次数', stats_dist:'总距离', stats_dur:'总时长', stats_elev:'总爬升',
     panel_weekly:'📊 每周骑行距离 (km)', panel_recent:'🚴 最近骑行',
@@ -264,6 +268,7 @@ const I18N = {
     stat_group_strava:'🔗 Strava API', stat_group_db:'🗄️ Local Database', stat_group_agent:'🤖 Agent Calls',
     stat_configured:'Credentials', stat_token:'Auth', stat_activities:'Cached Acts', stat_sync:'Last Sync', stat_port:'Port', stat_version:'Version', stat_connected:'Connected', stat_not_configured:'Not Configured', stat_error:'Error',
     stat_athlete:'Athlete ID', stat_dbsize:'DB Size', stat_dbpath:'DB Path', stat_apitoken:'API token', stat_calls:'Call Count', stat_lastcall:'Last Call',
+    stat_configured_ok:'Configured', stat_configured_no:'Not Configured', stat_token_ok:'OK', stat_token_no:'Invalid', stat_apitoken_ok:'Generated', stat_apitoken_no:'Not Generated',
     stats_period:'Period', stats_year:'This Year', stats_month:'This Month', stats_lastyear:'Last Year', stats_all:'All Data',
     stats_rides:'Rides', stats_dist:'Distance', stats_dur:'Duration', stats_elev:'Elevation',
     panel_weekly:'📊 Weekly Distance (km)', panel_recent:'🚴 Recent Rides',
@@ -395,34 +400,37 @@ async function refreshStatus(){
 
 async function loadInfo(){
   const grids = { strava: document.getElementById('statStrava'), db: document.getElementById('statDb'), agent: document.getElementById('statAgent') };
+  const badge = (ok, okText, noText) =>
+    `<span class="stat-badge ${ok?'ok':'warn'}">${ok ? '✓ '+(okText||'') : '✗ '+(noText||'')}</span>`;
+  const card = (k, vHtml) => `<div class="stat-card"><div class="k">${k}</div><div class="v">${vHtml}</div></div>`;
   try{
     const s = await apiGet('/api/info');
     const st = s.strava || {};
     const db = s.db || {};
     const ag = s.agent || {};
-    // Strava API 状态
+    // Strava API 状态（凭据/授权用徽章）
     grids.strava.innerHTML = [
-      {k:t('stat_configured'), v:(st.configured ? '✓' : '✗')},
-      {k:t('stat_token'), v:(st.has_token ? '✓' : (st.token_error||'✗'))},
-      {k:t('stat_sync'), v:(st.last_sync||'—').replace('T',' ').slice(0,19)},
-      {k:t('stat_athlete'), v:(st.athlete_id||'—')},
-    ].map(r=>`<div class="stat-card"><div class="k">${r.k}</div><div class="v">${escapeHtml(r.v)}</div></div>`).join('');
-    // 本地数据库状态
+      card(t('stat_configured'), badge(st.configured, t('stat_configured_ok'), t('stat_configured_no'))),
+      card(t('stat_token'), badge(st.has_token, t('stat_token_ok'), (st.token_error||t('stat_token_no')))),
+      card(t('stat_sync'), escapeHtml((st.last_sync||'—').replace('T',' ').slice(0,19))),
+      card(t('stat_athlete'), escapeHtml(st.athlete_id||'—')),
+    ].join('');
+    // 本地数据库状态（数值/路径）
     grids.db.innerHTML = [
-      {k:t('stat_activities'), v:db.activities||0},
-      {k:t('stat_dbsize'), v:fmtBytes(db.size_bytes||0)},
-      {k:t('stat_dbpath'), v:(db.path||'—')},
-    ].map(r=>`<div class="stat-card"><div class="k">${r.k}</div><div class="v">${escapeHtml(r.v)}</div></div>`).join('');
-    // Agent 外部调用状态
+      card(t('stat_activities'), db.activities||0),
+      card(t('stat_dbsize'), fmtBytes(db.size_bytes||0)),
+      card(t('stat_dbpath'), escapeHtml(db.path||'—')),
+    ].join('');
+    // Agent 外部调用状态（API token 用徽章）
     grids.agent.innerHTML = [
-      {k:t('stat_apitoken'), v:(ag.api_token ? '✓' : '✗')},
-      {k:t('stat_calls'), v:ag.call_count||0},
-      {k:t('stat_lastcall'), v:(ag.last_call||'—').replace('T',' ').slice(0,19)},
-      {k:t('stat_port'), v:s.port||'20127'},
-      {k:t('stat_version'), v:s.version||'—'},
-    ].map(r=>`<div class="stat-card"><div class="k">${r.k}</div><div class="v">${escapeHtml(r.v)}</div></div>`).join('');
+      card(t('stat_apitoken'), badge(ag.api_token, t('stat_apitoken_ok'), t('stat_apitoken_no'))),
+      card(t('stat_calls'), ag.call_count||0),
+      card(t('stat_lastcall'), escapeHtml((ag.last_call||'—').replace('T',' ').slice(0,19))),
+      card(t('stat_port'), s.port||'—'),
+      card(t('stat_version'), escapeHtml(s.version||'—')),
+    ].join('');
   }catch(e){
-    Object.values(grids).forEach(g=>g.innerHTML = `<div class="stat-card"><div class="k">${t('stat_error')}</div><div class="v">${escapeHtml(e.message)}</div></div>`);
+    Object.values(grids).forEach(g=>g.innerHTML = card(t('stat_error'), escapeHtml(e.message)));
   }
 }
 function fmtBytes(b){
@@ -441,19 +449,26 @@ function setPeriod(p){
   document.getElementById('periodAll').classList.toggle('active', p==='all');
   loadData();
 }
-function periodStart(){
-  if(period === 'all') return '';   // 所有数据：不限定起始
+function periodRange(){
+  // 返回 {start, end} 明确周期边界；所有数据返回 null
+  if(period === 'all') return null;
   const now = new Date();
   const y = now.getFullYear();
-  const m = String(now.getMonth()+1).padStart(2,'0');
-  if(period === 'month') return `${y}-${m}-01`;          // 本月份
-  if(period === 'lastyear') return `${y-1}-01-01`;       // 上年度
-  return `${y}-01-01`;                                    // 本年度
+  const m = now.getMonth(); // 0-11
+  const lastDay = new Date(y, m+1, 0).getDate();
+  const p1 = n => String(n).padStart(2,'0');
+  if(period === 'month'){
+    return { start: `${y}-${p1(m+1)}-01`, end: `${y}-${p1(m+1)}-${p1(lastDay)}` };   // 本月份
+  }
+  if(period === 'lastyear'){
+    return { start: `${y-1}-01-01`, end: `${y-1}-12-31` };                            // 上年度（完整去年）
+  }
+  return { start: `${y}-01-01`, end: `${y}-12-31` };                                   // 本年度（自然年）
 }
 async function loadData(){
   try{
-    const start = periodStart();
-    const qs = start ? `start=${start}` : '';
+    const r = periodRange();
+    const qs = r ? `start=${r.start}&end=${r.end}` : '';
     const s = await apiGet('/api/stats', qs);
     if(!s.error){
       document.getElementById('cRides').textContent = s.total_rides;
