@@ -7,7 +7,7 @@
 ## 1. 服务不自动启动（桌面打开空白 / 连接被拒绝）
 
 ### 现象
-应用已安装并在 App Center 里"启用"，但打开桌面图标空白，`ss -tln | grep 20127` 无输出，服务没跑起来。`/var/log/apps/strava.log` 里**只有 `stopped`，从没有 `started`**。
+应用已安装并在 App Center 里"启用"，但打开桌面图标空白，`ss -tln | grep 20227` 无输出，服务没跑起来。`/var/log/apps/strava.log` 里**只有 `stopped`，从没有 `started`**。
 
 ### 根因（关键）
 **fnOS 周期性调用 `cmd/main status`，并依赖退出码判断应用是否运行。**
@@ -38,21 +38,21 @@ status() {
 ## 2. 桌面图标打不开 / 连接拒绝
 
 ### 现象
-点击 fnOS 桌面图标或手动访问 `http://192.168.31.101:20127/`，显示"拒绝连接"。
+点击 fnOS 桌面图标或手动访问 `http://192.168.31.101:20227/`，显示"拒绝连接"。
 
 ### 排查步骤
 
 **① 确认服务是否在监听：**
 ```bash
 ssh yangyu@192.168.31.101
-ss -tln | grep 20127
+ss -tln | grep 20227
 # 有输出 = 服务在跑；无输出 = 服务没起
 ```
 
 **② 确认应用状态：**
 ```bash
 cat /var/log/apps/strava.log | tail -5
-# "running (port 20127)" = App Center 认为已运行
+# "running (port 20227)" = App Center 认为已运行
 # "stopped" = 应用没启用
 ```
 
@@ -63,7 +63,7 @@ cat /var/log/apps/strava.log | tail -5
 |------|------|
 | 应用处于 stopped | fnOS 未启动服务，桌面图标打开时无服务可连 |
 | 端口写错 | `app/ui/config` 的 `port` 与 manifest `service_port` 不一致 |
-| 手动输错端口 | 正确端口是 **20127**，不是 20217/8081 |
+| 手动输错端口 | 正确端口是 **20227**，不是 20217/8081 |
 
 > ⚠️ **端口一致性**：`app/ui/config` 的 `"port"` 必须与 manifest 的 `service_port` 一致，否则桌面图标指向错误端口。
 
@@ -77,7 +77,7 @@ cat /var/log/apps/strava.log | tail -5
 ### 根因
 前端请求 `/api/sync` 或 `/api/stats` 返回的是 **HTML 错误页**（404），不是 JSON。通常是因为**请求打到了旧版本进程**（没有这些 API 接口）。
 
-常见场景：**旧进程还占着 20127 端口**，新安装的服务因端口冲突没起来，请求落到旧进程。
+常见场景：**旧进程还占着 20227 端口**，新安装的服务因端口冲突没起来，请求落到旧进程。
 
 ### 解决
 ```bash
@@ -86,7 +86,7 @@ ps aux | grep "app.py" | grep -v grep
 kill -9 <旧进程PID>
 
 # 2. 确认端口释放
-ss -tln | grep 20127   # 应无输出
+ss -tln | grep 20227   # 应无输出
 
 # 3. 重启应用（App Center 里停止→启动，或用 cmd/main）
 bash /var/apps/strava/cmd/main restart
@@ -111,7 +111,7 @@ bash /var/apps/strava/cmd/main restart
 pkill -9 -f "strava/server/app.py"
 pkill -9 -f "python3 app.py"
 sleep 1
-ss -tln | grep 20127   # 应无输出
+ss -tln | grep 20227   # 应无输出
 # 再启动
 bash /var/apps/strava/cmd/main start
 ```
@@ -164,7 +164,7 @@ https://www.strava.com/oauth/authorize?client_id={ClientID}&response_type=code&r
 iframe 版（桌面窗口）打开白屏或无法加载 API。
 
 ### 根因
-fnOS 桌面容器 iframe 跨端口（5666 → 20127）可能受浏览器跨域限制。
+fnOS 桌面容器 iframe 跨端口（5666 → 20227）可能受浏览器跨域限制。
 
 ### 解决
 优先使用 **url 版**（`strava-x.x.x.fpk`，新标签页打开）。若需 iframe，确认后端返回的 `Access-Control-Allow-Origin: *` 生效（app.py 已内置）。
@@ -183,7 +183,7 @@ SQLite 缓存数据未刷新。`/api/stats` 读缓存（快），不会实时拉
 - 面板点「立即同步」，或
 - 手动触发：
 ```bash
-curl http://127.0.0.1:20127/api/sync
+curl http://127.0.0.1:20227/api/sync
 ```
 
 > 数据保存位置：`/vol4/@appdata/strava/strava.db`

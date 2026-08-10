@@ -170,8 +170,8 @@ def get_redirect_uri():
     uri = cfg.get("redirect_uri", "").strip()
     if uri:
         return uri
-    # 默认：面板回调（需在 Strava API 设置添加 http://<NAS-IP>:20127/oauth/callback）
-    port = int(os.environ.get("PORT", "20127"))
+    # 默认：面板回调（需在 Strava API 设置添加 http://<NAS-IP>:20227/oauth/callback）
+    port = int(os.environ.get("PORT", "20227"))
     host = os.environ.get("NAS_IP", "")
     if host:
         return f"http://{host}:{port}/oauth/callback"
@@ -502,7 +502,7 @@ def get_service_info():
         },
         # 通用
         "version": APP_VERSION or "",
-        "port": int(os.environ.get("PORT", "20127")),
+        "port": int(os.environ.get("PORT", "20227")),
     }
 
 
@@ -522,17 +522,17 @@ def record_agent_call():
 
 def build_api_doc(lang="zh"):
     """生成 API 使用指南 Markdown 文档 (中/英)."""
-    base = "http://<NAS-IP>:20127"
+    base = "http://<NAS-IP>:20227"
     en = lang != "zh"
     if en:
         return (
             "# Strava Panel Admin API Guide\n\n"
-            "> Port **20127**. All endpoints except `/api/bootstrap`/`/api/status` "
+            "> Port **20227**. All endpoints except `/api/bootstrap`/`/api/status` "
             "require `Authorization: Bearer <api_token>`. Get/create the token in the "
             "panel (Dashboard → Create Token, or Settings → API).\n\n"
             "## Endpoints\n\n"
             "```bash\n"
-            'BASE="http://<NAS-IP>:20127"\n'
+            'BASE="http://<NAS-IP>:20227"\n'
             'export TOKEN="<your-token>"\n'
             'AUTH="Authorization: Bearer $TOKEN"\n'
             "\n"
@@ -574,11 +574,11 @@ def build_api_doc(lang="zh"):
         )
     return (
         "# Strava Panel 管理面板 API 指南\n\n"
-        "> 面板端口 **20127**。除 `/api/bootstrap` 和 `/api/status` 外，所有接口需 "
+        "> 面板端口 **20227**。除 `/api/bootstrap` 和 `/api/status` 外，所有接口需 "
         "`Authorization: Bearer <api_token>`。token 在面板「仪表板 → 创建 token」或「设置 → API」查看/生成。\n\n"
         "## 各接口\n\n"
         "```bash\n"
-        'BASE="http://<NAS-IP>:20127"\n'
+        'BASE="http://<NAS-IP>:20227"\n'
         'export TOKEN="<your-token>"\n'
         'AUTH="Authorization: Bearer $TOKEN"\n'
         "\n"
@@ -957,7 +957,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 def main():
-    port = int(os.environ.get("PORT", "20127"))
+    port = int(os.environ.get("PORT", "20227"))
     # 启动时归档非当天的日志
     archive_logs()
     _log("system", f"Strava Panel 启动 (v{APP_VERSION or '?'}, port={port}, data={DATA_DIR})")

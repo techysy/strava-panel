@@ -10,5 +10,5 @@ distributor           = techysy
 distributor_url       = https://github.com/techysy/strava-panel-fnos
 desktop_uidir         = ui
 desktop_applaunchname = strava.Application
-service_port          = 20127
+service_port          = 20227
 ctl_stop              = true

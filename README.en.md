@@ -28,7 +28,7 @@ Strava cycling data panel — credential management, auto token refresh, riding 
 
 1. Download `strava-x.x.x.fpk` from [Releases](https://github.com/techysy/strava-panel-fnos/releases)
 2. fnOS **App Center → Manual Install** → select the fpk
-3. Open Strava Panel (port `20127`)
+3. Open Strava Panel (port `20227`)
 4. Fill in Strava credentials in the panel → Save & verify
 
 ### Get Strava Credentials
@@ -48,32 +48,32 @@ https://www.strava.com/oauth/authorize?client_id={YOUR_CLIENT_ID}&response_type=
 
 | Item | Value |
 |------|-------|
-| Panel port | `20127` (high port, reduces scanning risk) |
+| Panel port | `20227` (high port, reduces scanning risk) |
 | Credentials | `/vol4/@appdata/strava/strava.conf` (mode 600) |
 | Token cache | `/vol4/@appdata/strava/strava_tokens.json` |
 | SQLite cache | `/vol4/@appdata/strava/strava.db` |
 
 ### HTTP API (local agent query)
 
-The app exposes a REST API for local agents or tools (`http://192.168.31.101:20127`).
+The app exposes a REST API for local agents or tools (`http://192.168.31.101:20227`).
 
 > 🔐 **API token required since v1.2.0**: data endpoints need `Authorization: Bearer <token>`. Get the token via the auth-free `/api/bootstrap`:
 
 ```bash
 # 1. Get API token (auth-free)
-TOKEN=$(curl -s http://192.168.31.101:20127/api/bootstrap | jq -r '.api_token')
+TOKEN=$(curl -s http://192.168.31.101:20227/api/bootstrap | jq -r '.api_token')
 
 # 2. Access data endpoints with the token
-curl -s -H "Authorization: Bearer $TOKEN" http://192.168.31.101:20127/api/stats
-curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20127/api/stats?start=2026-07-01&end=2026-07-31"   # monthly
-curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20127/api/activities?type=Ride&limit=10"
-curl -s -H "Authorization: Bearer $TOKEN" http://192.168.31.101:20127/api/weekly
-curl -s -H "Authorization: Bearer $TOKEN" http://192.168.31.101:20127/api/sync
-curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20127/api/export?fmt=json"
-curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20127/api/export?fmt=csv" -o strava.csv
+curl -s -H "Authorization: Bearer $TOKEN" http://192.168.31.101:20227/api/stats
+curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20227/api/stats?start=2026-07-01&end=2026-07-31"   # monthly
+curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20227/api/activities?type=Ride&limit=10"
+curl -s -H "Authorization: Bearer $TOKEN" http://192.168.31.101:20227/api/weekly
+curl -s -H "Authorization: Bearer $TOKEN" http://192.168.31.101:20227/api/sync
+curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20227/api/export?fmt=json"
+curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20227/api/export?fmt=csv" -o strava.csv
 ```
 
-> 💡 Agent usage: `curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20127/api/stats?start=2026-07-01&end=2026-07-31" | jq '.total_distance_km'`
+> 💡 Agent usage: `curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20227/api/stats?start=2026-07-01&end=2026-07-31" | jq '.total_distance_km'`
 
 > ⚠️ Requests without a token return **401**. The frontend handles tokens automatically. Token lives in `strava.conf` (mode 600); to reset, delete that line and restart.
 

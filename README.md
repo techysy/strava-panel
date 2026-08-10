@@ -38,7 +38,7 @@
 
 1. 从 [Releases](https://github.com/techysy/strava-fnos/releases) 下载 `strava-x.x.x.fpk`
 2. 飞牛 App Center → **手动安装** → 选择 fpk 文件
-3. 打开 Strava Panel（端口 `20127`）
+3. 打开 Strava Panel（端口 `20227`）
 4. 在面板填入 Strava 凭据 → 保存并验证
 
 ### 获取 Strava 凭据 / Get Strava Credentials
@@ -52,7 +52,7 @@
 
 ## 端口 / Port
 
-- **面板端口**：`20127`（高位不常见端口，降低被扫描探测风险）
+- **面板端口**：`20227`（高位不常见端口，降低被扫描探测风险）
 
 ## 数据目录 / Data
 
@@ -66,12 +66,12 @@
 
 ## HTTP API（本地 agent 查询）
 
-应用提供 REST API，本地 Hermes agent 或其他工具可直接查询（`http://192.168.31.101:20127`）。除 `/api/bootstrap` 和 `/api/status` 外，所有 `/api/*` 需 `Authorization: Bearer <api_token>`。
+应用提供 REST API，本地 Hermes agent 或其他工具可直接查询（`http://192.168.31.101:20227`）。除 `/api/bootstrap` 和 `/api/status` 外，所有 `/api/*` 需 `Authorization: Bearer <api_token>`。
 
 > 🔑 先拿 token（免认证）：`GET /api/bootstrap` → 返回 `{"api_token": ...}`，也可在面板「仪表板 → 创建 token」查看。
 
 ```bash
-BASE="http://192.168.31.101:20127"
+BASE="http://192.168.31.101:20227"
 TOKEN=$(curl -s "$BASE/api/bootstrap" | python3 -c "import sys,json;print(json.load(sys.stdin)['api_token'])")
 AUTH="Authorization: Bearer $TOKEN"
 
@@ -144,7 +144,7 @@ python3 scripts/generate-icons.py
 
 | 现象 | 快速解决 |
 |------|---------|
-| 桌面图标打不开 | 确认应用在 App Center 里是启用/运行状态，端口为 20127 |
+| 桌面图标打不开 | 确认应用在 App Center 里是启用/运行状态，端口为 20227 |
 | `Unexpected token '<'` | 旧进程占端口，杀残留后重启应用 |
 | `Address already in use` | `pkill -9 -f "python3 app.py"` 清理残留 |
 | Strava 401 权限缺失 | 重新授权并勾选 `activity:read_all` |

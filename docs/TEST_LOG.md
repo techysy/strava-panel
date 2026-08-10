@@ -54,4 +54,4 @@
 
 - **应用重启必须走 App Center** — 运行中的进程由 fnOS 以应用用户启动，SSH 的 `yangyu` 无权限杀掉 `strava` 用户进程（sudo 需密码）。改代码后必须到 App Center 对 Strava Panel 做「停止→启动」加载新后端，不能只刷新页面/重开桌面图标。
 - **前端新界面 ≠ 后端新代码** — index.html 每次从磁盘实时读取，改前端立即生效；但 app.py 是进程启动时载入内存的，改后端必须重启进程才生效。若看到新界面 + 旧接口 404，是后端进程没重启。
-- **OAuth 回调地址需在 Strava 注册** — 面板「连接 Strava」用的 redirect_uri 需在 Strava API 设置里添加（如 `http://<NAS-IP>:20127/oauth/callback`），否则授权后回调失败。
+- **OAuth 回调地址需在 Strava 注册** — 面板「连接 Strava」用的 redirect_uri 需在 Strava API 设置里添加（如 `http://<NAS-IP>:20227/oauth/callback`），否则授权后回调失败。
