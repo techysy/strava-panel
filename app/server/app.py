@@ -733,14 +733,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     err = str(e)
             # 返回一个简单的成功/失败页，可自动关闭
             if ok:
-                body = ("<html><body style='font-family:sans-serif;text-align:center;padding-top:80px'>"
-                        "<h2 style='color:#22c55e'>✓ Strava 授权成功</h2>"
-                        "<p>refresh_token 已保存。此窗口可关闭，返回面板查看。</p>"
-                        "<script>setTimeout(function(){window.close();},1500)</script></body></html>")
+                body = (f"<html><body style='font-family:sans-serif;text-align:center;padding-top:60px;background:#fff'>"
+                        f"<div style='max-width:420px;margin:0 auto;padding:30px;border:1px solid #eee;border-radius:14px'>"
+                        f"<h2 style='color:#22c55e;margin:0 0 12px'>✓ Strava 授权成功</h2>"
+                        f"<p style='color:#666'>refresh_token 已保存，你可以返回面板查看骑行数据了。</p>"
+                        f"<p><a href='/' style='display:inline-block;margin-top:12px;padding:10px 26px;background:#fc4c02;color:#fff;border-radius:999px;text-decoration:none'>⬅ 返回面板</a></p>"
+                        f"</div>"
+                        f"<script>try{{if(window.opener){{window.opener.location.href='/';}}setTimeout(function(){{window.close();}},1500);}}catch(e){{}}</script>"
+                        f"</body></html>")
             else:
-                body = (f"<html><body style='font-family:sans-serif;text-align:center;padding-top:80px'>"
-                        f"<h2 style='color:#ef4444'>✗ 授权失败</h2><p>{err}</p>"
-                        f"<p>请返回面板重试。</p></body></html>")
+                body = (f"<html><body style='font-family:sans-serif;text-align:center;padding-top:60px;background:#fff'>"
+                        f"<div style='max-width:420px;margin:0 auto;padding:30px;border:1px solid #eee;border-radius:14px'>"
+                        f"<h2 style='color:#ef4444;margin:0 0 12px'>✗ 授权失败</h2>"
+                        f"<p style='color:#666'>{err}</p>"
+                        f"<p><a href='/' style='display:inline-block;margin-top:12px;padding:10px 26px;background:#333;color:#fff;border-radius:999px;text-decoration:none'>⬅ 返回面板</a></p>"
+                        f"</div></body></html>")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body.encode())))

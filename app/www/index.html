@@ -196,7 +196,7 @@ textarea{min-height:120px;resize:vertical}
           <p class="hint" style="margin-bottom:8px" data-i18n="setup_hint">在 <a href="https://www.strava.com/settings/api" target="_blank" style="color:var(--accent)">Strava My API Application</a> 查看 Client ID / Client Secret，并添加回调地址 <code id="callbackHint" style="background:var(--card2);padding:2px 6px;border-radius:6px">/oauth/callback</code>。Refresh Token 通过 OAuth 授权自动获取。</p>
           <label data-i18n="setup_clientId">Client ID</label><input id="client_id" placeholder="Client ID">
           <label data-i18n="setup_clientSecret">Client Secret</label><input id="client_secret" placeholder="Client Secret">
-          <label data-i18n="setup_redirectUri">回调地址 (redirect_uri)</label><input id="redirect_uri" placeholder="http://<NAS-IP>:20127/oauth/callback">
+          <label data-i18n="setup_redirectUri">回调地址 (redirect_uri)</label><input id="redirect_uri" placeholder="http://<NAS-IP>:20227/oauth/callback">
           <div class="msg" id="setupMsg"></div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <button class="btn" onclick="connectStrava()" data-i18n="setup_connect">🔗 连接 Strava</button>
@@ -681,11 +681,14 @@ async function saveConfig(){
 }
 
 // ===== Strava OAuth =====
+function isMobile(){
+  return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
 async function connectStrava(){
   const msg = document.getElementById('setupMsg');
   // 先保存 client_id/client_secret/redirect_uri
   try{
-    const d = await apiPost('/api/config', {
+    await apiPost('/api/config', {
       client_id: document.getElementById('client_id').value,
       client_secret: document.getElementById('client_secret').value,
       redirect_uri: document.getElementById('redirect_uri').value,
@@ -694,11 +697,16 @@ async function connectStrava(){
   try{
     const r = await apiGet('/api/oauth/start');
     if(r.url){
+      if(isMobile()){
+        // 移动端：同窗口跳转授权页，授权完成回调页会「返回面板」
+        msg.textContent = t('setup_oauthOpen');
+        window.location.href = r.url;
+        return;
+      }
       msg.textContent = t('setup_oauthOpen');
-      // 打开独立授权窗口
+      // 桌面端：打开独立授权窗口
       const win = window.open(r.url, '_blank', 'width=520,height=700');
       if(!win){
-        // 弹窗被拦截：降级为当前窗口打开
         msg.textContent = t('setup_oauthBlocked');
         window.location.href = r.url;
         return;
@@ -713,7 +721,7 @@ async function connectStrava(){
             clearInterval(timer);
             msg.textContent = t('setup_ok');
             refreshStatus();
-            if(win && !win.closed) setTimeout(()=>win.close(), 500);
+            setTimeout(()=>{ try{ if(win && !win.closed) win.close(); }catch(e){} }, 800);
           }
         }catch(e){}
         if(tries > 120){ clearInterval(timer); msg.textContent = t('setup_oauthTimeout'); }
