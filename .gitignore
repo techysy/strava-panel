@@ -14,3 +14,4 @@ __pycache__/
 .env
 *.secret
 **/strava_tokens.json
+scripts/.build_num
