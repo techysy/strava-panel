@@ -752,6 +752,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 ensure_local_data()
                 stats = db.stats(start_date=qs.get("start"), end_date=qs.get("end"))
                 stats["weekly"] = db.weekly(start_date=qs.get("start"), end_date=qs.get("end"))
+                stats["monthly"] = db.monthly(start_date=qs.get("start"), end_date=qs.get("end"))
                 stats["last_sync"] = db.get_meta("last_sync")
                 self._send_json(stats)
             except Exception as e:

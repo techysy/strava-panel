@@ -166,7 +166,7 @@ textarea{min-height:120px;resize:vertical}
         <div class="card"><div class="label" data-i18n="stats_elev">总爬升</div><div class="value"><span id="cElev">-</span><span class="unit">m</span></div></div>
       </div>
       <div class="panel">
-        <h2 data-i18n="panel_weekly">📊 每周骑行距离 (km)</h2>
+        <h2 data-i18n="panel_monthly">📊 每月骑行距离 (km)</h2>
         <div id="weeklyChart"></div>
       </div>
       <div class="panel">
@@ -245,7 +245,7 @@ const I18N = {
     stat_configured_ok:'已配置', stat_configured_no:'未配置', stat_token_ok:'正常', stat_token_no:'失效', stat_apitoken_ok:'已生成', stat_apitoken_no:'未生成',
     stats_period:'统计周期', stats_year:'本年度', stats_month:'本月份', stats_lastyear:'上年度', stats_all:'所有数据',
     stats_rides:'骑行次数', stats_dist:'总距离', stats_dur:'总时长', stats_elev:'总爬升',
-    panel_weekly:'📊 每周骑行距离 (km)', panel_recent:'🚴 最近骑行',
+    panel_monthly:'📊 每月骑行距离 (km)', panel_recent:'🚴 最近骑行',
     col_date:'日期', col_name:'活动', col_dist:'距离', col_dur:'时长', col_speed:'均速', col_elev:'爬升',
     prev_page:'‹ 上一页', next_page:'下一页 ›', empty:'暂无数据',
     sub_cred:'🔑 凭据', sub_api:'🤖 API', sub_data:'🗄️ 数据',
@@ -273,7 +273,7 @@ const I18N = {
     stat_configured_ok:'Configured', stat_configured_no:'Not Configured', stat_token_ok:'OK', stat_token_no:'Invalid', stat_apitoken_ok:'Generated', stat_apitoken_no:'Not Generated',
     stats_period:'Period', stats_year:'This Year', stats_month:'This Month', stats_lastyear:'Last Year', stats_all:'All Data',
     stats_rides:'Rides', stats_dist:'Distance', stats_dur:'Duration', stats_elev:'Elevation',
-    panel_weekly:'📊 Weekly Distance (km)', panel_recent:'🚴 Recent Rides',
+    panel_monthly:'📊 Monthly Distance (km)', panel_recent:'🚴 Recent Rides',
     col_date:'Date', col_name:'Activity', col_dist:'Distance', col_dur:'Duration', col_speed:'Avg Spd', col_elev:'Elevation',
     prev_page:'‹ Prev', next_page:'Next ›', empty:'No data',
     sub_cred:'🔑 Credentials', sub_api:'🤖 API', sub_data:'🗄️ Data',
@@ -478,23 +478,52 @@ async function loadData(){
       document.getElementById('cDist').textContent = s.total_distance_km;
       document.getElementById('cDur').textContent = s.total_duration_h;
       document.getElementById('cElev').textContent = s.total_elevation_m;
-      renderWeekly(s.weekly||[]);
+      renderMonthly(s.monthly||[]);
     }
   }catch(e){}
   await loadActivities();
 }
-function renderWeekly(weeks){
-  const max = Math.max(...weeks.map(w=>w.dist_km), 1);
-  document.getElementById('weeklyChart').innerHTML =
-    weeks.slice(-8).map(w=>{
-      const pct = (w.dist_km/max*100).toFixed(1);
-      return `<div style="margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)">
-          <span>${w.week}</span><span>${w.dist_km.toFixed(1)} km · ${w.count}×</span>
-        </div>
-        <div class="bar"><div style="width:${pct}%"></div></div>
-      </div>`;
-    }).join('') || `<div style="color:var(--muted);font-size:13px">${t('empty')}</div>`;
+function renderMonthly(months){
+  // 月度汇总面积折线图（参考官方 Strava app，纯 SVG，零依赖）
+  const el = document.getElementById('weeklyChart');
+  if(!months || !months.length){ el.innerHTML = `<div style="color:var(--muted);font-size:13px">${t('empty')}</div>`; return; }
+  const data = months.slice(-12);           // 最近 12 个月
+  const w = 560, h = 220, padL = 40, padR = 14, padT = 24, padB = 28;
+  const iw = w - padL - padR, ih = h - padT - padB;
+  const max = Math.max(...data.map(m=>m.dist_km), 1);
+  const stepX = data.length > 1 ? iw/(data.length-1) : 0;
+  const pts = data.map((m,i)=>{
+    const x = padL + i*stepX;
+    const y = padT + ih - (m.dist_km/max)*ih;
+    return {x,y,label:(m.month||'').replace('-','/'), dist:m.dist_km, count:m.count};
+  });
+  const baseY = padT + ih;
+  const line = pts.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
+  // 面积填充：从第一个点沿折线到最后一个点，再折回底部闭合
+  const area = line + ` L${pts[pts.length-1].x.toFixed(1)},${baseY} L${pts[0].x.toFixed(1)},${baseY} Z`;
+  // Y 轴刻度（4 档：0, 1/4, 1/2, 3/4, 满量程，取整）
+  const yticks = [0,0.25,0.5,0.75,1].map(f=>{ const v=f*max; return {y:padT+ih-f*ih, txt:Math.round(v)}; });
+  let grid = '';
+  yticks.forEach(t=>{
+    grid += `<line x1="${padL}" y1="${t.y}" x2="${w-padR}" y2="${t.y}" stroke="var(--border)" stroke-width="1"/>`;
+    grid += `<text x="${padL-6}" y="${t.y+3}" text-anchor="end" font-size="10" fill="var(--muted)">${t.txt}km</text>`;
+  });
+  // 渐变填充定义
+  const gid = 'areaGrad';
+  el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" width="100%" style="display:block;background:var(--card2);border-radius:10px" role="img" aria-label="monthly distance chart">
+    <defs>
+      <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="var(--brand)" stop-opacity="0.35"/>
+        <stop offset="100%" stop-color="var(--brand)" stop-opacity="0.03"/>
+      </linearGradient>
+    </defs>
+    ${grid}
+    <path d="${area}" fill="url(#${gid})" stroke="none"/>
+    <path d="${line}" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    ${pts.map((p,i)=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${i===pts.length-1?5:3.5}" fill="${i===pts.length-1?'var(--brand)':'var(--brand)'}" stroke="#fff" stroke-width="1.5"/>`).join('')}
+    ${pts.map(p=>`<text x="${p.x.toFixed(1)}" y="${h-8}" text-anchor="middle" font-size="10" fill="var(--muted)">${p.label}</text>`).join('')}
+    ${pts.map(p=>`<text x="${p.x.toFixed(1)}" y="${(p.y-8).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--muted)">${p.dist.toFixed(0)}</text>`).join('')}
+  </svg>`;
 }
 let allActivities = [];
 let page = 1;
