@@ -565,15 +565,26 @@ function changePage(d){ page+=d; renderActivities(); }
 // ===== Sync =====
 async function syncNow(){
   const el = document.getElementById('dashMsg') || document.getElementById('dataMsg');
-  if(el) el.textContent = t('syncing');
+  if(el){ el.style.display='block'; el.textContent = t('syncing') + '…'; }
+  // 轮询同步进度
+  const timer = setInterval(async ()=>{
+    try{
+      const p = await apiGet('/api/sync/progress');
+      if(el && p.message){ el.textContent = '🔄 ' + p.message; }
+    }catch(e){}
+  }, 1000);
   try{
     const d = await apiPost('/api/sync');
+    clearInterval(timer);
     if(d.ok){
       const msg = t('sync_done') + ` (${d.new} new / ${d.activities} total)`;
       if(el) el.textContent = msg;
       loadInfo(); if(currentNav==='data') loadData();
     } else if(el) el.textContent = t('sync_fail') + ' ' + (d.error||'');
-  }catch(e){ if(el) el.textContent = t('sync_fail') + ' ' + e.message; }
+  }catch(e){
+    clearInterval(timer);
+    if(el) el.textContent = t('sync_fail') + ' ' + e.message;
+  }
 }
 
 // ===== Logs =====

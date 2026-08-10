@@ -297,25 +297,46 @@ def get_activities_page(token, page=1, per_page=100, after=None):
     return _api_get(token, "/athlete/activities", params)
 
 
+# 同步进度（供前端轮询 /api/sync/progress）
+SYNC_PROGRESS = {"running": False, "page": 0, "fetched": 0, "message": "", "done": False, "error": None}
+
+
 def sync_from_strava(token, limit_pages=20):
-    """全量/增量同步 Strava→SQLite。返回统计"""
+    """全量/增量同步 Strava→SQLite。返回统计。同步期间更新 SYNC_PROGRESS 供前端轮询进度。"""
+    SYNC_PROGRESS["running"] = True
+    SYNC_PROGRESS["error"] = None
+    SYNC_PROGRESS["message"] = "开始同步"
     all_acts = []
     page = 1
-    while page <= limit_pages:
-        acts = get_activities_page(token, page=page, per_page=100)
-        if not acts:
-            break
-        all_acts.extend(acts)
-        # 增量：若已到已知的最新活动，跳过后续页（避免重复拉取全历史）
-        if page == 1:
-            last_sync = db.get_meta("last_sync")
-            # last_sync 是时间戳，无法直接对比活动日期；简单起见全量拉取 limit_pages
-        page += 1
-        if page > 1 and len(acts) < 100:
-            break
-    added = db.upsert_activities(all_acts)
-    _log("system", f"同步完成: 拉取 {len(all_acts)} 条, 新增 {added} 条")
-    return {"activities": len(all_acts), "new": added, "page": page - 1}
+    try:
+        while page <= limit_pages:
+            acts = get_activities_page(token, page=page, per_page=100)
+            SYNC_PROGRESS["page"] = page
+            if not acts:
+                break
+            all_acts.extend(acts)
+            SYNC_PROGRESS["fetched"] = len(all_acts)
+            SYNC_PROGRESS["message"] = f"已拉取第 {page} 页 · {len(all_acts)} 条"
+            _log("strava", f"同步进度: 第 {page} 页, 累计 {len(all_acts)} 条")
+            # 增量：若已到已知的最新活动，跳过后续页（避免重复拉取全历史）
+            if page == 1:
+                last_sync = db.get_meta("last_sync")
+                # last_sync 是时间戳，无法直接对比活动日期；简单起见全量拉取 limit_pages
+            page += 1
+            if page > 1 and len(acts) < 100:
+                break
+        SYNC_PROGRESS["message"] = "写入本地数据库"
+        added = db.upsert_activities(all_acts)
+        SYNC_PROGRESS["done"] = True
+        SYNC_PROGRESS["message"] = f"完成 · 拉取 {len(all_acts)} 条, 新增 {added} 条"
+        _log("system", f"同步完成: 拉取 {len(all_acts)} 条, 新增 {added} 条")
+        return {"activities": len(all_acts), "new": added, "page": page - 1}
+    except Exception as e:
+        SYNC_PROGRESS["error"] = str(e)
+        SYNC_PROGRESS["message"] = f"失败: {e}"
+        raise
+    finally:
+        SYNC_PROGRESS["running"] = False
 
 
 def ensure_local_data():
@@ -831,6 +852,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not self._require_api_token():
                 return
             self._send_json(get_service_info())
+        elif path == "/api/sync/progress":
+            # 同步进度（前端轮询）
+            if not self._require_api_token():
+                return
+            self._send_json(SYNC_PROGRESS)
         elif path == "/api/token/view":
             if not self._require_api_token():
                 return
