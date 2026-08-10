@@ -10,7 +10,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BASE_VER="$(cat "$ROOT/app/server/VERSION" | tr -d '[:space:]')"
+CUR_VER="$(cat "$ROOT/app/server/VERSION" 2>/dev/null | tr -d '[:space:]')"
+[ -z "$CUR_VER" ] && CUR_VER="1.2.1"
 COUNT_FILE="$ROOT/scripts/.build_num"
 FPK_DIR="/vol1/1000/fnOS App/fpk/strava"
 OLDFPK_DIR="/vol1/1000/fnOS App/fpk/oldfpk"
@@ -18,21 +19,18 @@ OLDFPK_DIR="/vol1/1000/fnOS App/fpk/oldfpk"
 # --- 计算版本号 ---
 MODE="${1:-}"
 if [ "$MODE" = "--formal" ]; then
-    # 正式版：第3位 +1，去掉第4位（1.2.1 -> 1.2.2）
-    IFS='.' read -ra P <<< "$BASE_VER"
-    P[2]=$(( ${P[2]:-0} + 1 ))
-    VER="${P[0]}.${P[1]}.${P[2]}"
-    echo "ℹ️  正式版：$BASE_VER -> $VER"
+    # 正式版：升第3位，去掉第4位（1.2.1.12 -> 1.2.2）
+    IFS='.' read -ra P <<< "$CUR_VER"
+    VER="${P[0]}.${P[1]}.$(( ${P[2]:-0} + 1 ))"
+    echo "ℹ️  正式版：$CUR_VER -> $VER"
 else
-    # 测试版：第4位自动累加
-    COUNT="${1:-}"
-    if [ -z "$COUNT" ]; then
-        COUNT="$(cat "$COUNT_FILE" 2>/dev/null || echo 0)"
-        COUNT=$(( COUNT + 1 ))
+    # 测试版：第4位自动累加（基于当前 VERSION）
+    if [[ "$CUR_VER" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+        VER="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}.$((BASH_REMATCH[4] + 1))"
+    else
+        VER="${CUR_VER}.1"
     fi
-    echo "$COUNT" > "$COUNT_FILE"
-    VER="${BASE_VER}.${COUNT}"
-    echo "ℹ️  测试版：第4位自动累加 -> $VER"
+    echo "ℹ️  测试版：$CUR_VER -> $VER"
 fi
 
 # --- 打包前确认（遵守打包纪律；BUILD_AUTO=1 跳过确认用于自动化）---
@@ -45,9 +43,10 @@ if [ "${BUILD_AUTO:-0}" != "1" ]; then
     fi
 fi
 
-# --- 更新 manifest version 为当前包版本 ---
+# --- 更新 manifest version + VERSION 文件为当前包版本 ---
 sed -i "s/^version.*/version               = $VER/" "$ROOT/manifest"
-echo "✓ manifest version = $VER"
+echo "$VER" > "$ROOT/app/server/VERSION"
+echo "✓ manifest + VERSION = $VER"
 
 # --- fnpack build url 版 ---
 sed -i 's/"type": "iframe"/"type": "url"/' "$ROOT/app/ui/config"
