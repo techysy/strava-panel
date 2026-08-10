@@ -149,8 +149,9 @@ textarea{min-height:120px;resize:vertical}
     <!-- 骑行数据 -->
     <div class="tab-panel" id="tab-data">
       <div class="seg" id="periodSeg">
-        <button class="active" id="periodYear" onclick="setPeriod('year')" data-i18n="stats_year">本年度</button>
-        <button id="periodMonth" onclick="setPeriod('month')" data-i18n="stats_month">本月份</button>
+        <button id="periodMonth" class="active" onclick="setPeriod('month')" data-i18n="stats_month">本月份</button>
+        <button id="periodYear" onclick="setPeriod('year')" data-i18n="stats_year">本年度</button>
+        <button id="periodAll" onclick="setPeriod('all')" data-i18n="stats_all">所有</button>
       </div>
       <div class="grid" id="statsGrid">
         <div class="card"><div class="label" data-i18n="stats_rides">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div></div>
@@ -235,7 +236,7 @@ const I18N = {
     stat_group_strava:'🔗 Strava API', stat_group_db:'🗄️ 本地数据库', stat_group_agent:'🤖 Agent 外部调用',
     stat_configured:'凭据', stat_token:'授权', stat_activities:'缓存活动', stat_sync:'最后同步', stat_port:'端口', stat_version:'版本', stat_connected:'已连接', stat_not_configured:'未配置', stat_error:'异常',
     stat_athlete:'Athlete ID', stat_dbsize:'DB 大小', stat_dbpath:'DB 路径', stat_apitoken:'API token', stat_calls:'调用次数', stat_lastcall:'最后调用',
-    stats_period:'统计周期', stats_year:'本年度', stats_month:'本月份',
+    stats_period:'统计周期', stats_year:'本年度', stats_month:'本月份', stats_all:'所有',
     stats_rides:'骑行次数', stats_dist:'总距离', stats_dur:'总时长', stats_elev:'总爬升',
     panel_weekly:'📊 每周骑行距离 (km)', panel_recent:'🚴 最近骑行',
     col_date:'日期', col_name:'活动', col_dist:'距离', col_dur:'时长', col_speed:'均速', col_elev:'爬升',
@@ -262,7 +263,7 @@ const I18N = {
     stat_group_strava:'🔗 Strava API', stat_group_db:'🗄️ Local Database', stat_group_agent:'🤖 Agent Calls',
     stat_configured:'Credentials', stat_token:'Auth', stat_activities:'Cached Acts', stat_sync:'Last Sync', stat_port:'Port', stat_version:'Version', stat_connected:'Connected', stat_not_configured:'Not Configured', stat_error:'Error',
     stat_athlete:'Athlete ID', stat_dbsize:'DB Size', stat_dbpath:'DB Path', stat_apitoken:'API token', stat_calls:'Call Count', stat_lastcall:'Last Call',
-    stats_period:'Period', stats_year:'This Year', stats_month:'This Month',
+    stats_period:'Period', stats_year:'This Year', stats_month:'This Month', stats_all:'All',
     stats_rides:'Rides', stats_dist:'Distance', stats_dur:'Duration', stats_elev:'Elevation',
     panel_weekly:'📊 Weekly Distance (km)', panel_recent:'🚴 Recent Rides',
     col_date:'Date', col_name:'Activity', col_dist:'Distance', col_dur:'Duration', col_speed:'Avg Spd', col_elev:'Elevation',
@@ -430,14 +431,16 @@ function fmtBytes(b){
 }
 
 // ===== Data =====
-let period = 'year';
+let period = 'month'; // 默认本月份
 function setPeriod(p){
   period = p;
-  document.getElementById('periodYear').classList.toggle('active', p==='year');
   document.getElementById('periodMonth').classList.toggle('active', p==='month');
+  document.getElementById('periodYear').classList.toggle('active', p==='year');
+  document.getElementById('periodAll').classList.toggle('active', p==='all');
   loadData();
 }
 function periodStart(){
+  if(period === 'all') return '';   // 所有：不限定起始
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth()+1).padStart(2,'0');
@@ -446,7 +449,8 @@ function periodStart(){
 async function loadData(){
   try{
     const start = periodStart();
-    const s = await apiGet('/api/stats', `start=${start}`);
+    const qs = start ? `start=${start}` : '';
+    const s = await apiGet('/api/stats', qs);
     if(!s.error){
       document.getElementById('cRides').textContent = s.total_rides;
       document.getElementById('cDist').textContent = s.total_distance_km;
