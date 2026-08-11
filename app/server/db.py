@@ -178,3 +178,39 @@ class StravaDB:
             m["duration_h"] += (a.get("moving_time") or 0) / 3600
             m["elev_m"] += (a.get("total_elevation_gain") or 0)
         return [{"month": k, **v} for k, v in sorted(months.items())]
+
+    def daily(self, start_date=None, end_date=None):
+        """按天聚合（仅返回有骑行记录的日期）"""
+        rows = self.get_rides(start_date=start_date, end_date=end_date, limit=100000)
+        days = {}
+        for a in rows:
+            d = (a.get("start_date") or "")[:10]
+            try:
+                dt = datetime.date.fromisoformat(d)
+            except Exception:
+                continue
+            key = d
+            day = days.setdefault(key, {"count": 0, "dist_km": 0.0, "duration_h": 0.0, "elev_m": 0.0})
+            day["count"] += 1
+            day["dist_km"] += (a.get("distance") or 0) / 1000
+            day["duration_h"] += (a.get("moving_time") or 0) / 3600
+            day["elev_m"] += (a.get("total_elevation_gain") or 0)
+        return [{"day": k, **v} for k, v in sorted(days.items())]
+
+    def yearly(self, start_date=None, end_date=None):
+        """按年聚合（返回年度汇总）"""
+        rows = self.get_rides(start_date=start_date, end_date=end_date, limit=100000)
+        years = {}
+        for a in rows:
+            d = (a.get("start_date") or "")[:10]
+            try:
+                dt = datetime.date.fromisoformat(d)
+            except Exception:
+                continue
+            key = f"{dt.year}"
+            y = years.setdefault(key, {"count": 0, "dist_km": 0.0, "duration_h": 0.0, "elev_m": 0.0})
+            y["count"] += 1
+            y["dist_km"] += (a.get("distance") or 0) / 1000
+            y["duration_h"] += (a.get("moving_time") or 0) / 3600
+            y["elev_m"] += (a.get("total_elevation_gain") or 0)
+        return [{"year": k, **v} for k, v in sorted(years.items())]

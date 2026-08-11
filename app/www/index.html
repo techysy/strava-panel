@@ -248,7 +248,7 @@ const I18N = {
     stat_configured_ok:'已配置', stat_configured_no:'未配置', stat_token_ok:'正常', stat_token_no:'失效', stat_apitoken_ok:'已生成', stat_apitoken_no:'未生成',
     stats_period:'统计周期', stats_year:'本年度', stats_month:'本月份', stats_lastyear:'上年度', stats_all:'所有数据',
     stats_rides:'骑行次数', stats_dist:'总距离', stats_dur:'总时长', stats_elev:'总爬升',
-    panel_monthly:'📊 每月骑行距离 (km)', panel_recent:'🚴 最近骑行',
+    panel_monthly:'📊 每月骑行距离 (km)', panel_daily:'📊 每日骑行距离 (km)', panel_yearly:'📊 每年骑行距离 (km)', panel_recent:'🚴 最近骑行',
     col_date:'日期', col_name:'活动', col_dist:'距离', col_dur:'时长', col_speed:'均速', col_elev:'爬升',
     prev_page:'‹ 上一页', next_page:'下一页 ›', empty:'暂无数据',
     sub_cred:'🔑 凭据', sub_api:'🤖 API', sub_data:'🗄️ 数据',
@@ -276,7 +276,7 @@ const I18N = {
     stat_configured_ok:'Configured', stat_configured_no:'Not Configured', stat_token_ok:'OK', stat_token_no:'Invalid', stat_apitoken_ok:'Generated', stat_apitoken_no:'Not Generated',
     stats_period:'Period', stats_year:'This Year', stats_month:'This Month', stats_lastyear:'Last Year', stats_all:'All Data',
     stats_rides:'Rides', stats_dist:'Distance', stats_dur:'Duration', stats_elev:'Elevation',
-    panel_monthly:'📊 Monthly Distance (km)', panel_recent:'🚴 Recent Rides',
+    panel_monthly:'📊 Monthly Distance (km)', panel_daily:'📊 Daily Distance (km)', panel_yearly:'📊 Yearly Distance (km)', panel_recent:'🚴 Recent Rides',
     col_date:'Date', col_name:'Activity', col_dist:'Distance', col_dur:'Duration', col_speed:'Avg Spd', col_elev:'Elevation',
     prev_page:'‹ Prev', next_page:'Next ›', empty:'No data',
     sub_cred:'🔑 Credentials', sub_api:'🤖 API', sub_data:'🗄️ Data',
@@ -481,24 +481,39 @@ async function loadData(){
       document.getElementById('cDist').textContent = s.total_distance_km;
       document.getElementById('cDur').textContent = s.total_duration_h;
       document.getElementById('cElev').textContent = s.total_elevation_m;
-      renderMonthly(s.monthly||[]);
+      // 按周期选择图表维度: 本月→每日, 年度→每月, 所有→每年
+      let series = [], key = '', title = t('panel_monthly');
+      if(period === 'month'){ series = s.daily||[]; key = 'day'; title = t('panel_daily'); }
+      else if(period === 'all'){ series = s.yearly||[]; key = 'year'; title = t('panel_yearly'); }
+      else { series = s.monthly||[]; key = 'month'; title = t('panel_monthly'); }
+      const th = document.querySelector('[data-i18n="panel_monthly"]');
+      if(th) th.textContent = title;
+      renderMonthly(series, key);
     }
   }catch(e){}
   await loadActivities();
 }
-function renderMonthly(months){
-  // 月度汇总面积折线图（参考官方 Strava app，纯 SVG，零依赖）
+function renderMonthly(months, key){
+  // 面积折线图（参考官方 Strava app，纯 SVG，零依赖）。key=day|month|year 决定 X 轴标签
+  key = key || 'month';
   const el = document.getElementById('weeklyChart');
   if(!months || !months.length){ el.innerHTML = `<div style="color:var(--muted);font-size:13px">${t('empty')}</div>`; return; }
-  const data = months.slice(-12);           // 最近 12 个月
+  const data = months.slice(-31);           // 最近 N 个点（天/月/年）
   const w = 560, h = 220, padL = 40, padR = 14, padT = 24, padB = 28;
   const iw = w - padL - padR, ih = h - padT - padB;
   const max = Math.max(...data.map(m=>m.dist_km), 1);
   const stepX = data.length > 1 ? iw/(data.length-1) : 0;
+  // 标签格式化: 日→MM-DD, 月→YYYY/MM, 年→YYYY
+  const fmtLabel = (raw) => {
+    const s = String(raw||'');
+    if(key === 'day'){ const p=s.split('-'); return p.length>=3 ? `${p[1]}-${p[2]}` : s; }
+    if(key === 'year') return s;
+    return s.replace('-','/');
+  };
   const pts = data.map((m,i)=>{
     const x = padL + i*stepX;
     const y = padT + ih - (m.dist_km/max)*ih;
-    return {x,y,label:(m.month||'').replace('-','/'), dist:m.dist_km, count:m.count};
+    return {x,y,label:fmtLabel(m[key]), dist:m.dist_km, count:m.count};
   });
   const baseY = padT + ih;
   const line = pts.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
@@ -513,7 +528,7 @@ function renderMonthly(months){
   });
   // 渐变填充定义
   const gid = 'areaGrad';
-  el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" width="100%" style="display:block;background:var(--card2);border-radius:10px" role="img" aria-label="monthly distance chart">
+  el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" width="100%" style="display:block;background:var(--card2);border-radius:10px" role="img" aria-label="distance chart">
     <defs>
       <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="var(--brand)" stop-opacity="0.35"/>
@@ -523,7 +538,7 @@ function renderMonthly(months){
     ${grid}
     <path d="${area}" fill="url(#${gid})" stroke="none"/>
     <path d="${line}" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-    ${pts.map((p,i)=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${i===pts.length-1?5:3.5}" fill="${i===pts.length-1?'var(--brand)':'var(--brand)'}" stroke="#fff" stroke-width="1.5"/>`).join('')}
+    ${pts.map((p,i)=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${i===pts.length-1?5:3.5}" fill="var(--brand)" stroke="#fff" stroke-width="1.5"/>`).join('')}
     ${pts.map(p=>`<text x="${p.x.toFixed(1)}" y="${h-8}" text-anchor="middle" font-size="10" fill="var(--muted)">${p.label}</text>`).join('')}
     ${pts.map(p=>`<text x="${p.x.toFixed(1)}" y="${(p.y-8).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--muted)">${p.dist.toFixed(0)}</text>`).join('')}
   </svg>`;
