@@ -120,8 +120,16 @@ def save_config(cfg):
     ]
     CONF_FILE.write_text("\n".join(lines) + "\n")
     os.chmod(CONF_FILE, 0o600)  # 权限 600，仅属主可读
-    if TOKEN_FILE.exists():
-        TOKEN_FILE.unlink(missing_ok=True)
+    # 仅当 refresh_token 实际变更时才清掉缓存的 access_token（凭据变了旧 token 作废）。
+    # 不能无条件删——exchange/refresh 是"先 save 后写新 token"，若无条件删会误删刚换来的 token。
+    try:
+        if TOKEN_FILE.exists():
+            cur_rt = cfg.get("refresh_token", "").strip()
+            cached = json.loads(TOKEN_FILE.read_text()).get("refresh_token", "").strip()
+            if cur_rt and cached and cur_rt != cached:
+                TOKEN_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
 
 
 def has_credentials():
@@ -229,6 +237,11 @@ def exchange_code(code):
     cfg["refresh_token"] = r.get("refresh_token", "")
     if r.get("athlete"):
         cfg["athlete_id"] = str(r["athlete"].get("id", ""))
+    cfg["oauth_state"] = ""
+    # ⚠️ 必须先 save_config 再写 token 文件 —— save_config 会删除已存在的 tokens.json
+    #   （它假设 config 变更=凭据变了，旧 access_token 作废）。若先写 token 再 save，
+    #   会把刚换来的 access_token 删掉，导致授权成功后 tokens.json 永远不存在。
+    save_config(cfg)
     # 保存 access token
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     tok = {
@@ -239,8 +252,6 @@ def exchange_code(code):
     }
     TOKEN_FILE.write_text(json.dumps(tok))
     os.chmod(TOKEN_FILE, 0o600)
-    cfg["oauth_state"] = ""
-    save_config(cfg)
     return True, None
 
 
@@ -256,6 +267,11 @@ def refresh_token(cfg):
     _log("strava", "POST /oauth/token (refresh_token)")
     with urllib.request.urlopen(req, timeout=20) as resp:
         r = json.loads(resp.read().decode())
+    # ⚠️ 同样必须先 save_config 再写 token 文件（save_config 会删 tokens.json）
+    #   否则刷新成功的 token 也被随即删掉，缓存永远不存在 → 每次都重新刷新
+    if r.get("refresh_token"):
+        cfg["refresh_token"] = r["refresh_token"]
+        save_config(cfg)
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     tok = {
         "access_token": r["access_token"],
@@ -265,9 +281,6 @@ def refresh_token(cfg):
     }
     TOKEN_FILE.write_text(json.dumps(tok))
     os.chmod(TOKEN_FILE, 0o600)
-    if r.get("refresh_token"):
-        cfg["refresh_token"] = r["refresh_token"]
-        save_config(cfg)
     return r["access_token"], r.get("scope", "")
 
 
