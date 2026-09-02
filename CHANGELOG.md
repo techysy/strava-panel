@@ -2,6 +2,15 @@
 
 ---
 
+## v1.2.2 (2026-09-02)
+
+### 修复 / Fixed
+
+- 🔧 **修复"假绿"状态**：token 是否有效现在会校验 `scope` 含 `activity:read_all`。若 refresh 拿到的 access_token 只带 `read` scope（历史上只用只读 scope 授权），不再显示绿色"正常"，而是提示"scope 缺 activity:read_all，需重新 OAuth 授权"；同步接口也不再反复触发 401。`/athlete/activities` 需要 `activity:read_all`，缺它必然 401，旧状态判定只检查"能否拿到任意 token"导致误报正常。
+- 🔗 **修复 OAuth 授权窗口/回调**：回调地址不再兜底成 `http://localhost/`（code 回不到面板）。`get_redirect_uri()` 现按请求 Host 推导（用户从哪个地址打开面板，回调就落哪），配置了 redirect_uri 仍优先。设置页会自动回填完整回调地址并提示，便于在 Strava API 注册。
+
+---
+
 ## v1.2.1 (2026-08-10)
 
 ### 新增 / Added

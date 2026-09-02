@@ -6,6 +6,22 @@
 
 ---
 
+## 正式版 v1.2.2 (2026-09-02)
+
+> 基于 1.2.1.x 测试系列验收后聚合的正式版（升第 3 位）。
+
+### 修复（正式版聚合）
+- **假绿状态修复**：token 有效性增加 scope 校验（须含 `activity:read_all`）。read-only token（历史上只读 scope 授权）不再显示"正常"，改为提示"scope 缺 activity:read_all，需重新 OAuth 授权"；同步不再反复 401。
+- **OAuth 回调修复**：回调地址兜底不再 `http://localhost/`，改按请求 Host 推导；设置页自动回填完整回调地址便于在 Strava 注册。
+- ⚠️ fnpack 升 1.2.4 后拒绝旧四位点号版本（`1.2.1.14` 非法，仅接受 `x.y.z`/`x.y.z-r`）。本正式版用三位 `1.2.2`。
+
+### 验证
+- [x] 后端 py_compile + 前端 JS 语法
+- [x] scope 校验单测：缓存 read-only / 刷新 read-only / 刷新正确 scope / 缓存有效 4 场景
+- [x] fnpack 1.2.4 打包 url + iframe
+
+---
+
 ## 1.2.1.1 (2026-08-10)
 
 > 侧边栏多 Tab 管理面板重构（对齐 Hugo Blog 管理面板），基于 v1.2.0 大改。
