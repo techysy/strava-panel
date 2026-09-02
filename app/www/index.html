@@ -262,7 +262,7 @@ const I18N = {
     sub_cred:'🔑 凭据', sub_api:'🤖 API', sub_data:'🗄️ 数据',
     setup_title:'⚙️ 配置 Strava 凭据', setup_hint:'在 <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a> 查看 Client ID / Client Secret。Refresh Token 需通过 OAuth 授权获取。',
     setup_clientId:'Client ID', setup_clientSecret:'Client Secret', setup_refreshToken:'Refresh Token', setup_redirectUri:'回调地址 (redirect_uri)', setup_save:'保存凭据', setup_connect:'🔗 连接 Strava', setup_connectHint:'「连接 Strava」会在独立窗口打开 Strava 授权页，授权后自动回填并保存 refresh_token。',
-    setup_oauthOpen:'⏳ 已打开授权窗口，请在新窗口完成 Strava 授权…', setup_oauthBlocked:'⚠️ 弹窗被拦截，请点击下方链接在新页面完成授权：', setup_clickOpen:'🔗 点此打开 Strava 授权', setup_oauthTimeout:'⏱️ 授权超时，请重新点击「连接 Strava」',
+    setup_oauthOpen:'⏳ 已打开授权窗口，请在新窗口完成 Strava 授权…', setup_oauthHint:'⚠️ 若授权窗口未自动弹出，请点击下方链接在新页面完成授权：', setup_clickOpen:'🔗 点此打开 Strava 授权', setup_oauthTimeout:'⏱️ 授权超时，请重新点击「连接 Strava」',
     setup_ok:'✓ 凭据有效，已连接！', setup_fail:'✗ ', setup_saving:'保存中…', setup_configured_hint:'✓ 凭据已保存，点击「连接 Strava」重新授权即可（无需重输）。',
     api_title:'🤖 API 使用指南', api_hint:'以下为管理面板 REST API 的 Markdown 文档，可直接复制给 agent 使用。',
     api_copy:'📋 复制文档', api_copied:'✓ 已复制到剪贴板', view_token:'🔑 查看 token',
@@ -290,7 +290,7 @@ const I18N = {
     sub_cred:'🔑 Credentials', sub_api:'🤖 API', sub_data:'🗄️ Data',
     setup_title:'⚙️ Configure Strava Credentials', setup_hint:'View Client ID / Client Secret at <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a>. Refresh Token obtained via OAuth.',
     setup_clientId:'Client ID', setup_clientSecret:'Client Secret', setup_refreshToken:'Refresh Token', setup_redirectUri:'Redirect URI', setup_save:'Save Credentials', setup_connect:'🔗 Connect Strava', setup_connectHint:'Connect Strava opens an authorization window; refresh_token is saved automatically after approval.',
-    setup_oauthOpen:'⏳ Auth window opened, please approve in the new window…', setup_oauthBlocked:'⚠️ Popup blocked — click the link below to authorize in a new page:', setup_clickOpen:'🔗 Open Strava authorization', setup_oauthTimeout:'⏱️ Auth timed out, please click Connect Strava again',
+    setup_oauthOpen:'⏳ Auth window opened, please approve in the new window…', setup_oauthHint:'⚠️ If the auth window did not pop up, click the link below to authorize in a new page:', setup_clickOpen:'🔗 Open Strava authorization', setup_oauthTimeout:'⏱️ Auth timed out, please click Connect Strava again',
     setup_ok:'✓ Credentials valid, connected!', setup_fail:'✗ ', setup_saving:'Saving…', setup_configured_hint:'✓ Credentials saved. Click Connect Strava to authorize (no re-entry needed).',
     api_title:'🤖 API Guide', api_hint:'Markdown doc of the admin REST API, copy-paste for an agent.',
     api_copy:'📋 Copy Doc', api_copied:'✓ Copied to clipboard', view_token:'🔑 View Token',
@@ -363,9 +363,19 @@ function switchSubTab(name){
   if(name==='api') loadApiDoc();
   if(name==='cred') loadCredConfig();
 }
+// 确保 apiToken 已就绪（refreshStatus 异步拿 bootstrap，可能尚未完成）
+async function ensureApiToken(){
+  if(apiToken) return apiToken;
+  try{
+    const boot = await (await fetch(API + '/api/bootstrap')).json();
+    if(boot.api_token){ apiToken = boot.api_token; }
+  }catch(e){}
+  return apiToken;
+}
 // 回填已保存的凭据到设置表单，免每次重输。只有未保存的值才覆盖输入框，
 // 已在输入框里的(用户正编辑)保留。
 async function loadCredConfig(){
+  await ensureApiToken();
   try{
     const d = await apiGet('/api/config');
     const set = (id, val) => {
@@ -787,6 +797,7 @@ function isInIframe(){
 }
 async function connectStrava(){
   const msg = document.getElementById('setupMsg');
+  await ensureApiToken();  // 确保已拿 API token（否则 oauth/start、config 保存会 401）
   // 先确保回调地址已推导回填，避免空值未保存导致授权后 code 回不到面板
   autoFillRedirect();
   // 再保存 client_id/client_secret/redirect_uri
@@ -808,17 +819,15 @@ async function connectStrava(){
     }
     msg.textContent = t('setup_oauthOpen');
     // 授权 token 由服务端 exchange_code 保存；面板用下方轮询感知完成。
-    // 若在 iframe 里，window.open 小窗会被容器拦截 → 用 noopener 新标签页逃出 iframe，
-    // 失败则给出可点击链接让用户手动在新浏览器页打开（绝不 window.location 跳走劫持面板）。
+    // 始终尝试开授权窗口；无论是否开成功，都再给一个可点击链接兜底，
+    // 用户可在新页面完成授权（token 一样能存上）。文案用条件式，不武断说"被拦截"。
     let win = null;
     try { win = window.open(r.url, '_blank', isInIframe() ? 'noopener' : 'width=520,height=700'); }
     catch(e){ win = null; }
-    if(!win){
-      // 在 iframe 容器里：给一个真实链接，用户点击会在新浏览器页打开 Strava（不劫持面板 iframe）
-      msg.innerHTML = t('setup_oauthBlocked') +
-        " <a href='" + r.url + "' target='_blank' rel='noopener' style='color:var(--accent);text-decoration:underline'>" +
-        t('setup_clickOpen') + "</a>";
-    }
+    // 辅助提示：若窗口未自动弹出，点此在新页面打开（iframe 容器内 window.open 可能不弹）
+    msg.innerHTML = t('setup_oauthHint') +
+      " <a href='" + r.url + "' target='_blank' rel='noopener' style='color:var(--accent);text-decoration:underline'>" +
+      t('setup_clickOpen') + "</a>";
     // 轮询检测授权完成（回调成功会保存 token 并清除 oauth_state）
     let tries = 0;
     const timer = setInterval(async ()=>{

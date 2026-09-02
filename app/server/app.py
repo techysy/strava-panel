@@ -246,6 +246,12 @@ def exchange_code(code):
                 pass
         _log("strava", f"exchange_code 失败: {e} | body={body}")
         raise
+    # 诊断：记录 Strava 返回的实际内容(关键字段脱敏)，确认 scope/refresh_token/athlete
+    _log("strava",
+         f"exchange 返回: scope={r.get('scope')} "
+         f"athlete_id={str(r.get('athlete', {}).get('id','')) if isinstance(r.get('athlete'),dict) else ''} "
+         f"refresh_token前8={str(r.get('refresh_token',''))[:8]} "
+         f"有新refresh={bool(r.get('refresh_token'))}")
     cfg["refresh_token"] = r.get("refresh_token", "")
     if r.get("athlete"):
         cfg["athlete_id"] = str(r["athlete"].get("id", ""))
