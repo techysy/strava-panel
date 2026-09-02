@@ -1,40 +1,30 @@
 #!/usr/bin/env python3
-"""生成 Strava Panel fnOS 应用图标 — 橙色渐变 + 白色 S + 骑行元素, 小圆角对齐 fnOS 规范(~3%)"""
-from PIL import Image, ImageDraw
-import math
+"""生成 Strava Panel fnOS 应用图标 — 官方 Strava 橙色圆角徽标.
 
-C1, C2 = (0xFC,0x4C,0x02), (0xE8,0x43,0x00)  # Strava 橙
+图标源：Strava 官方图标库的 `@2x/48@2x.png`（96×96 橙色圆角六边形 + 白色/浅橙 echelon）。
+用法：python3 scripts/generate-icons.py [源.png]
+  默认源 = /tmp/strava-badges/@2x/48@2x.png（可改成你的官方图标库路径）。
+说明：fnOS 应用图标需 ICON.PNG(64) + ICON_256.PNG(256) + app/ui/images/icon_{64,128,256}.png。
+"""
+import sys
+from PIL import Image
 
-def lerp(a,b,t): return int(a+(b-a)*t)
+SRC = sys.argv[1] if len(sys.argv) > 1 else "/tmp/strava-badges/@2x/48@2x.png"
 
-def make_icon(size):
-    rad = int(size*0.03)  # 小圆角对齐 fnOS
-    img = Image.new("RGBA",(size,size))
-    d = ImageDraw.Draw(img)
-    for y in range(size):
-        for x in range(size):
-            t=(x+y)/(2*size-2)
-            d.point((x,y),fill=(lerp(C1[0],C2[0],t),lerp(C1[1],C2[1],t),lerp(C1[2],C2[2],t),255))
-    mask = Image.new("L",(size,size),0)
-    dm = ImageDraw.Draw(mask)
-    dm.rounded_rectangle([0,0,size-1,size-1],radius=rad,fill=255)
-    img.putalpha(mask)
-    # 白色 "S" + 骑行三角 (Strava logo 风格: 两个叠加三角)
-    d = ImageDraw.Draw(img)
-    cx, cy = size*0.5, size*0.58
-    w = size*0.30
-    # Strava logo = "S" 形折线
-    pts = [
-        (cx-w/2, cy-w*0.15),  # 左中
-        (cx, cy-w*0.15),
-        (cx, cy-w*0.55),      # 上
-        (cx-w*0.30, cy+w*0.30),
-        (cx+w*0.30, cy+w*0.30),
+def main():
+    src = Image.open(SRC).convert("RGBA")
+    print(f"源: {SRC} size={src.size}")
+    files = [
+        (64, "ICON.PNG"),
+        (256, "ICON_256.PNG"),
+        (64, "app/ui/images/icon_64.png"),
+        (128, "app/ui/images/icon_128.png"),
+        (256, "app/ui/images/icon_256.png"),
     ]
-    d.line(pts, fill=(255,255,255,255), width=max(3,int(size*0.09)), joint="curve")
-    return img
+    for s, path in files:
+        img = src.resize((s, s), Image.LANCZOS)
+        img.save(path)
+        print("saved", path, s)
 
-for s,path in [(64,"ICON.PNG"),(256,"ICON_256.PNG"),
-               (64,"app/ui/images/icon_64.png"),(128,"app/ui/images/icon_128.png"),(256,"app/ui/images/icon_256.png")]:
-    make_icon(s).save(path)
-    print("saved",path)
+if __name__ == "__main__":
+    main()
