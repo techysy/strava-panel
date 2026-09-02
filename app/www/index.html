@@ -263,7 +263,7 @@ const I18N = {
     setup_title:'⚙️ 配置 Strava 凭据', setup_hint:'在 <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a> 查看 Client ID / Client Secret。Refresh Token 需通过 OAuth 授权获取。',
     setup_clientId:'Client ID', setup_clientSecret:'Client Secret', setup_refreshToken:'Refresh Token', setup_redirectUri:'回调地址 (redirect_uri)', setup_save:'保存凭据', setup_connect:'🔗 连接 Strava', setup_connectHint:'「连接 Strava」会在独立窗口打开 Strava 授权页，授权后自动回填并保存 refresh_token。',
     setup_oauthOpen:'⏳ 已打开授权窗口，请在新窗口完成 Strava 授权…', setup_oauthBlocked:'⚠️ 弹窗被拦截，请点击下方链接在新页面完成授权：', setup_clickOpen:'🔗 点此打开 Strava 授权', setup_oauthTimeout:'⏱️ 授权超时，请重新点击「连接 Strava」',
-    setup_ok:'✓ 凭据有效，已连接！', setup_fail:'✗ ', setup_saving:'保存中…',
+    setup_ok:'✓ 凭据有效，已连接！', setup_fail:'✗ ', setup_saving:'保存中…', setup_configured_hint:'✓ 凭据已保存，点击「连接 Strava」重新授权即可（无需重输）。',
     api_title:'🤖 API 使用指南', api_hint:'以下为管理面板 REST API 的 Markdown 文档，可直接复制给 agent 使用。',
     api_copy:'📋 复制文档', api_copied:'✓ 已复制到剪贴板', view_token:'🔑 查看 token',
     data_title:'🗄️ 数据管理', data_hint:'骑行数据缓存到本地 SQLite。可手动同步 Strava→SQLite，或导出全量数据给 agent 使用。',
@@ -291,7 +291,7 @@ const I18N = {
     setup_title:'⚙️ Configure Strava Credentials', setup_hint:'View Client ID / Client Secret at <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a>. Refresh Token obtained via OAuth.',
     setup_clientId:'Client ID', setup_clientSecret:'Client Secret', setup_refreshToken:'Refresh Token', setup_redirectUri:'Redirect URI', setup_save:'Save Credentials', setup_connect:'🔗 Connect Strava', setup_connectHint:'Connect Strava opens an authorization window; refresh_token is saved automatically after approval.',
     setup_oauthOpen:'⏳ Auth window opened, please approve in the new window…', setup_oauthBlocked:'⚠️ Popup blocked — click the link below to authorize in a new page:', setup_clickOpen:'🔗 Open Strava authorization', setup_oauthTimeout:'⏱️ Auth timed out, please click Connect Strava again',
-    setup_ok:'✓ Credentials valid, connected!', setup_fail:'✗ ', setup_saving:'Saving…',
+    setup_ok:'✓ Credentials valid, connected!', setup_fail:'✗ ', setup_saving:'Saving…', setup_configured_hint:'✓ Credentials saved. Click Connect Strava to authorize (no re-entry needed).',
     api_title:'🤖 API Guide', api_hint:'Markdown doc of the admin REST API, copy-paste for an agent.',
     api_copy:'📋 Copy Doc', api_copied:'✓ Copied to clipboard', view_token:'🔑 View Token',
     data_title:'🗄️ Data Management', data_hint:'Ride data cached to local SQLite. Sync Strava→SQLite manually, or export all data for an agent.',
@@ -361,7 +361,31 @@ function switchSubTab(name){
   document.querySelectorAll('.subpanel').forEach(el=>el.classList.remove('active'));
   document.getElementById('sub-'+name).classList.add('active');
   if(name==='api') loadApiDoc();
-  if(name==='cred') autoFillRedirect();
+  if(name==='cred') loadCredConfig();
+}
+// 回填已保存的凭据到设置表单，免每次重输。只有未保存的值才覆盖输入框，
+// 已在输入框里的(用户正编辑)保留。
+async function loadCredConfig(){
+  try{
+    const d = await apiGet('/api/config');
+    const set = (id, val) => {
+      const el = document.getElementById(id);
+      if(el && val && !el.value.trim()) el.value = val;  // 仅空时回填
+    };
+    set('client_id', d.client_id);
+    set('client_secret', d.client_secret);
+    set('redirect_uri', d.redirect_uri);
+    if(d.redirect_uri) autoFillHint(d.redirect_uri);
+    // 若已配置，提示已保存；授权完成后也显示已连接
+    const msg = document.getElementById('setupMsg');
+    if(msg && !msg.textContent.trim() && d.configured){
+      msg.textContent = d.has_token ? t('setup_ok') : t('setup_configured_hint');
+    }
+  }catch(e){}
+}
+function autoFillHint(shown){
+  const hint = document.getElementById('callbackHint');
+  if(hint && shown && !hint.textContent.includes(shown)) hint.textContent = shown;
 }
 // 自动推导并回填回调地址：redirect_uri 为空时，用浏览器当前访问面板的地址拼出可回传的完整回调，
 // 避免授权后 code 落到 localhost 回不来。同时更新顶部提示里的完整地址，便于在 Strava 里注册。

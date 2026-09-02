@@ -232,8 +232,20 @@ def exchange_code(code):
         "grant_type": "authorization_code",
     }).encode()
     req = urllib.request.Request(STRAVA_AUTH_URL, data=data, method="POST")
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        r = json.loads(resp.read().decode())
+    _log("strava", f"POST /oauth/token (authorization_code exchange)")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            r = json.loads(resp.read().decode())
+    except Exception as e:
+        # 抓取 Strava 拒绝 exchange 的具体原因(HTTP body)，供日志排查
+        body = ""
+        if hasattr(e, "read"):
+            try:
+                body = e.read().decode("utf-8", "ignore")[:300]
+            except Exception:
+                pass
+        _log("strava", f"exchange_code 失败: {e} | body={body}")
+        raise
     cfg["refresh_token"] = r.get("refresh_token", "")
     if r.get("athlete"):
         cfg["athlete_id"] = str(r["athlete"].get("id", ""))
@@ -897,10 +909,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not self._require_api_token():
                 return
             cfg = load_config()
-            # 不返回敏感字段（client_secret/refresh_token/api_token）
+            # 本地面板（API token 保护）允许回显已存凭据，供设置页回填、免每次重输。
+            # client_secret 仅在本机/局域网面板内返回（Bearer api_token 校验后）。
             self._send_json({
                 "client_id": cfg.get("client_id", ""),
+                "client_secret": cfg.get("client_secret", ""),
+                "redirect_uri": cfg.get("redirect_uri", ""),
                 "configured": has_credentials(),
+                "has_token": bool(cfg.get("refresh_token", "")),
             })
         elif path == "/api/info":
             # 服务状态（含版本/端口/api_token，供仪表板）
