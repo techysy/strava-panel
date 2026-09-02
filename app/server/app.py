@@ -162,23 +162,38 @@ def recreate_api_token():
 # ---------- Strava OAuth 授权 ----------
 OAUTH_AUTHORIZE_URL = "https://www.strava.com/oauth/authorize"
 OAUTH_SCOPE = "read,activity:read_all"
+# 拉取骑行活动所需的最低 scope（缺它 /athlete/activities 会 401，面板同步必失败）
+REQUIRED_SCOPE = "activity:read_all"
 
 
-def get_redirect_uri():
-    """回调地址：优先用配置的，否则默认 http://localhost/（用户需在 Strava 设置里注册）."""
+def _scope_has_activity(scope):
+    """scope 是否含 activity:read_all（逗号分隔列表，如 'read,activity:read_all'）."""
+    return bool(scope) and "activity:read_all" in [s.strip() for s in str(scope).split(",")]
+
+
+def get_redirect_uri(request_host=None):
+    """回调地址：优先用配置的；否则按请求 Host 推导（面板真正可达的地址），绝不用 localhost.
+
+    需在 Strava API 设置注册完全一致的地址（如 http://192.168.31.101:20227/oauth/callback）。
+    request_host 形如 '192.168.31.101:20227'（来自 HTTP Host 头），未带 scheme。
+    """
     cfg = load_config()
     uri = cfg.get("redirect_uri", "").strip()
     if uri:
         return uri
-    # 默认：面板回调（需在 Strava API 设置添加 http://<NAS-IP>:20227/oauth/callback）
     port = int(os.environ.get("PORT", "20227"))
+    # 优先按请求实际 Host 推导 —— 用户从哪个地址打开面板，回调就落在哪，code 才能回来
+    if request_host:
+        rh = request_host.strip()
+        if rh and "://" not in rh:
+            return f"http://{rh}/oauth/callback"
     host = os.environ.get("NAS_IP", "")
     if host:
         return f"http://{host}:{port}/oauth/callback"
     return "http://localhost/"
 
 
-def build_oauth_url():
+def build_oauth_url(request_host=None):
     """生成 Strava OAuth 授权 URL，并保存 state 供回调校验."""
     cfg = load_config()
     client_id = cfg.get("client_id", "").strip()
@@ -187,7 +202,7 @@ def build_oauth_url():
     state = secrets.token_urlsafe(16)
     cfg["oauth_state"] = state
     save_config(cfg)
-    redirect_uri = get_redirect_uri()
+    redirect_uri = get_redirect_uri(request_host)
     params = urllib.parse.urlencode({
         "client_id": client_id,
         "response_type": "code",
@@ -253,23 +268,41 @@ def refresh_token(cfg):
     if r.get("refresh_token"):
         cfg["refresh_token"] = r["refresh_token"]
         save_config(cfg)
-    return r["access_token"]
+    return r["access_token"], r.get("scope", "")
+
+
+def _scope_err(scope):
+    """token 缺活动权限时的错误描述，用于状态提示而非直接当刷新失败."""
+    return f"scope 缺 {REQUIRED_SCOPE}（当前: {scope or '无'}），需重新 OAuth 授权"
 
 
 def get_access_token():
+    """返回 (access_token, error)。token 需同时：有效 + scope 含 activity:read_all。
+
+    若能刷新但 scope 缺活动权限（历史上用只读 scope 授权），返回 (None, 明确提示)，
+    状态不再误报为"正常"。
+    """
     cfg = load_config()
     if not has_credentials():
         return None, "未配置凭据"
+    # 1) 优先用缓存 token —— 仅当它未过期且含活动 scope 才直接复用
     if TOKEN_FILE.exists():
         try:
             tok = json.loads(TOKEN_FILE.read_text())
             exp = tok.get("expires_at")
-            if exp and exp > int(time.time()) + 300 and tok.get("access_token"):
+            if (exp and exp > int(time.time()) + 300
+                    and tok.get("access_token")
+                    and _scope_has_activity(tok.get("scope", ""))):
                 return tok["access_token"], None
+            # 缓存缺失/过期/缺活动 scope 时，落到下面刷新，看能否拿到正确 scope
         except Exception:
             pass
+    # 2) 否则刷新；刷新返回的 token 必须含活动 scope，否则视为不可用
     try:
-        return refresh_token(cfg), None
+        token, scope = refresh_token(cfg)
+        if not _scope_has_activity(scope):
+            return None, _scope_err(scope)
+        return token, None
     except Exception as e:
         return None, f"刷新失败: {e}"
 
@@ -873,7 +906,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/oauth/start":
             if not self._require_api_token():
                 return
-            url, redirect_uri = build_oauth_url()
+            # 用请求实际 Host 推导回调地址（否则可能落到 localhost 导致授权后 code 回不来）
+            req_host = self.headers.get("Host", "")
+            url, redirect_uri = build_oauth_url(req_host)
             if not url:
                 self._send_json({"error": redirect_uri}, 400)
             else:

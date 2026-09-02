@@ -361,6 +361,23 @@ function switchSubTab(name){
   document.querySelectorAll('.subpanel').forEach(el=>el.classList.remove('active'));
   document.getElementById('sub-'+name).classList.add('active');
   if(name==='api') loadApiDoc();
+  if(name==='cred') autoFillRedirect();
+}
+// 自动推导并回填回调地址：redirect_uri 为空时，用浏览器当前访问面板的地址拼出可回传的完整回调，
+// 避免授权后 code 落到 localhost 回不来。同时更新顶部提示里的完整地址，便于在 Strava 里注册。
+function autoFillRedirect(){
+  const inp = document.getElementById('redirect_uri');
+  if(!inp) return;
+  if(!inp.value.trim() && location.origin && location.origin !== 'null'){
+    const derived = location.origin + '/oauth/callback';
+    inp.value = derived;
+    if(inp.placeholder !== derived) inp.placeholder = derived;
+  }
+  const hint = document.getElementById('callbackHint');
+  if(hint){
+    const shown = (inp.value.trim() || inp.placeholder || location.origin + '/oauth/callback');
+    if(!hint.textContent.includes(shown)) hint.textContent = shown;
+  }
 }
 function toggleSidebar(forceClose){
   const sb = document.getElementById('sidebar');
@@ -741,7 +758,9 @@ function isMobile(){
 }
 async function connectStrava(){
   const msg = document.getElementById('setupMsg');
-  // 先保存 client_id/client_secret/redirect_uri
+  // 先确保回调地址已推导回填，避免空值未保存导致授权后 code 回不到面板
+  autoFillRedirect();
+  // 再保存 client_id/client_secret/redirect_uri
   try{
     await apiPost('/api/config', {
       client_id: document.getElementById('client_id').value,
