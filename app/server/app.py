@@ -57,6 +57,10 @@ DB_FILE = DATA_DIR / "strava.db"
 WWW_DIR = Path(__file__).parent.parent / "www"
 
 _lock = threading.Lock()
+# token/config 的读改写串行锁（可重入）：exchange 授权写 token 与 /api/info 轮询触发的
+# refresh 并发时，轮询的旧 refresh_token 刷新会覆盖 exchange 刚写入的正确 token。
+# 用 RLock 串行化，避免授权成功瞬间被并发刷新踩掉。
+_token_lock = threading.RLock()
 db = StravaDB(DB_FILE)
 
 
@@ -224,53 +228,51 @@ def build_oauth_url(request_host=None):
 
 def exchange_code(code):
     """用 authorization code 换 access_token + refresh_token，保存凭据."""
-    cfg = load_config()
-    data = urllib.parse.urlencode({
-        "client_id": cfg.get("client_id", ""),
-        "client_secret": cfg.get("client_secret", ""),
-        "code": code,
-        "grant_type": "authorization_code",
-    }).encode()
-    req = urllib.request.Request(STRAVA_AUTH_URL, data=data, method="POST")
-    _log("strava", f"POST /oauth/token (authorization_code exchange)")
-    try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            r = json.loads(resp.read().decode())
-    except Exception as e:
-        # 抓取 Strava 拒绝 exchange 的具体原因(HTTP body)，供日志排查
-        body = ""
-        if hasattr(e, "read"):
-            try:
-                body = e.read().decode("utf-8", "ignore")[:300]
-            except Exception:
-                pass
-        _log("strava", f"exchange_code 失败: {e} | body={body}")
-        raise
-    # 诊断：记录 Strava 返回的实际内容(关键字段脱敏)，确认 scope/refresh_token/athlete
-    _log("strava",
-         f"exchange 返回: scope={r.get('scope')} "
-         f"athlete_id={str(r.get('athlete', {}).get('id','')) if isinstance(r.get('athlete'),dict) else ''} "
-         f"refresh_token前8={str(r.get('refresh_token',''))[:8]} "
-         f"有新refresh={bool(r.get('refresh_token'))}")
-    cfg["refresh_token"] = r.get("refresh_token", "")
-    if r.get("athlete"):
-        cfg["athlete_id"] = str(r["athlete"].get("id", ""))
-    cfg["oauth_state"] = ""
-    # ⚠️ 必须先 save_config 再写 token 文件 —— save_config 会删除已存在的 tokens.json
-    #   （它假设 config 变更=凭据变了，旧 access_token 作废）。若先写 token 再 save，
-    #   会把刚换来的 access_token 删掉，导致授权成功后 tokens.json 永远不存在。
-    save_config(cfg)
-    # 保存 access token
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    tok = {
-        "access_token": r["access_token"],
-        "refresh_token": r.get("refresh_token", ""),
-        "scope": r.get("scope", ""),
-        "expires_at": r.get("expires_at"),
-    }
-    TOKEN_FILE.write_text(json.dumps(tok))
-    os.chmod(TOKEN_FILE, 0o600)
-    return True, None
+    with _token_lock:  # 串行化：避免与轮询 refresh 并发覆盖
+        cfg = load_config()
+        data = urllib.parse.urlencode({
+            "client_id": cfg.get("client_id", ""),
+            "client_secret": cfg.get("client_secret", ""),
+            "code": code,
+            "grant_type": "authorization_code",
+        }).encode()
+        req = urllib.request.Request(STRAVA_AUTH_URL, data=data, method="POST")
+        _log("strava", f"POST /oauth/token (authorization_code exchange)")
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                r = json.loads(resp.read().decode())
+        except Exception as e:
+            # 抓取 Strava 拒绝 exchange 的具体原因(HTTP body)，供日志排查
+            body = ""
+            if hasattr(e, "read"):
+                try:
+                    body = e.read().decode("utf-8", "ignore")[:300]
+                except Exception:
+                    pass
+            _log("strava", f"exchange_code 失败: {e} | body={body}")
+            raise
+        # 诊断：记录 Strava 返回的实际内容(关键字段脱敏)，确认 scope/refresh_token/athlete
+        _log("strava",
+             f"exchange 返回: scope={r.get('scope')} "
+             f"athlete_id={str(r.get('athlete', {}).get('id','')) if isinstance(r.get('athlete'),dict) else ''} "
+             f"refresh_token前8={str(r.get('refresh_token',''))[:8]} "
+             f"有新refresh={bool(r.get('refresh_token'))}")
+        cfg["refresh_token"] = r.get("refresh_token", "")
+        if r.get("athlete"):
+            cfg["athlete_id"] = str(r["athlete"].get("id", ""))
+        cfg["oauth_state"] = ""
+        save_config(cfg)
+        # 保存 access token
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        tok = {
+            "access_token": r["access_token"],
+            "refresh_token": r.get("refresh_token", ""),
+            "scope": r.get("scope", ""),
+            "expires_at": r.get("expires_at"),
+        }
+        TOKEN_FILE.write_text(json.dumps(tok))
+        os.chmod(TOKEN_FILE, 0o600)
+        return True, None
 
 
 # ---------- Strava token ----------
@@ -313,29 +315,30 @@ def get_access_token():
     若能刷新但 scope 缺活动权限（历史上用只读 scope 授权），返回 (None, 明确提示)，
     状态不再误报为"正常"。
     """
-    cfg = load_config()
-    if not has_credentials():
-        return None, "未配置凭据"
-    # 1) 优先用缓存 token —— 仅当它未过期且含活动 scope 才直接复用
-    if TOKEN_FILE.exists():
+    with _token_lock:  # 串行化：防止 /api/info 轮询并发 refresh 与 exchange 授权写互相踩
+        cfg = load_config()
+        if not has_credentials():
+            return None, "未配置凭据"
+        # 1) 优先用缓存 token —— 仅当它未过期且含活动 scope 才直接复用
+        if TOKEN_FILE.exists():
+            try:
+                tok = json.loads(TOKEN_FILE.read_text())
+                exp = tok.get("expires_at")
+                if (exp and exp > int(time.time()) + 300
+                        and tok.get("access_token")
+                        and _scope_has_activity(tok.get("scope", ""))):
+                    return tok["access_token"], None
+                # 缓存缺失/过期/缺活动 scope 时，落到下面刷新，看能否拿到正确 scope
+            except Exception:
+                pass
+        # 2) 否则刷新；刷新返回的 token 必须含活动 scope，否则视为不可用
         try:
-            tok = json.loads(TOKEN_FILE.read_text())
-            exp = tok.get("expires_at")
-            if (exp and exp > int(time.time()) + 300
-                    and tok.get("access_token")
-                    and _scope_has_activity(tok.get("scope", ""))):
-                return tok["access_token"], None
-            # 缓存缺失/过期/缺活动 scope 时，落到下面刷新，看能否拿到正确 scope
-        except Exception:
-            pass
-    # 2) 否则刷新；刷新返回的 token 必须含活动 scope，否则视为不可用
-    try:
-        token, scope = refresh_token(cfg)
-        if not _scope_has_activity(scope):
-            return None, _scope_err(scope)
-        return token, None
-    except Exception as e:
-        return None, f"刷新失败: {e}"
+            token, scope = refresh_token(cfg)
+            if not _scope_has_activity(scope):
+                return None, _scope_err(scope)
+            return token, None
+        except Exception as e:
+            return None, f"刷新失败: {e}"
 
 
 # ---------- Strava API ----------
