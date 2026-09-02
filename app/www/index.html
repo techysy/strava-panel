@@ -353,6 +353,7 @@ function switchNav(nav){
   toggleSidebar(true);
   if(nav==='dash'){ loadInfo(); loadLogDates(); }
   if(nav==='data'){ loadData(); }
+  if(nav==='settings'){ loadCredConfig(); }  // cred 是默认子tab，直接进入时也回填凭据
   if(nav==='api'||nav==='settings'){ /* handled by subtab */ }
 }
 function switchSubTab(name){
