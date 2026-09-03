@@ -6,6 +6,31 @@
 
 ---
 
+## 正式版 v1.2.3 (2026-09-03)
+
+> 在 v1.2.2 基础上，本会话彻底打通 Strava OAuth 全链路 + 图表对齐官方 + 多项体验修复。真机验证通过后升正式版。
+
+### 核心修复（OAuth 授权彻底打通）
+- **save_config 误删 token**：无条件删 `strava_tokens.json` → 授权/刷新成功即丢 token。改仅 refresh_token 变更才清；exchange/refresh 先 save 再写 token。
+- **并发竞态**：`/api/info` 每秒轮询 refresh 与授权写 token 互相覆盖。用 `RLock` 串行化。
+- **scope 空格分隔误判**：Strava 返回 `activity:read_all read`(空格)，原按逗号 split 误判缺权限。改兼容逗号/空格。
+- **回调地址**：不再自动跟随公网中转域名；拒绝残缺相对路径；引导显式配置完整内网 URL。
+- **凭据回显免重输**：设置页自动回填已存凭据；/api/config 拒绝非绝对 URL 的 redirect_uri。
+
+### 图表对齐官方 Strava
+- 时间筛选合并一组 7 选项；粒度 7D/1M日、3M/6M周、YTD/12M月、All年。
+- 每日/周/月空桶补全(0值)；Y轴×1.2顶部留白；平滑曲线；0值天不标数值；移动端按钮自适应。
+
+### 验证（真机 NAS 实测）
+- [x] OAuth 授权(Apple ID)成功 → conf 存新 refresh_token + athlete_id=121173304
+- [x] /api/status `has_token:true`
+- [x] 数据同步拉到 1139 条活动，last_sync 更新
+- [x] /api/stats 近7天返回 8 个含 0 的每日桶
+- [x] 后端 py_compile + 前端 JS 语法
+- [x] 图标换官方 Strava 徽标
+
+---
+
 ## 正式版 v1.2.2 (2026-09-02)
 
 > 基于 1.2.1.x 测试系列验收后聚合的正式版（升第 3 位）。

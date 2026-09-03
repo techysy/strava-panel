@@ -2,6 +2,31 @@
 
 ---
 
+## v1.2.3 (2026-09-03)
+
+### 🎯 Strava OAuth 授权彻底打通（核心修复）
+
+本版修复了多个相互叠加的问题，使 Strava 授权 → token 存储 → 数据同步**全链路真正可用**：
+
+- 🔑 **修复 token 被误删**：`save_config` 原会无条件删除 `strava_tokens.json`，导致授权/刷新成功后 token 随即丢失、缓存永远不存在（每次轮询都重复刷新）。现改为**仅当 refresh_token 实际变更**才清缓存；`exchange_code`/`refresh_token` 改为先保存 config 再写 token。
+- ⚡ **修复并发竞态**：`/api/info` 每 1 秒轮询会触发 `refresh_token()`，与 OAuth 授权写 token **并发互相覆盖**（授权换到的新 token 被旧 refresh 覆盖回 read-only）。现用 `RLock` 串行化 token/config 读改写。
+- 🎯 **修复 scope 误判**：Strava 返回的 scope 是**空格分隔**（`activity:read_all read`），原按逗号 `split(",")` 误判缺 `activity:read_all`，即使授权成功 token 也被判失效。现兼容逗号/空格两种分隔。
+- 🔗 **修复回调地址**：不再自动跟随访问入口 —— 仅内网/本机 Host 才推导回调；公网中转域名（`office.app.5ddd.com`）及残缺相对路径（`/oauth/callback`）一律拒绝，改为引导用户显式配置完整 `http://<NAS内网IP>:20227/oauth/callback`。
+
+### 🖼️ 其他改进
+
+- 📊 **骑行数据图表对齐官方 Strava**：
+  - 时间筛选合并为一组：近7天 / 近1月 / 近3月 / 近6月 / 本年度 / 近12月 / 所有（去掉原双行重叠按钮与 7D/YTD 英文简写，全量 i18n）。
+  - 粒度按官方：近7天/近1月→每日；近3月/近6月→每周；本年度/近12月→每月；所有→每年。
+  - **空桶补全**：每日/周/月补全范围内所有时间点，无骑行返回 0，图表时间轴不再断裂。
+  - **Y 轴 ×1.2 顶部留白**，最高点不贴图顶；曲线平滑（Catmull-Rom 贝塞尔）；0 值天保留在时间轴但不显示数值文字。
+  - 时间筛选按钮 flex 自适应换行，移动端整洁不溢出。
+- 🔐 **设置页凭据回显免重输**：进设置页自动回填已保存的 client_id / client_secret / redirect_uri（本地面板 API token 保护下回显），已保存/已连接状态有提示；`/api/config` 拒绝残缺相对路径 redirect_uri。
+- 🖼️ **应用图标换成 Strava 官方橙色圆角徽标**（替换原自绘近似图）。
+- 🔧 **OAuth 诊断**：`exchange_code` 失败时记录 Strava 返回的具体原因到日志，便于排查。
+
+---
+
 ## v1.2.2 (2026-09-02)
 
 ### 修复 / Fixed
