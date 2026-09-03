@@ -53,7 +53,7 @@ start() {
     fi
     cd "${SRC_DIR}" || { echo "  cd ${SRC_DIR} FAILED" >> "${DIAG}" 2>&1; return 1; }
     echo "  launching: python3 -u app.py" >> "${DIAG}" 2>&1
-    DATA_DIR="${DATA_DIR}" PORT="${PORT}" \
+    DATA_DIR="${DATA_DIR}" PORT="${PORT}" SP_HOST="0.0.0.0" \
         nohup /usr/bin/python3 -u app.py >> "${LOG}" 2>&1 < /dev/null &
     PID=$!
     echo "${PID}" > "${PID_FILE}"

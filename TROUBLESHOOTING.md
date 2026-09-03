@@ -200,9 +200,37 @@ chmod 600 /vol4/@appdata/strava/strava.conf /vol4/@appdata/strava/strava_tokens.
 
 ---
 
+## 10. OAuth 授权报 redirect_uri_uri_mismatch（回调域名不一致）
+
+### 现象
+点「连接 Strava」后，Strava 授权页报错：
+```
+API::Unauthorized: OAuthException, code: redirect_uri_uri_mismatch
+```
+
+### 根因
+Strava 校验回调时把 redirect_uri 的**域名字符串**与 API 应用设置里的 **Authorization Callback Domain** 做**精确匹配**，以下三者互不相同：
+
+- `http://localhost:20227/oauth/callback`
+- `http://127.0.0.1:20227/oauth/callback`
+- `http://192.168.31.101:20227/oauth/callback`（NAS 内网 IP）
+
+面板会按你**实际访问地址**自动推导回调（Host 头），所以「注册了 localhost 却用 127.0.0.1 打开面板」或「桌面版用 localhost、NAS 版用 IP」都会 mismatch。
+
+### 解决
+1. **统一用 `http://localhost:20227` 访问面板**（桌面版/CLI 默认即是），并在 Strava API 设置里把 Callback Domain 填 `localhost`。
+2. fnOS 局域网访问与桌面版都要用的话：Strava 一个应用只能注册一个域名 —— 要么切换用途时改注册域名，要么建两个 API 应用（两个 client_id）。
+3. 若坚持用 IP 访问，把设置页「回调地址」显式填成与注册域名完全一致的 URL 并保存（显式值优先于自动推导）。
+
+> 校验方法：授权前看面板设置页回填的回调地址，或 `curl -s -H "$AUTH" http://localhost:20227/api/oauth/start` 返回的 `redirect_uri` 字段，与 Strava 注册域名逐字符比对。
+
+---
+
 ## 日志位置
 
-| 日志 | 路径 |
+| 形态 | 路径 |
 |------|------|
-| 应用运行日志 | `/vol4/@appdata/strava/strava.log` |
-| App Center 生命周期 | `/var/log/apps/strava.log` |
+| fnOS 应用运行日志 | `/vol4/@appdata/strava/strava.log` |
+| fnOS App Center 生命周期 | `/var/log/apps/strava.log` |
+| Docker | `docker logs strava-panel`（数据卷 `/data/logs/`） |
+| 桌面版 / CLI | Windows `%APPDATA%\StravaPanel\logs\`；macOS `~/Library/Application Support/StravaPanel/logs/`；Linux `~/.strava-panel/data/logs/` |

@@ -200,7 +200,7 @@ textarea{min-height:120px;resize:vertical}
           <p class="hint" style="margin-bottom:8px" data-i18n="setup_hint">在 <a href="https://www.strava.com/settings/api" target="_blank" style="color:var(--accent)">Strava My API Application</a> 查看 Client ID / Client Secret，并添加回调地址 <code id="callbackHint" style="background:var(--card2);padding:2px 6px;border-radius:6px">/oauth/callback</code>。Refresh Token 通过 OAuth 授权自动获取。</p>
           <label data-i18n="setup_clientId">Client ID</label><input id="client_id" placeholder="Client ID">
           <label data-i18n="setup_clientSecret">Client Secret</label><input id="client_secret" placeholder="Client Secret">
-          <label data-i18n="setup_redirectUri">回调地址 (redirect_uri)</label><input id="redirect_uri" placeholder="http://<NAS-IP>:20227/oauth/callback">
+          <label data-i18n="setup_redirectUri">回调地址 (redirect_uri)</label><input id="redirect_uri" placeholder="http://localhost:20227/oauth/callback">
           <div class="msg" id="setupMsg"></div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <button class="btn" onclick="connectStrava()" data-i18n="setup_connect">🔗 连接 Strava</button>

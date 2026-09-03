@@ -1,0 +1,18 @@
+# 打包镜像只需要服务端 + 前端
+*
+!server/
+!www/
+fnos-packaging/
+desktop/
+cli/
+docs/
+scripts/
+.git/
+.gitignore
+.dockerignore
+Dockerfile
+docker-compose.yml
+README*
+CHANGELOG*
+TROUBLESHOOTING*
+*.md

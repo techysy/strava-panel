@@ -6,8 +6,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VER_FILE="$ROOT/app/server/VERSION"
-MANIFEST="$ROOT/manifest"
+VER_FILE="$ROOT/server/VERSION"
+MANIFEST="$ROOT/fnos-packaging/manifest"
 
 if [ ! -f "$VER_FILE" ]; then
     echo "ERROR: $VER_FILE 不存在" >&2

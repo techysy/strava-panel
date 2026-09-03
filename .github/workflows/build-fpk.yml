@@ -1,0 +1,98 @@
+name: Build Strava Panel fpk
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-fpk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # 零依赖纯标准库服务,无需任何构建:直接把 server + www 拷进打包工程
+      - name: Copy server + www to fnos-packaging
+        run: |
+          set -euo pipefail
+          rm -rf fnos-packaging/app/server fnos-packaging/app/www
+          mkdir -p fnos-packaging/app/server fnos-packaging/app/www
+          cp -r server/. fnos-packaging/app/server/
+          cp -r www/. fnos-packaging/app/www/
+          find fnos-packaging/app -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
+          ls -la fnos-packaging/app/server/ fnos-packaging/app/www/
+
+      - name: Download fnpack
+        env:
+          FNPACK_VERSION: "1.2.1"
+        run: |
+          FNPACK_BIN="fnpack-${FNPACK_VERSION}-linux-amd64"
+          FNPACK_SHA256="72d2a4095da676b64510b023731a227b369d80f8079bc45ff8a2f802ec0480c1"
+          curl -fsSL -o /usr/local/bin/fnpack "https://static2.fnnas.com/fnpack/${FNPACK_BIN}"
+          echo "${FNPACK_SHA256}  /usr/local/bin/fnpack" | sha256sum -c -
+          chmod +x /usr/local/bin/fnpack
+          fnpack --help | head -3
+
+      - name: Build url variant
+        run: |
+          set -euo pipefail
+          cd fnos-packaging
+          sed -i 's/"type": "iframe"/"type": "url"/' app/ui/config
+          rm -f strava.fpk
+          fnpack build -d .
+          [ -f strava.fpk ] || { echo "ERROR: fnpack build url failed"; exit 1; }
+          VERSION="$(grep -E '^version[[:space:]]*=' manifest | head -1 | sed 's/.*=//;s/[[:space:]]//g')"
+          [ -n "$VERSION" ] || { echo "ERROR: could not extract version from manifest"; exit 1; }
+          mv strava.fpk "strava-${VERSION}.fpk"
+          ls -lh "strava-${VERSION}.fpk"
+
+      - name: Build iframe variant
+        run: |
+          set -euo pipefail
+          cd fnos-packaging
+          sed -i 's/"type": "url"/"type": "iframe"/' app/ui/config
+          rm -f strava.fpk
+          fnpack build -d .
+          [ -f strava.fpk ] || { echo "ERROR: fnpack build iframe failed"; exit 1; }
+          VERSION="$(grep -E '^version[[:space:]]*=' manifest | head -1 | sed 's/.*=//;s/[[:space:]]//g')"
+          [ -n "$VERSION" ] || { echo "ERROR: could not extract version from manifest"; exit 1; }
+          mv strava.fpk "strava-${VERSION}-iframe.fpk"
+          ls -lh "strava-${VERSION}-iframe.fpk"
+
+      - name: Upload fpk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: strava-fpk-${{ github.sha }}
+          path: fnos-packaging/strava-*.fpk
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    needs: build-fpk
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download fpk artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: fpk-assets
+          pattern: strava-fpk-*
+          merge-multiple: true
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: fpk-assets/strava-*.fpk
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "## ✅ Strava Panel fpk 构建完成" >> "$GITHUB_STEP_SUMMARY"
+          ls -lh fpk-assets/ >> "$GITHUB_STEP_SUMMARY"

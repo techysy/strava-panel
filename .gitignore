@@ -15,3 +15,18 @@ __pycache__/
 *.secret
 **/strava_tokens.json
 scripts/.build_num
+
+# 多平台封装
+desktop/build/
+desktop/dist/
+desktop/node_modules/
+cli/app/
+cli/node_modules/
+cli/*.tgz
+cli/LICENSE
+
+# fnOS 打包:server+www 构建时拷入,不入库
+fnos-packaging/app/server/
+fnos-packaging/app/www/
+fnos-packaging/*.fpk
+.v2c/

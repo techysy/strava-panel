@@ -50,7 +50,13 @@ STRAVA_AUTH_URL = "https://www.strava.com/oauth/token"
 STRAVA_API = "https://www.strava.com/api/v3"
 API_HEADERS = {"Accept": "application/json"}
 
-DATA_DIR = Path(os.environ.get("DATA_DIR", "/tmp/strava-data"))
+# 环境变量优先级:SP_PORT/SP_DATA_DIR/SP_HOST(全平台专用名)> PORT/DATA_DIR(fnOS cmd/main 兼容)> 默认值。
+# SP_* 前缀避免与系统里常见的通用变量(PORT 等)冲突,桌面壳/CLI/Docker 统一注入 SP_*。
+# 默认绑定 127.0.0.1:纯本机访问(桌面/CLI)免 Windows 防火墙弹窗;fnOS cmd/main 与
+# Dockerfile 显式传 SP_HOST=0.0.0.0 供局域网访问。面板展示统一走 localhost(回调域名匹配)。
+PORT = os.environ.get("SP_PORT") or os.environ.get("PORT") or "20227"
+BIND_HOST = os.environ.get("SP_HOST", "127.0.0.1")
+DATA_DIR = Path(os.environ.get("SP_DATA_DIR") or os.environ.get("DATA_DIR") or "/tmp/strava-data")
 CONF_FILE = DATA_DIR / "strava.conf"
 TOKEN_FILE = DATA_DIR / "strava_tokens.json"
 DB_FILE = DATA_DIR / "strava.db"
@@ -207,8 +213,8 @@ def get_redirect_uri(request_host=None):
     """回调地址：优先用配置的；否则仅当请求来自内网/本机时才按 Host 推导，
     公网中转域名(office.app.5ddd.com 等)绝不推导成回调(会拉错/无法在 Strava 注册)。
 
-    需在 Strava API 设置注册完全一致的地址(如 http://192.168.31.101:20227/oauth/callback)。
-    request_host 形如 '192.168.31.101:20227'(来自 HTTP Host 头)，未带 scheme。
+    需在 Strava API 设置注册完全一致的地址(如 http://localhost:20227/oauth/callback)。
+    request_host 形如 'localhost:20227'(来自 HTTP Host 头)，未带 scheme。
     """
     cfg = load_config()
     uri = cfg.get("redirect_uri", "").strip()
@@ -237,7 +243,7 @@ def build_oauth_url(request_host=None):
     redirect_uri = get_redirect_uri(request_host)
     if not redirect_uri:
         # 未配置回调 且 请求来自公网中转域名(无法推导) → 提示用户显式配置
-        return None, "未配置回调地址(redirect_uri)；且当前经公网中转访问无法自动推导。请在设置页手动填写 Strava 注册的回调地址，如 http://<NAS内网IP>:20227/oauth/callback"
+        return None, "未配置回调地址(redirect_uri)；且当前经公网中转访问无法自动推导。请在设置页手动填写 Strava 注册的回调地址，如 http://localhost:20227/oauth/callback(域名需与 Strava 注册的 Callback Domain 完全一致)"
     params = urllib.parse.urlencode({
         "client_id": client_id,
         "response_type": "code",
@@ -631,9 +637,13 @@ def record_agent_call():
         pass
 
 
-def build_api_doc(lang="zh"):
-    """生成 API 使用指南 Markdown 文档 (中/英)."""
-    base = "http://<NAS-IP>:20227"
+def build_api_doc(lang="zh", request_host=None):
+    """生成 API 使用指南 Markdown 文档 (中/英).
+
+    base 地址按实际请求 Host 动态生成(面板里复制出来即可直接用);
+    拿不到 Host 时回落 http://localhost:20227。
+    """
+    base = f"http://{request_host}" if request_host else "http://localhost:20227"
     en = lang != "zh"
     if en:
         return (
@@ -643,7 +653,7 @@ def build_api_doc(lang="zh"):
             "panel (Dashboard → Create Token, or Settings → API).\n\n"
             "## Endpoints\n\n"
             "```bash\n"
-            'BASE="http://<NAS-IP>:20227"\n'
+            f'BASE="{base}"\n'
             'export TOKEN="<your-token>"\n'
             'AUTH="Authorization: Bearer $TOKEN"\n'
             "\n"
@@ -689,7 +699,7 @@ def build_api_doc(lang="zh"):
         "`Authorization: Bearer <api_token>`。token 在面板「仪表板 → 创建 token」或「设置 → API」查看/生成。\n\n"
         "## 各接口\n\n"
         "```bash\n"
-        'BASE="http://<NAS-IP>:20227"\n'
+        f'BASE="{base}"\n'
         'export TOKEN="<your-token>"\n'
         'AUTH="Authorization: Bearer $TOKEN"\n'
         "\n"
@@ -980,7 +990,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             lang = qs.get("lang", "zh")
             if lang not in ("zh", "en"):
                 lang = "zh"
-            self._send_json({"doc": build_api_doc(lang)})
+            self._send_json({"doc": build_api_doc(lang, self.headers.get("Host", ""))})
         elif path == "/api/logs/list":
             if not self._require_api_token():
                 return
@@ -1048,7 +1058,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if data.get("redirect_uri"):
                     ru = str(data["redirect_uri"]).strip()
                     if not (ru.startswith("http://") or ru.startswith("https://")):
-                        self._send_json({"error": "回调地址必须是完整 URL(以 http:// 或 https:// 开头)，例如 http://192.168.31.101:20227/oauth/callback"}, 400)
+                        self._send_json({"error": "回调地址必须是完整 URL(以 http:// 或 https:// 开头)，例如 http://localhost:20227/oauth/callback"}, 400)
                         return
                     data["redirect_uri"] = ru
                 with _lock:
@@ -1097,14 +1107,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 def main():
-    port = int(os.environ.get("PORT", "20227"))
+    port = int(PORT)
     # 启动时归档非当天的日志
     archive_logs()
     _log("system", f"Strava Panel 启动 (v{APP_VERSION or '?'}, port={port}, data={DATA_DIR})")
     # SO_REUSEADDR：避免频繁重启后 TIME_WAIT 导致 "Address already in use"
     # 必须在实例化前设置类属性（socketserver 在 __init__ 时 bind）
     socketserver.ThreadingTCPServer.allow_reuse_address = True
-    httpd = socketserver.ThreadingTCPServer(("0.0.0.0", port), Handler)
+    httpd = socketserver.ThreadingTCPServer((BIND_HOST, port), Handler)
     httpd.daemon_threads = True
     print(f"Strava Panel listening on {port}", flush=True)
     print(f"Data dir: {DATA_DIR}", flush=True)

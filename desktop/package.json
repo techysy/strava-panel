@@ -1,0 +1,94 @@
+{
+  "name": "strava-panel-desktop",
+  "productName": "StravaPanel",
+  "version": "1.3.1",
+  "description": "Strava 骑行数据面板 桌面托盘版 — Electron 托盘壳 + Python sidecar",
+  "main": "main.js",
+  "author": "techysy",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win",
+    "dist:dir": "electron-builder --win --dir"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.techysy.strava-panel",
+    "productName": "StravaPanel",
+    "directories": {
+      "output": "dist",
+      "buildResources": "."
+    },
+    "files": [
+      "main.js",
+      "package.json",
+      "icon.ico",
+      "icon.png"
+    ],
+    "extraResources": [
+      {
+        "from": "build/app",
+        "to": "app"
+      },
+      {
+        "from": "build/python",
+        "to": "python"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icon.ico"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "icon.png",
+      "category": "public.app-category.healthcare-fitness"
+    },
+    "dmg": {
+      "artifactName": "StravaPanel-${version}-${arch}.dmg"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "icon.png",
+      "category": "Utility"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "StravaPanel"
+    },
+    "portable": {
+      "artifactName": "StravaPanel-Portable-${version}.exe"
+    }
+  }
+}

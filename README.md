@@ -1,15 +1,15 @@
-# Strava Panel — fnOS App
+# Strava Panel
 
-[![GitHub release](https://img.shields.io/github/v/release/techysy/strava-panel-fnos?label=Latest&color=blue)](https://github.com/techysy/strava-panel-fnos/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/techysy/strava-panel-fnos/blob/main/LICENSE)
-[![fnOS 1.1.31xx](https://img.shields.io/badge/fnOS-1.1.31xx+-orange.svg)](https://developer.fnnas.com/docs/guide)
+[![GitHub release](https://img.shields.io/github/v/release/techysy/strava-panel?label=Latest&color=blue)](https://github.com/techysy/strava-panel/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/techysy/strava-panel/blob/main/LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-fnOS%20%7C%20Docker%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux-orange.svg)](#全平台部署--multi-platform)
 [![Strava API](https://img.shields.io/badge/API-Strava-orange.svg)](https://developers.strava.com/)
 
 > Strava 骑行数据面板 — 凭据管理、Token 自动刷新、骑行统计可视化
 >
 > Strava cycling panel — credential management, auto token refresh, riding stats visualization
 
-部署到飞牛 NAS (fnOS) 的 Strava 骑行数据面板，纯 Python 标准库零依赖后端。
+纯 Python 标准库零依赖后端,一套代码多端部署:**飞牛 NAS (fnOS) / Docker / Windows·macOS·Linux 桌面托盘 / npm CLI**。
 
 ## 作者 / Author
 
@@ -36,10 +36,35 @@
 
 ## 快速开始 / Quick Start
 
-1. 从 [Releases](https://github.com/techysy/strava-fnos/releases) 下载 `strava-x.x.x.fpk`
+**fnOS (飞牛 NAS)**:
+
+1. 从 [Releases](https://github.com/techysy/strava-panel/releases) 下载 `strava-x.x.x.fpk`
 2. 飞牛 App Center → **手动安装** → 选择 fpk 文件
-3. 打开 Strava Panel（端口 `20227`）
+3. 打开 Strava Panel(端口 `20227`)
 4. 在面板填入 Strava 凭据 → 保存并验证
+
+**Docker**:
+
+```bash
+docker run -d --name strava-panel -p 20227:20227 -v strava-data:/data techysy/strava-panel
+# 或 docker compose up -d
+```
+
+**Windows / macOS / Linux 桌面托盘版**(Electron,双击安装即用):
+
+```powershell
+cd desktop
+.\build.ps1                # 打包 NSIS 安装包 + 便携版,产物在 desktop\dist
+```
+
+**npm CLI**(开发者/极客,系统 Python 3.8+ 即可,无 venv):
+
+```bash
+npm i -g @techysy/strava-panel
+sp start        # 后台启动 + 托盘;sp status / sp stop / sp open
+```
+
+> 各形态端口默认 `20227`,数据目录相互独立,可并存。凭据获取见下节。
 
 ### 获取 Strava 凭据 / Get Strava Credentials
 
@@ -53,12 +78,13 @@
 ## 端口 / Port
 
 - **面板端口**：`20227`（高位不常见端口，降低被扫描探测风险）
+- **访问地址**：桌面版/CLI 默认只绑 `127.0.0.1`(免防火墙弹窗),请用 `http://localhost:20227` 访问;fnOS/Docker 绑 `0.0.0.0` 供局域网访问。Strava 注册的 Callback Domain 需与你实际访问的域名一致(`localhost` / NAS IP 是两个不同域名,详见 [TROUBLESHOOTING §10](./TROUBLESHOOTING.md))
 
 ## 数据目录 / Data
 
-- 凭据 + API token：`/vol4/@appdata/strava/strava.conf`（权限 600，仅应用用户可读）
-- Token 缓存：`/vol4/@appdata/strava/strava_tokens.json`
-- **SQLite 缓存**：`/vol4/@appdata/strava/strava.db`（activities 表）
+- fnOS:凭据 + API token:`/vol4/@appdata/strava/strava.conf`(权限 600,仅应用用户可读);Token 缓存:`strava_tokens.json`;**SQLite 缓存**:`strava.db`(activities 表)
+- Docker:全部在挂载卷 `/data`
+- 桌面版/CLI:Windows `%APPDATA%\StravaPanel`;macOS `~/Library/Application Support/StravaPanel`;Linux `~/.strava-panel/data`
 - **日志**（按源分开落库，历史按天归档到 `logs/`）：
   - `system.log` — 系统状态 / 初始化 / 本地 SQLite / 同步
   - `strava-api.log` — 请求 Strava API（token 刷新 / 活动拉取）
@@ -66,12 +92,12 @@
 
 ## HTTP API（本地 agent 查询）
 
-应用提供 REST API，本地 Hermes agent 或其他工具可直接查询（`http://192.168.31.101:20227`）。除 `/api/bootstrap` 和 `/api/status` 外，所有 `/api/*` 需 `Authorization: Bearer <api_token>`。
+应用提供 REST API，本地 Hermes agent 或其他工具可直接查询（`http://localhost:20227`）。除 `/api/bootstrap` 和 `/api/status` 外，所有 `/api/*` 需 `Authorization: Bearer <api_token>`。
 
 > 🔑 先拿 token（免认证）：`GET /api/bootstrap` → 返回 `{"api_token": ...}`，也可在面板「仪表板 → 创建 token」查看。
 
 ```bash
-BASE="http://192.168.31.101:20227"
+BASE="http://localhost:20227"
 TOKEN=$(curl -s "$BASE/api/bootstrap" | python3 -c "import sys,json;print(json.load(sys.stdin)['api_token'])")
 AUTH="Authorization: Bearer $TOKEN"
 
@@ -116,27 +142,68 @@ curl -s -H "$AUTH" "$BASE/api/doc?lang=zh"
 
 ## 构建 / Build
 
-构建需要 `fnpack`（fnOS 打包工具）。构建目录与 9Router/metacubexd 一致：
+### fnOS fpk
+
+fnOS 打包工程在 `fnos-packaging/` 目录(布局与 10Router 一致):核心源码 `server/` + `www/` 在仓库根,打包时拷入 `fnos-packaging/app/`。
 
 ```bash
-# 在 NAS 上
-mkdir -p "/vol1/1000/fnOS App/build/strava-fnos"
-# 同步项目文件到这里
-cd "/vol1/1000/fnOS App/build/strava-fnos"
-fnpack build            # 生成 strava.fpk (url 版)
-mv strava.fpk strava-1.0.0.fpk
-sed -i 's/"type": "url"/"type": "iframe"/' app/ui/config   # 切 iframe
-fnpack build
-mv strava.fpk strava-1.0.0-iframe.fpk
+# 本地(在 fnOS 或装有 fnpack 的 Linux 上,仓库根执行)
+bash scripts/build.sh            # url + iframe 两个变体,产物在仓库根
+
+# CI(推荐)
+# 推 tag v* 或手动触发 .github/workflows/build-fpk.yml,fpk 自动挂到 GitHub Release
 ```
 
 ### 图标 / Icons
 
-图标用 `scripts/generate-icons.py` 生成（橙色渐变 + 白色 S + 骑行三角，小圆角对齐 fnOS 规范）：
+图标用 `scripts/generate-icons.py` 生成 —— 按 Strava 官方 SVG 徽标路径矢量绘制(橙色圆角方块 + 白色 echelon),任意分辨率无损,一次产出 fnOS / 桌面 / CLI 全部图标:
 
 ```bash
 python3 scripts/generate-icons.py
 ```
+
+### Docker
+
+```bash
+docker build -t techysy/strava-panel .
+docker run -d --name strava-panel -p 20227:20227 -v strava-data:/data techysy/strava-panel
+```
+
+镜像基于 `python:3.12-alpine`(约 60MB),零 pip 依赖,带 HEALTHCHECK。数据(凭据/token/SQLite)全部持久化在 `/data` 卷。
+
+### 桌面托盘版(Electron)
+
+`desktop/` 目录,架构:Electron 托盘壳 + Python sidecar(Embeddable Python 免装环境):
+
+```powershell
+cd desktop
+.\build.ps1 [-Proxy http://...]      # 一条龙:Python 运行时 → 源码汇集 → electron-builder
+# 产物 desktop\dist\: StravaPanel Setup x.x.x.exe(NSIS)+ Portable 便携版
+```
+
+- 托盘菜单:打开面板 / 启动·停止·重启服务 / 开机自启 / 打开数据目录·日志
+- 点关闭缩到托盘;单实例锁;端口已被占用时自动识别为外部服务直接开窗
+- mac/Linux 构建配置已就绪(`npx electron-builder --mac/--linux`),需在对应平台执行
+
+### npm CLI
+
+`cli/` 目录,发布为 `@techysy/strava-panel`(`sp` 命令):
+
+```bash
+cd cli
+npm run build          # 汇集 app/server + app/www 到 cli/app
+npm publish            # prepublishOnly 自动构建
+```
+
+零依赖优势:无需 venv/pip,系统 Python 3.8+ 直接跑。Windows 托盘用 PowerShell NotifyIcon(零二进制依赖),macOS/Linux 用 systray2(惰性安装)。
+
+### 服务端环境变量
+
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `SP_PORT` / `PORT` | `20227` | 监听端口(SP_ 优先) |
+| `SP_HOST` | `0.0.0.0` | 绑定地址(桌面壳可设 127.0.0.1) |
+| `SP_DATA_DIR` / `DATA_DIR` | `/tmp/strava-data` | 数据目录(SP_ 优先) |
 
 ## 问题排查 / Troubleshooting
 

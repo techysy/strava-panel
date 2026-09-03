@@ -2,6 +2,35 @@
 
 ---
 
+## v1.3.1 (2026-09-03)
+
+### 🗂️ 目录重构 — fnOS 打包独立成包(对齐 10Router 布局)
+
+仓库更名 `strava-panel`(去掉 fnos 后缀),核心与平台打包彻底解耦:
+
+- 📁 **新布局**:核心源码 `server/` + `www/` 提到仓库根;fnOS 专属(manifest/cmd/config/app/ui/ICON)收进 `fnos-packaging/`,`desktop/`、`cli/`、Docker 平级。与 10Router 的 `fnos-packaging/` 布局一致。
+- 🤖 **自动打包**:新增 `.github/workflows/build-fpk.yml` —— 推 `v*` tag 即自动构建 url + iframe 两个 fpk 变体并挂到 GitHub Release(拷 server+www → 下载 fnpack → fnpack build),本地 `scripts/build.sh` 同步适配新布局。
+- 🔗 **统一 localhost**:桌面壳/CLI 面板地址统一 `http://localhost:20227`(Strava 的 Callback Domain 校验是**域名字符串精确匹配**,`127.0.0.1`/`localhost`/NAS IP 互不相同,混用必 mismatch)。服务端默认绑定改为 `127.0.0.1`(桌面/CLI 纯本机访问,免 Windows 防火墙弹窗);fnOS `cmd/main` 与 Dockerfile 显式传 `SP_HOST=0.0.0.0` 保留局域网访问。`/api/doc` 的 BASE 示例按实际请求 Host 动态生成;TROUBLESHOOTING 新增「redirect_uri_uri_mismatch」排障条目。
+- ✅ **实测通过**:服务端 Windows 冒烟(旧/新环境变量)、CLI 全流程 start→status→stop、Docker 构建 + 容器内健康检查 + 宿主机端口映射、默认回环绑定/显式 0.0.0.0 绑定、localhost 链路、新布局下 cli build + Docker build + 服务端冒烟。
+
+---
+
+## v1.3.0 (2026-09-03)
+
+### 🌍 全平台化 — 不再局限于 fnOS
+
+核心服务端本就是纯 Python 标准库零依赖,本次把打包层解耦,一套代码多端部署:
+
+- 🧩 **服务端平台解耦**:新增 `SP_PORT` / `SP_HOST` / `SP_DATA_DIR` 环境变量(优先级高于 fnOS 的 `PORT`/`DATA_DIR`,兼容老部署)。fnOS fpk / Docker / 桌面 / CLI 四形态共用同一服务端。
+- 🐳 **Docker 形态**:新增 `Dockerfile` + `docker-compose.yml` + `.dockerignore`。基于 `python:3.12-alpine`(~60MB),零 pip 依赖,非 root 运行,HEALTHCHECK 内建,数据持久化 `/data` 卷。
+- 🖥️ **桌面托盘版(Electron)**:新增 `desktop/` — 托盘启停/重启/开机自启、点关闭缩托盘、单实例锁、端口占用自动识别外部服务、外链走系统浏览器(Strava 授权页)。`build.ps1` 一条龙打包 NSIS 安装包 + 便携版;Embeddable Python 免装环境(零依赖免 pip,`._pth` 已追加 `..\app\server` 修脚本目录 sys.path)。
+- ⌨️ **npm CLI 形态**:新增 `cli/` — 发布为 `@techysy/strava-panel`(`sp` 命令):`start/stop/restart/status/open/autostart`。Windows 托盘用 PowerShell NotifyIcon(零二进制依赖,杀软友好),macOS/Linux 用 systray2(惰性安装);系统 Python 3.8+ 直接跑,无 venv/pip 环节。
+- 🎨 **图标升级为矢量绘制**:`scripts/generate-icons.py` 重写 — 按 Strava 官方 SVG 徽标路径(主峰 + 50% 透明次峰)矢量绘制橙色圆角徽标,任意分辨率无损;一次产出 fnOS(64/128/256)、desktop(png 512 + 多尺寸 ico)、cli 托盘图标。
+- 🔗 **OAuth 回调统一 localhost**:桌面壳/CLI 面板地址统一 `http://localhost:20227`(Strava 的 Callback Domain 校验是**域名字符串精确匹配**,`127.0.0.1`/`localhost`/NAS IP 互不相同,混用必 mismatch)。服务端默认绑定改为 `127.0.0.1`(桌面/CLI 纯本机访问,免 Windows 防火墙弹窗);fnOS `cmd/main` 与 Dockerfile 显式传 `SP_HOST=0.0.0.0` 保留局域网访问。`/api/doc` 的 BASE 示例改为按实际请求 Host 动态生成;TROUBLESHOOTING 新增「redirect_uri_uri_mismatch」排障条目。
+- ✅ **实测通过**:服务端 Windows 冒烟(旧/新环境变量)、CLI 全流程 start→status→stop、Docker 构建 + 容器内健康检查 + 宿主机端口映射、默认回环绑定/显式 0.0.0.0 绑定、localhost 链路。
+
+---
+
 ## v1.2.3 (2026-09-03)
 
 ### 🎯 Strava OAuth 授权彻底打通（核心修复）

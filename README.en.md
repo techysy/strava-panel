@@ -2,8 +2,8 @@
 
 Strava cycling data panel — credential management, auto token refresh, riding stats visualization.
 
-[![GitHub release](https://img.shields.io/github/v/release/techysy/strava-panel-fnos?label=Latest&color=blue)](https://github.com/techysy/strava-panel-fnos/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/techysy/strava-panel-fnos/blob/main/LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/techysy/strava-panel?label=Latest&color=blue)](https://github.com/techysy/strava-panel/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/techysy/strava-panel/blob/main/LICENSE)
 [![fnOS 1.1.31xx](https://img.shields.io/badge/fnOS-1.1.31xx+-orange.svg)](https://developer.fnnas.com/docs/guide)
 [![Strava API](https://img.shields.io/badge/API-Strava-orange.svg)](https://developers.strava.com/)
 
@@ -26,7 +26,7 @@ Strava cycling data panel — credential management, auto token refresh, riding 
 
 ## 🚀 Quick Install
 
-1. Download `strava-x.x.x.fpk` from [Releases](https://github.com/techysy/strava-panel-fnos/releases)
+1. Download `strava-x.x.x.fpk` from [Releases](https://github.com/techysy/strava-panel/releases)
 2. fnOS **App Center → Manual Install** → select the fpk
 3. Open Strava Panel (port `20227`)
 4. Fill in Strava credentials in the panel → Save & verify
@@ -55,25 +55,25 @@ https://www.strava.com/oauth/authorize?client_id={YOUR_CLIENT_ID}&response_type=
 
 ### HTTP API (local agent query)
 
-The app exposes a REST API for local agents or tools (`http://192.168.31.101:20227`).
+The app exposes a REST API for local agents or tools (`http://localhost:20227`).
 
 > 🔐 **API token required since v1.2.0**: data endpoints need `Authorization: Bearer <token>`. Get the token via the auth-free `/api/bootstrap`:
 
 ```bash
 # 1. Get API token (auth-free)
-TOKEN=$(curl -s http://192.168.31.101:20227/api/bootstrap | jq -r '.api_token')
+TOKEN=$(curl -s http://localhost:20227/api/bootstrap | jq -r '.api_token')
 
 # 2. Access data endpoints with the token
-curl -s -H "Authorization: Bearer $TOKEN" http://192.168.31.101:20227/api/stats
-curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20227/api/stats?start=2026-07-01&end=2026-07-31"   # monthly
-curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20227/api/activities?type=Ride&limit=10"
-curl -s -H "Authorization: Bearer $TOKEN" http://192.168.31.101:20227/api/weekly
-curl -s -H "Authorization: Bearer $TOKEN" http://192.168.31.101:20227/api/sync
-curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20227/api/export?fmt=json"
-curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20227/api/export?fmt=csv" -o strava.csv
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:20227/api/stats
+curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:20227/api/stats?start=2026-07-01&end=2026-07-31"   # monthly
+curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:20227/api/activities?type=Ride&limit=10"
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:20227/api/weekly
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:20227/api/sync
+curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:20227/api/export?fmt=json"
+curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:20227/api/export?fmt=csv" -o strava.csv
 ```
 
-> 💡 Agent usage: `curl -s -H "Authorization: Bearer $TOKEN" "http://192.168.31.101:20227/api/stats?start=2026-07-01&end=2026-07-31" | jq '.total_distance_km'`
+> 💡 Agent usage: `curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:20227/api/stats?start=2026-07-01&end=2026-07-31" | jq '.total_distance_km'`
 
 > ⚠️ Requests without a token return **401**. The frontend handles tokens automatically. Token lives in `strava.conf` (mode 600); to reset, delete that line and restart.
 
