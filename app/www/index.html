@@ -609,15 +609,33 @@ function renderMonthly(months, key){
       const cx = Math.min(Math.max(p.x, padL + 14), maxX - 14);   // 首尾标签向内收，避免贴边裁切
       xLabels.push(`<text x="${cx.toFixed(1)}" y="${h-6}" text-anchor="middle" font-size="10" fill="var(--muted)">${p.label}</text>`);
     }
-    // 数值标签：点太密时不逐个标(避免糊)；仅当间距足够或首尾才显示。垂直夹在 padT..chart 内防顶部裁切。
-    if(data.length <= 12 || isEdge || i % 2 === 0){
+    // 数值标签：仅在有骑行的点(>0)上标数字，0 值天不显示文字(避免一排 0)。点太密时抽稀。
+    if(p.dist > 0 && (data.length <= 12 || isEdge || i % 2 === 0)){
       const vy = Math.max(p.y - 9, padT + 6);  // 顶部点标签下移，避免超出图表上沿被裁
       valLabels.push(`<text x="${Math.min(Math.max(p.x, 12), maxX - 12)}" y="${vy.toFixed(1)}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${p.dist.toFixed(0)}</text>`);
     }
   }
-  const line = pts.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
-  // 面积填充：从第一个点沿折线到最后一个点，再折回底部闭合
-  const area = line + ` L${pts[pts.length-1].x.toFixed(1)},${baseY} L${pts[0].x.toFixed(1)},${baseY} Z`;
+  // --- 平滑曲线（Catmull-Rom → 三次贝塞尔），对齐官方 Strava 的圆润折线 ---
+  function smoothD(){
+    const n = pts.length;
+    if(n < 2) return '';
+    if(n < 3) return `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)} L${pts[1].x.toFixed(1)},${pts[1].y.toFixed(1)}`;
+    let d = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+    for(let i = 0; i < n - 1; i++){
+      const p0 = pts[i - 1] || pts[i];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[i + 2] || p2;
+      const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+      const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+      d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+    }
+    return d;
+  }
+  const line = smoothD();
+  // 面积填充：平滑曲线 + 折回底部闭合（面积用折线逼近更稳，此处复用平滑曲线回落）
+  const baseLast = pts[pts.length-1];
+  const area = line + ` L${baseLast.x.toFixed(1)},${baseY} L${pts[0].x.toFixed(1)},${baseY} Z`;
   // Y 轴刻度（4 档：0, 1/4, 1/2, 3/4, 满量程，取整）
   const yticks = [0,0.25,0.5,0.75,1].map(f=>{ const v=f*max; return {y:padT+ih-f*ih, txt:Math.round(v)}; });
   let grid = '';
