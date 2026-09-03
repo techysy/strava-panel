@@ -183,26 +183,39 @@ def _scope_has_activity(scope):
     return bool(scope) and "activity:read_all" in [s.strip() for s in str(scope).split(",")]
 
 
-def get_redirect_uri(request_host=None):
-    """回调地址：优先用配置的；否则按请求 Host 推导（面板真正可达的地址），绝不用 localhost.
+def _is_private_host(host):
+    """判断 host(含端口) 是否为内网/本机地址。公网中转域名(如 office.app.5ddd.com)不算，
+    不能用来推导 OAuth 回调(Strava 回调需落在可注册的真实地址)。"""
+    h = (host or "").split(":")[0].strip().lower()
+    if not h or h == "localhost" or h.startswith("127."):
+        return True
+    parts = h.split(".")
+    if len(parts) == 4 and all(p.isdigit() for p in parts):
+        a, b = int(parts[0]), int(parts[1])
+        return a == 10 or (a == 172 and 16 <= b <= 31) or (a == 192 and b == 168)
+    return False  # 域名(含中转/公网)一律不自动推导
 
-    需在 Strava API 设置注册完全一致的地址（如 http://192.168.31.101:20227/oauth/callback）。
-    request_host 形如 '192.168.31.101:20227'（来自 HTTP Host 头），未带 scheme。
+
+def get_redirect_uri(request_host=None):
+    """回调地址：优先用配置的；否则仅当请求来自内网/本机时才按 Host 推导，
+    公网中转域名(office.app.5ddd.com 等)绝不推导成回调(会拉错/无法在 Strava 注册)。
+
+    需在 Strava API 设置注册完全一致的地址(如 http://192.168.31.101:20227/oauth/callback)。
+    request_host 形如 '192.168.31.101:20227'(来自 HTTP Host 头)，未带 scheme。
     """
     cfg = load_config()
     uri = cfg.get("redirect_uri", "").strip()
     if uri:
         return uri
-    port = int(os.environ.get("PORT", "20227"))
-    # 优先按请求实际 Host 推导 —— 用户从哪个地址打开面板，回调就落在哪，code 才能回来
-    if request_host:
+    # 仅内网/本机 Host 才自动推导；公网中转域名返回空(交由前端引导用户显式配置)
+    if request_host and _is_private_host(request_host):
         rh = request_host.strip()
         if rh and "://" not in rh:
             return f"http://{rh}/oauth/callback"
     host = os.environ.get("NAS_IP", "")
-    if host:
-        return f"http://{host}:{port}/oauth/callback"
-    return "http://localhost/"
+    if host and _is_private_host(host):
+        return f"http://{host}:{int(os.environ.get('PORT', '20227'))}/oauth/callback"
+    return ""
 
 
 def build_oauth_url(request_host=None):
@@ -215,6 +228,9 @@ def build_oauth_url(request_host=None):
     cfg["oauth_state"] = state
     save_config(cfg)
     redirect_uri = get_redirect_uri(request_host)
+    if not redirect_uri:
+        # 未配置回调 且 请求来自公网中转域名(无法推导) → 提示用户显式配置
+        return None, "未配置回调地址(redirect_uri)；且当前经公网中转访问无法自动推导。请在设置页手动填写 Strava 注册的回调地址，如 http://<NAS内网IP>:20227/oauth/callback"
     params = urllib.parse.urlencode({
         "client_id": client_id,
         "response_type": "code",

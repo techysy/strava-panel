@@ -398,20 +398,34 @@ function autoFillHint(shown){
   const hint = document.getElementById('callbackHint');
   if(hint && shown && !hint.textContent.includes(shown)) hint.textContent = shown;
 }
-// 自动推导并回填回调地址：redirect_uri 为空时，用浏览器当前访问面板的地址拼出可回传的完整回调，
-// 避免授权后 code 落到 localhost 回不来。同时更新顶部提示里的完整地址，便于在 Strava 里注册。
+// 判断当前访问 origin 的 host 是否内网/本机(可自动推导回调)。公网中转域名(office.app.5ddd.com)
+// 返回 false —— 其回调难在 Strava 注册，不该自动填入，改由用户显式配置。
+function isPrivateOriginHost(){
+  try{
+    const h = (location.hostname || '').toLowerCase();
+    if(!h || h === 'localhost' || h.startsWith('127.')) return true;
+    const p = h.split('.');
+    if(p.length === 4 && p.every(x => /^\d+$/.test(x))){
+      const a = +p[0], b = +p[1];
+      return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+    }
+    return false;
+  }catch(e){ return false; }
+}
+// 回调地址推导：仅当 redirect_uri 为空 且 当前经内网访问时，才自动填一个可回传的回调。
+// 公网中转域名访问时不自动推导(避免拉成 office.app.5ddd.com:xxx)，留待用户显式填写/已保存值。
 function autoFillRedirect(){
   const inp = document.getElementById('redirect_uri');
   if(!inp) return;
-  if(!inp.value.trim() && location.origin && location.origin !== 'null'){
+  if(!inp.value.trim() && isPrivateOriginHost() && location.origin && location.origin !== 'null'){
     const derived = location.origin + '/oauth/callback';
     inp.value = derived;
     if(inp.placeholder !== derived) inp.placeholder = derived;
   }
   const hint = document.getElementById('callbackHint');
   if(hint){
-    const shown = (inp.value.trim() || inp.placeholder || location.origin + '/oauth/callback');
-    if(!hint.textContent.includes(shown)) hint.textContent = shown;
+    const shown = inp.value.trim() || (isPrivateOriginHost() ? (location.origin + '/oauth/callback') : '');
+    if(shown && !hint.textContent.includes(shown)) hint.textContent = shown;
   }
 }
 function toggleSidebar(forceClose){
