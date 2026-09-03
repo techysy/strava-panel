@@ -609,10 +609,10 @@ function renderMonthly(months, key){
       const cx = Math.min(Math.max(p.x, padL + 14), maxX - 14);   // 首尾标签向内收，避免贴边裁切
       xLabels.push(`<text x="${cx.toFixed(1)}" y="${h-6}" text-anchor="middle" font-size="10" fill="var(--muted)">${p.label}</text>`);
     }
-    // 数值标签：仅在有骑行的点(>0)上标数字，0 值天不显示文字(避免一排 0)。点太密时抽稀。
+    // 数值标签：仅在有骑行的点(>0)上标数字，0 值天不显示文字(避免一排 0)。点太密时抽稀。保留1位小数。
     if(p.dist > 0 && (data.length <= 12 || isEdge || i % 2 === 0)){
       const vy = Math.max(p.y - 9, padT + 6);  // 顶部点标签下移，避免超出图表上沿被裁
-      valLabels.push(`<text x="${Math.min(Math.max(p.x, 12), maxX - 12)}" y="${vy.toFixed(1)}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${p.dist.toFixed(0)}</text>`);
+      valLabels.push(`<text x="${Math.min(Math.max(p.x, 12), maxX - 12)}" y="${vy.toFixed(1)}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${p.dist.toFixed(1)}</text>`);
     }
   }
   // --- 平滑曲线（Catmull-Rom → 三次贝塞尔），对齐官方 Strava 的圆润折线 ---
@@ -654,8 +654,8 @@ function renderMonthly(months, key){
     </defs>
     ${grid}
     <path d="${area}" fill="url(#${gid})" stroke="none"/>
-    <path d="${line}" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-    ${pts.map((p,i)=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${i===pts.length-1?5:3.5}" fill="var(--brand)" stroke="#fff" stroke-width="1.5"/>`).join('')}
+    <path d="${line}" fill="none" stroke="var(--brand)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    ${pts.map((p,i)=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${i===pts.length-1?4:2.6}" fill="var(--brand)" stroke="#fff" stroke-width="1" vector-effect="non-scaling-stroke"/>`).join('')}
     ${xLabels.join('')}
     ${valLabels.join('')}
   </svg>`;
