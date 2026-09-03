@@ -1,0 +1,44 @@
+name: Test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Syntax check
+        run: python -m py_compile server/app.py server/db.py
+
+      - name: Server smoke test
+        run: |
+          set -euo pipefail
+          SP_DATA_DIR=/tmp/sp-test SP_PORT=20399 SP_HOST=127.0.0.1 python server/app.py > /tmp/sp.log 2>&1 &
+          for i in $(seq 1 15); do
+            if curl -sf http://127.0.0.1:20399/api/status > /dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:20399/api/status | python3 -m json.tool
+          curl -sf -o /dev/null -w "index: %{http_code}\n" http://127.0.0.1:20399/
+          curl -sf http://127.0.0.1:20399/api/bootstrap | python3 -c "import sys,json; assert 'api_token' in json.load(sys.stdin); print('bootstrap ok')"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Node syntax check + CLI build
+        run: |
+          node --check cli/cli.js
+          node --check cli/src/server.js
+          node --check desktop/main.js
+          cd cli && npm run build
