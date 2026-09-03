@@ -179,8 +179,15 @@ REQUIRED_SCOPE = "activity:read_all"
 
 
 def _scope_has_activity(scope):
-    """scope 是否含 activity:read_all（逗号分隔列表，如 'read,activity:read_all'）."""
-    return bool(scope) and "activity:read_all" in [s.strip() for s in str(scope).split(",")]
+    """scope 是否含 activity:read_all。
+
+    Strava scope 可能逗号分隔('read,activity:read_all')或空格分隔('activity:read_all read')
+    (官方文档: comma- or URL-safe space-delimited)。两种都要处理，避免误判缺权限。
+    """
+    if not scope:
+        return False
+    tokens = [t for part in str(scope).replace(",", " ").split() for t in part.split(",") if t.strip()]
+    return "activity:read_all" in tokens
 
 
 def _is_private_host(host):
