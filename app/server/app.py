@@ -1036,6 +1036,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
             try:
                 data = json.loads(self._read_body())
+                # redirect_uri 必须是绝对 URL(http/https)，拒绝残缺的相对路径(如 /oauth/callback)
+                # 否则 Strava 授权直接报错。
+                if data.get("redirect_uri"):
+                    ru = str(data["redirect_uri"]).strip()
+                    if not (ru.startswith("http://") or ru.startswith("https://")):
+                        self._send_json({"error": "回调地址必须是完整 URL(以 http:// 或 https:// 开头)，例如 http://192.168.31.101:20227/oauth/callback"}, 400)
+                        return
+                    data["redirect_uri"] = ru
                 with _lock:
                     cfg = load_config()
                     for k in ("client_id", "client_secret", "refresh_token", "redirect_uri"):
