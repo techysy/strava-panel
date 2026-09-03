@@ -156,19 +156,14 @@ textarea{min-height:120px;resize:vertical}
 
     <!-- 骑行数据 -->
     <div class="tab-panel" id="tab-data">
-      <div class="seg" id="periodSeg">
-        <button id="periodMonth" class="active" onclick="setPeriod('month')" data-i18n="stats_month">本月份</button>
-        <button id="periodYear" onclick="setPeriod('year')" data-i18n="stats_year">本年度</button>
-        <button id="periodLastYear" onclick="setPeriod('lastyear')" data-i18n="stats_lastyear">上年度</button>
-        <button id="periodAll" onclick="setPeriod('all')" data-i18n="stats_all">所有数据</button>
-      </div>
-      <div class="seg" id="winSeg" style="margin-top:8px">
-        <button id="win7d" onclick="setWindow('7d')">7D</button>
-        <button id="win1m" onclick="setWindow('1m')">1M</button>
-        <button id="win3m" onclick="setWindow('3m')">3M</button>
-        <button id="win6m" onclick="setWindow('6m')">6M</button>
-        <button id="winYtd" onclick="setWindow('ytd')">YTD</button>
-        <button id="win1y" onclick="setWindow('1y')">1Y</button>
+      <div class="seg" id="rangeSeg">
+        <button id="rg7d" class="active" onclick="setRange('7d')" data-i18n="rg_7d">近7天</button>
+        <button id="rg1m" onclick="setRange('1m')" data-i18n="rg_1m">近1月</button>
+        <button id="rg3m" onclick="setRange('3m')" data-i18n="rg_3m">近3月</button>
+        <button id="rg6m" onclick="setRange('6m')" data-i18n="rg_6m">近6月</button>
+        <button id="rgYtd" onclick="setRange('ytd')" data-i18n="rg_ytd">本年度</button>
+        <button id="rg12m" onclick="setRange('12m')" data-i18n="rg_12m">近12月</button>
+        <button id="rgAll" onclick="setRange('all')" data-i18n="rg_all">所有</button>
       </div>
       <div class="grid" id="statsGrid">
         <div class="card"><div class="label" data-i18n="stats_rides">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div></div>
@@ -254,7 +249,7 @@ const I18N = {
     stat_configured:'凭据', stat_token:'授权', stat_activities:'缓存活动', stat_sync:'最后同步', stat_port:'端口', stat_version:'版本', stat_connected:'已连接', stat_not_configured:'未配置', stat_error:'异常',
     stat_athlete:'Athlete ID', stat_dbsize:'DB 大小', stat_dbpath:'DB 路径', stat_apitoken:'API token', stat_calls:'调用次数', stat_lastcall:'最后调用',
     stat_configured_ok:'已配置', stat_configured_no:'未配置', stat_token_ok:'正常', stat_token_no:'失效', stat_apitoken_ok:'已生成', stat_apitoken_no:'未生成',
-    stats_period:'统计周期', stats_year:'本年度', stats_month:'本月份', stats_lastyear:'上年度', stats_all:'所有数据',
+    rg_7d:'近7天', rg_1m:'近1月', rg_3m:'近3月', rg_6m:'近6月', rg_ytd:'本年度', rg_12m:'近12月', rg_all:'所有',
     stats_rides:'骑行次数', stats_dist:'总距离', stats_dur:'总时长', stats_elev:'总爬升',
     panel_monthly:'📊 每月骑行距离 (km)', panel_daily:'📊 每日骑行距离 (km)', panel_yearly:'📊 每年骑行距离 (km)', panel_recent:'🚴 最近骑行',
     col_date:'日期', col_name:'活动', col_dist:'距离', col_dur:'时长', col_speed:'均速', col_elev:'爬升',
@@ -282,7 +277,7 @@ const I18N = {
     stat_configured:'Credentials', stat_token:'Auth', stat_activities:'Cached Acts', stat_sync:'Last Sync', stat_port:'Port', stat_version:'Version', stat_connected:'Connected', stat_not_configured:'Not Configured', stat_error:'Error',
     stat_athlete:'Athlete ID', stat_dbsize:'DB Size', stat_dbpath:'DB Path', stat_apitoken:'API token', stat_calls:'Call Count', stat_lastcall:'Last Call',
     stat_configured_ok:'Configured', stat_configured_no:'Not Configured', stat_token_ok:'OK', stat_token_no:'Invalid', stat_apitoken_ok:'Generated', stat_apitoken_no:'Not Generated',
-    stats_period:'Period', stats_year:'This Year', stats_month:'This Month', stats_lastyear:'Last Year', stats_all:'All Data',
+    rg_7d:'7D', rg_1m:'1M', rg_3m:'3M', rg_6m:'6M', rg_ytd:'YTD', rg_12m:'12M', rg_all:'All',
     stats_rides:'Rides', stats_dist:'Distance', stats_dur:'Duration', stats_elev:'Elevation',
     panel_monthly:'📊 Monthly Distance (km)', panel_daily:'📊 Daily Distance (km)', panel_yearly:'📊 Yearly Distance (km)', panel_recent:'🚴 Recent Rides',
     col_date:'Date', col_name:'Activity', col_dist:'Distance', col_dur:'Duration', col_speed:'Avg Spd', col_elev:'Elevation',
@@ -520,55 +515,30 @@ function fmtBytes(b){
 }
 
 // ===== Data =====
-let period = 'month'; // 默认本月份
-let win = null; // null=用周期; '7d'/'1m'/'3m'/'6m'/'ytd'/'1y'=官方窗口
-function setPeriod(p){
-  period = p; win = null;
-  document.querySelectorAll('#periodSeg button').forEach(b=>b.classList.remove('active'));
-  document.querySelectorAll('#winSeg button').forEach(b=>b.classList.remove('active'));
-  const idMap = {'month':'periodMonth','year':'periodYear','lastyear':'periodLastYear','all':'periodAll'};
-  const el = document.getElementById(idMap[p]);
-  if(el) el.classList.add('active');
-  loadData();
-}
-function setWindow(w){
-  win = w; period = null;
-  document.querySelectorAll('#periodSeg button').forEach(b=>b.classList.remove('active'));
-  document.querySelectorAll('#winSeg button').forEach(b=>b.classList.remove('active'));
-  const idMap = {'7d':'win7d','1m':'win1m','3m':'win3m','6m':'win6m','ytd':'winYtd','1y':'win1y'};
-  const el = document.getElementById(idMap[w]);
+// 统一时间范围：'7d'近7天 '1m'近1月 '3m'近3月 '6m'近6月 'ytd'本年度 '12m'近12月 'all'所有
+let range = '7d';
+function setRange(r){
+  range = r;
+  document.querySelectorAll('#rangeSeg button').forEach(b=>b.classList.remove('active'));
+  const idMap = {'7d':'rg7d','1m':'rg1m','3m':'rg3m','6m':'rg6m','ytd':'rgYtd','12m':'rg12m','all':'rgAll'};
+  const el = document.getElementById(idMap[r]);
   if(el) el.classList.add('active');
   loadData();
 }
 function periodRange(){
-  // 优先用官方窗口；否则用现有周期
-  if(win){
-    const now = new Date();
-    const y = now.getFullYear();
-    const p1 = n => String(n).padStart(2,'0');
-    const f = d => `${d.getFullYear()}-${p1(d.getMonth()+1)}-${p1(d.getDate())}`;
-    const subM = (months) => { const d = new Date(now); d.setMonth(d.getMonth()-months); return f(d); };
-    if(win === '7d'){ const d = new Date(now); d.setDate(d.getDate()-6); return {start:f(d), end:f(now)}; }
-    if(win === '1m') return {start:subM(1), end:f(now)};
-    if(win === '3m') return {start:subM(3), end:f(now)};
-    if(win === '6m') return {start:subM(6), end:f(now)};
-    if(win === 'ytd') return {start:`${y}-01-01`, end:f(now)};
-    if(win === '1y'){ const d = new Date(now); d.setFullYear(d.getFullYear()-1); return {start:f(d), end:f(now)}; }
-  }
-  // 现有周期逻辑
-  if(period === 'all') return null;
+  if(range === 'all') return null;   // 所有：不过滤
   const now = new Date();
   const y = now.getFullYear();
-  const m = now.getMonth(); // 0-11
-  const lastDay = new Date(y, m+1, 0).getDate();
   const p1 = n => String(n).padStart(2,'0');
-  if(period === 'month'){
-    return { start: `${y}-${p1(m+1)}-01`, end: `${y}-${p1(m+1)}-${p1(lastDay)}` };   // 本月份
-  }
-  if(period === 'lastyear'){
-    return { start: `${y-1}-01-01`, end: `${y-1}-12-31` };                            // 上年度
-  }
-  return { start: `${y}-01-01`, end: `${y}-12-31` };                                   // 本年度
+  const f = d => `${d.getFullYear()}-${p1(d.getMonth()+1)}-${p1(d.getDate())}`;
+  const subM = (months) => { const d = new Date(now); d.setMonth(d.getMonth()-months); return f(d); };
+  if(range === '7d'){ const d = new Date(now); d.setDate(d.getDate()-6); return {start:f(d), end:f(now)}; }
+  if(range === '1m') return {start:subM(1), end:f(now)};
+  if(range === '3m') return {start:subM(3), end:f(now)};
+  if(range === '6m') return {start:subM(6), end:f(now)};
+  if(range === '12m'){ const d = new Date(now); d.setFullYear(d.getFullYear()-1); d.setDate(d.getDate()+1); return {start:f(d), end:f(now)}; }
+  if(range === 'ytd') return {start:`${y}-01-01`, end:f(now)};   // 本年度 1/1 至今
+  return null;
 }
 async function loadData(){
   try{
@@ -580,18 +550,11 @@ async function loadData(){
       document.getElementById('cDist').textContent = s.total_distance_km;
       document.getElementById('cDur').textContent = s.total_duration_h;
       document.getElementById('cElev').textContent = s.total_elevation_m;
-      // 按窗口/周期选择图表维度
+      // 按时间范围选择图表粒度
       let series = [], key = '', title = t('panel_monthly');
-      if(win){
-        // 官方窗口粒度: 7D/1M→每日, 3M/6M/YTD/1Y→每月
-        if(win === '7d' || win === '1m'){ series = s.daily||[]; key = 'day'; title = t('panel_daily'); }
-        else { series = s.monthly||[]; key = 'month'; title = t('panel_monthly'); }
-      } else {
-        // 现有周期: 本月→每日, 年度→每月, 所有→每年
-        if(period === 'month'){ series = s.daily||[]; key = 'day'; title = t('panel_daily'); }
-        else if(period === 'all'){ series = s.yearly||[]; key = 'year'; title = t('panel_yearly'); }
-        else { series = s.monthly||[]; key = 'month'; title = t('panel_monthly'); }
-      }
+      if(range === '7d' || range === '1m'){ series = s.daily||[]; key = 'day'; title = t('panel_daily'); }
+      else if(range === 'all'){ series = s.yearly||[]; key = 'year'; title = t('panel_yearly'); }
+      else { series = s.monthly||[]; key = 'month'; title = t('panel_monthly'); }   // 3m/6m/ytd/12m → 每月
       const th = document.querySelector('[data-i18n="panel_monthly"]');
       if(th) th.textContent = title;
       renderMonthly(series, key);
@@ -622,6 +585,24 @@ function renderMonthly(months, key){
     return {x,y,label:fmtLabel(m[key]), dist:m.dist_km, count:m.count};
   });
   const baseY = padT + ih;
+  // --- X 轴标签 + 数值标签（含边缘防遮挡/去重叠） ---
+  // 点太多时(每日可达31个)全部画标签会重叠遮挡；按 ~6 个均匀抽样，且首尾始终保留。
+  const maxX = w - padR;                       // 右边界(避让最右点标签不被裁掉)
+  const showEvery = data.length > 8 ? Math.ceil(data.length / 6) : 1;
+  const xLabels = [], valLabels = [];
+  for(let i = 0; i < pts.length; i++){
+    const p = pts[i];
+    const isEdge = (i === 0 || i === pts.length - 1);
+    if(i % showEvery === 0 || isEdge){
+      const cx = Math.min(Math.max(p.x, padL + 14), maxX - 14);   // 首尾标签向内收，避免贴边裁切
+      xLabels.push(`<text x="${cx.toFixed(1)}" y="${h-6}" text-anchor="middle" font-size="10" fill="var(--muted)">${p.label}</text>`);
+    }
+    // 数值标签：点太密时不逐个标(避免糊)；仅当间距足够或首尾才显示。垂直夹在 padT..chart 内防顶部裁切。
+    if(data.length <= 12 || isEdge || i % 2 === 0){
+      const vy = Math.max(p.y - 9, padT + 6);  // 顶部点标签下移，避免超出图表上沿被裁
+      valLabels.push(`<text x="${Math.min(Math.max(p.x, 12), maxX - 12)}" y="${vy.toFixed(1)}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${p.dist.toFixed(0)}</text>`);
+    }
+  }
   const line = pts.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
   // 面积填充：从第一个点沿折线到最后一个点，再折回底部闭合
   const area = line + ` L${pts[pts.length-1].x.toFixed(1)},${baseY} L${pts[0].x.toFixed(1)},${baseY} Z`;
@@ -645,8 +626,8 @@ function renderMonthly(months, key){
     <path d="${area}" fill="url(#${gid})" stroke="none"/>
     <path d="${line}" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
     ${pts.map((p,i)=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${i===pts.length-1?5:3.5}" fill="var(--brand)" stroke="#fff" stroke-width="1.5"/>`).join('')}
-    ${pts.map(p=>`<text x="${p.x.toFixed(1)}" y="${h-8}" text-anchor="middle" font-size="10" fill="var(--muted)">${p.label}</text>`).join('')}
-    ${pts.map(p=>`<text x="${p.x.toFixed(1)}" y="${(p.y-8).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--muted)">${p.dist.toFixed(0)}</text>`).join('')}
+    ${xLabels.join('')}
+    ${valLabels.join('')}
   </svg>`;
 }
 let allActivities = [];
