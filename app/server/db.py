@@ -142,8 +142,50 @@ class StravaDB:
             "avg_distance_km": round(dist / n, 1) if n else 0,
         }
 
+    @staticmethod
+    def _empty_bucket():
+        return {"count": 0, "dist_km": 0.0, "duration_h": 0.0, "elev_m": 0.0}
+
+    @staticmethod
+    def _date_range(start_date, end_date):
+        """返回 (start, end) date 对象。start_date 缺省用数据最早；end_date 缺省用今天。"""
+        if not start_date:
+            return None, None
+        s = datetime.date.fromisoformat(str(start_date)[:10])
+        e = datetime.date.fromisoformat(str(end_date)[:10]) if end_date else datetime.date.today()
+        if e < s:
+            s, e = e, s
+        return s, e
+
+    def daily(self, start_date=None, end_date=None):
+        """按天聚合；范围内每一天都返回（无骑行则为 0，避免图表时间轴断裂）。"""
+        rows = self.get_rides(start_date=start_date, end_date=end_date, limit=100000)
+        days = {}
+        for a in rows:
+            d = (a.get("start_date") or "")[:10]
+            try:
+                datetime.date.fromisoformat(d)
+            except Exception:
+                continue
+            day = days.setdefault(d, self._empty_bucket())
+            day["count"] += 1
+            day["dist_km"] += (a.get("distance") or 0) / 1000
+            day["duration_h"] += (a.get("moving_time") or 0) / 3600
+            day["elev_m"] += (a.get("total_elevation_gain") or 0)
+        s, e = self._date_range(start_date, end_date)
+        out = []
+        if s and e:
+            d = s
+            while d <= e:
+                k = d.isoformat()
+                out.append({"day": k, **(days.get(k, self._empty_bucket()))})
+                d += datetime.timedelta(days=1)
+        else:
+            out = [{"day": k, **v} for k, v in sorted(days.items())]
+        return out
+
     def weekly(self, start_date=None, end_date=None):
-        """按 ISO 周聚合"""
+        """按 ISO 周聚合；范围内每周都返回（无骑行则为 0）。"""
         rows = self.get_rides(start_date=start_date, end_date=end_date, limit=100000)
         weeks = {}
         for a in rows:
@@ -152,17 +194,28 @@ class StravaDB:
                 dt = datetime.date.fromisoformat(d)
             except Exception:
                 continue
-            wk = dt.isocalendar()[1]
-            key = f"{dt.year}-W{wk:02d}"
-            w = weeks.setdefault(key, {"count": 0, "dist_km": 0.0, "duration_h": 0.0, "elev_m": 0.0})
+            key = f"{dt.isocalendar()[0]}-W{dt.isocalendar()[1]:02d}"
+            w = weeks.setdefault(key, self._empty_bucket())
             w["count"] += 1
             w["dist_km"] += (a.get("distance") or 0) / 1000
             w["duration_h"] += (a.get("moving_time") or 0) / 3600
             w["elev_m"] += (a.get("total_elevation_gain") or 0)
+        s, e = self._date_range(start_date, end_date)
+        if s and e:
+            # 从 start 所在周的周一到 end 所在周的周日，逐周填
+            out = []
+            cur = s - datetime.timedelta(days=s.isoweekday() - 1)  # 回退到周一
+            last = e + datetime.timedelta(days=7 - e.isoweekday())  # 推到 end 周日
+            while cur <= last:
+                iso = cur.isocalendar()
+                k = f"{iso[0]}-W{iso[1]:02d}"
+                out.append({"week": k, **(weeks.get(k, self._empty_bucket()))})
+                cur += datetime.timedelta(days=7)
+            return out
         return [{"week": k, **v} for k, v in sorted(weeks.items())]
 
     def monthly(self, start_date=None, end_date=None):
-        """按月份聚合（返回月度汇总）"""
+        """按月份聚合；范围内每月都返回（无骑行则为 0）。"""
         rows = self.get_rides(start_date=start_date, end_date=end_date, limit=100000)
         months = {}
         for a in rows:
@@ -172,30 +225,23 @@ class StravaDB:
             except Exception:
                 continue
             key = f"{dt.year}-{dt.month:02d}"
-            m = months.setdefault(key, {"count": 0, "dist_km": 0.0, "duration_h": 0.0, "elev_m": 0.0})
+            m = months.setdefault(key, self._empty_bucket())
             m["count"] += 1
             m["dist_km"] += (a.get("distance") or 0) / 1000
             m["duration_h"] += (a.get("moving_time") or 0) / 3600
             m["elev_m"] += (a.get("total_elevation_gain") or 0)
+        s, e = self._date_range(start_date, end_date)
+        if s and e:
+            out = []
+            y, mo = s.year, s.month
+            while (y, mo) <= (e.year, e.month):
+                k = f"{y}-{mo:02d}"
+                out.append({"month": k, **(months.get(k, self._empty_bucket()))})
+                mo += 1
+                if mo > 12:
+                    mo = 1; y += 1
+            return out
         return [{"month": k, **v} for k, v in sorted(months.items())]
-
-    def daily(self, start_date=None, end_date=None):
-        """按天聚合（仅返回有骑行记录的日期）"""
-        rows = self.get_rides(start_date=start_date, end_date=end_date, limit=100000)
-        days = {}
-        for a in rows:
-            d = (a.get("start_date") or "")[:10]
-            try:
-                dt = datetime.date.fromisoformat(d)
-            except Exception:
-                continue
-            key = d
-            day = days.setdefault(key, {"count": 0, "dist_km": 0.0, "duration_h": 0.0, "elev_m": 0.0})
-            day["count"] += 1
-            day["dist_km"] += (a.get("distance") or 0) / 1000
-            day["duration_h"] += (a.get("moving_time") or 0) / 3600
-            day["elev_m"] += (a.get("total_elevation_gain") or 0)
-        return [{"day": k, **v} for k, v in sorted(days.items())]
 
     def yearly(self, start_date=None, end_date=None):
         """按年聚合（返回年度汇总）"""
@@ -208,7 +254,7 @@ class StravaDB:
             except Exception:
                 continue
             key = f"{dt.year}"
-            y = years.setdefault(key, {"count": 0, "dist_km": 0.0, "duration_h": 0.0, "elev_m": 0.0})
+            y = years.setdefault(key, self._empty_bucket())
             y["count"] += 1
             y["dist_km"] += (a.get("distance") or 0) / 1000
             y["duration_h"] += (a.get("moving_time") or 0) / 3600
