@@ -2,6 +2,19 @@
 
 ---
 
+## v2.0.0 (2026-10-13)
+
+- 🔄 **后端重构为 Node.js**:零依赖 ESM(Node ≥22.13,node:sqlite),全渠道(Python 运行时依赖彻底移除:Docker node:24-alpine、桌面复用 Electron 内嵌 Node、CLI 复用宿主 Node、fnOS 依赖 nodejs_v24 应用);既有 strava.db / strava.conf 数据全兼容。
+- 🎨 **全新 UI 重构**(对齐 CreditDaddy):顶部页签导航(骑行数据首页 / 最近骑行 / 仪表盘 / 设置)、三态主题切换(跟随系统/亮/暗)、聚合「更多」菜单、全站统一 design tokens(CSS 变量),品牌徽标统一为官方 Strava logomark(header / favicon / 桌面 / 托盘 / fnOS 图标同源)。
+- 📦 **fnOS fpk 构建流程加固**:保持网页版(`strava-<ver>.fpk`)/ 窗口版(`strava-<ver>-iframe.fpk`)双版本不变,CI 改为在构建副本上注入 manifest / ui config(不再污染 tracked 文件),构建产物随附 `build.json` 与 SHA256SUMS-fpk.txt 一起发布;本地 `scripts/build.sh` 同样改为副本构建,并新增 `--arch` / `--variant` 参数(x86/url 为默认,产物命名向后兼容)。
+- 🍎 **桌面端 macOS 支持**:新增 dmg / zip(x64 + arm64)打包,接入 electron-updater(publish → github),Windows(NSIS / Portable)与 macOS 均支持应用内自动更新;Electron 升级 ^37,服务端直接复用 Electron 内嵌 Node 运行。
+- 🏷️ **build.json 构建身份**:打包时由 `scripts/gen-build-info.py --channel <fpk|desktop|...>` 生成并随包分发,`/api/status.build` 透出构建元数据(渠道/版本/commit/时间),「同版本新构建」可判定。
+- 🚦 **release-check 发版门禁**:新增 `scripts/release-check.sh` + `release-check.yml` workflow(手动触发 / PR 打 `release` 标签),发版前一键体检。
+- ✅ **版本四处一致性断言**:`test.yml` 新增 `version-consistency` job,断言 `server/VERSION` == `fnos-packaging/manifest(version=)` == `desktop/package.json` == `cli/package.json`,每次 push/PR 运行。
+- 📋 **Release 自动建档**:tag 发布前先 `gh release create`(若不存在),Release Notes 自动从 CHANGELOG.md 提取对应版本段落并附安装渠道表;各矩阵构建 `gh release upload --clobber` 汇入同一 Release。
+
+---
+
 ## v1.3.1 (2026-09-03)
 
 ### 🗂️ 目录重构 — fnOS 打包独立成包(对齐 10Router 布局)

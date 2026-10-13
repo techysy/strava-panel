@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""生成 Strava Panel 全平台应用图标 — 按 Strava 官方 SVG 徽标矢量绘制.
+"""生成 Strava Panel 全平台应用图标 — 按 Strava 官方徽标矢量绘制.
 
-数据来源：Strava 官方 badges 包 `@svg/strava logo mark.svg` 中的 echelon 路径
-（主峰 M11,14 L15,23 L22,23 L11,0 L0,23 L7,23 Z + 次峰 50% 透明），
-按官方 App 图标风格绘制：Strava 橙 (#FC4C01) 圆角方块 + 白色 echelon。
+徽标路径数据：simple-icons 收录的 Strava 官方 logomark（viewBox 0 0 24 24，
+上左大 echelon + 右下小 echelon，与 www/favicon.svg、面板 header logo 同源），
+按官方 App 图标风格绘制：Strava 橙 (#FC5200) 圆角方块 + 白色 echelon。
 矢量绘制，任意分辨率无损，不依赖位图源。
 
 用法：python3 scripts/generate-icons.py
@@ -19,16 +19,21 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# 官方 SVG echelon 路径（viewBox 内 27×40 区域, 主峰不透明 / 次峰 50%）
-PEAK_MAIN = [(11, 14), (15, 23), (22, 23), (11, 0), (0, 23), (7, 23)]
-PEAK_SUB = [(19, 40), (11, 23), (16, 23), (19, 30), (22, 23), (27, 23)]
-# SVG 源区域：translate(13,5), path 占 0..27 x 0..40
-SRC_W, SRC_H = 27.0, 40.0
-SRC_X, SRC_Y = 13.0, 5.0
+# 官方 echelon 路径（simple-icons Strava, viewBox 0 0 24 24, 已展开为多边形顶点）
+PEAK_MAIN = [  # 上左大 echelon
+    (10.463, 8.229), (13.299, 13.827), (17.471, 13.827),
+    (10.463, 0), (3.463, 13.828), (7.632, 13.828),
+]
+PEAK_SUB = [   # 右下小 echelon
+    (15.387, 17.944), (13.298, 13.828), (10.233, 13.828),
+    (15.387, 24), (20.537, 13.828), (17.471, 13.828),
+]
+SRC_W, SRC_H = 24.0, 24.0
+SRC_X, SRC_Y = 0.0, 0.0
 
-ORANGE = (252, 76, 1, 255)        # Strava 官方 #FC4C01
+ORANGE = (252, 82, 0, 255)        # Strava 官方橙 #FC5200（与 favicon/header 一致）
 WHITE = (255, 255, 255, 255)
-WHITE_SUB = (255, 255, 255, 128)  # 次峰 50% 透明（对齐官方 echelon-white 半透）
+WHITE_SUB = WHITE                 # 官方 logomark 单色，两 echelon 同为实白
 TRANSPARENT = (0, 0, 0, 0)
 
 # 圆角半径比例（fnOS/桌面 App 图标常规观感，对齐 macOS/Windows 现代风格）
@@ -42,8 +47,8 @@ def draw_icon(size: int) -> Image.Image:
     radius = round(size * CORNER_RATIO)
     d.rounded_rectangle([0, 0, size - 1, size - 1], radius=radius, fill=ORANGE)
 
-    # echelon 在方块中的安全区：左右留白 20%，垂直居中，占高 ~64%
-    box_h = size * 0.64
+    # 徽标在方块中的安全区：居中留白，徽标(正方形源)占高 ~62%
+    box_h = size * 0.62
     box_w = SRC_W / SRC_H * box_h
     x0 = (size - box_w) / 2
     y0 = (size - box_h) / 2

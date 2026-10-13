@@ -1,8 +1,8 @@
 /**
- * 服务端管理:Python 探测、服务启停与健康检查
+ * 服务端管理:服务启停与健康检查
  *
- * Strava Panel 是纯 Python 标准库服务(零第三方依赖),无需 venv/pip:
- * 直接使用系统 Python 3.8+ 运行 cli/app/server/app.py。
+ * Strava Panel 服务端是纯 Node.js ESM(零第三方依赖,Node >=22.13):
+ * 直接用运行本 CLI 的同一 node 进程(process.execPath)执行 cli/app/server/app.js。
  *
  * 目录布局:
  *   ~/.strava-panel/                  CLI 家目录(pid/退出标记)
@@ -24,9 +24,30 @@ const BASE_URL = `http://${HOST_ALIAS}:${PORT}`;
 const HOME_DIR = path.join(os.homedir(), '.strava-panel');
 const RUNTIME_DIR = path.join(HOME_DIR, 'runtime');
 
-// 包内打包的 Python 应用源码(npm files 包含 app/)
+// 包内打包的服务端源码(npm files 包含 app/)
 const APP_DIR = path.join(__dirname, '..', 'app');
 const SERVER_DIR = path.join(APP_DIR, 'server');
+const SERVER_ENTRY = path.join(SERVER_DIR, 'app.js');
+
+// CLI / 服务端统一要求 Node >= 22.13(纯 ESM、零依赖)
+const MIN_NODE_VERSION = [22, 13, 0];
+
+function parseVersion(text) {
+    const m = String(text || '').match(/v?(\d+)\.(\d+)\.(\d+)/);
+    return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+}
+
+function versionAtLeast(v, min) {
+    for (let i = 0; i < 3; i++) {
+        if ((v[i] || 0) !== (min[i] || 0)) return (v[i] || 0) > (min[i] || 0);
+    }
+    return true;
+}
+
+function nodeVersionOk() {
+    const v = parseVersion(process.version);
+    return !!v && versionAtLeast(v, MIN_NODE_VERSION);
+}
 
 function dataDir() {
     if (process.env.SP_DATA_DIR) return process.env.SP_DATA_DIR;
@@ -40,36 +61,6 @@ function dataDir() {
 }
 
 function pidFile() { return path.join(HOME_DIR, 'server.pid'); }
-
-// ──────────────────────── Python 探测 ────────────────────────
-
-function detectPython() {
-    // SP_PYTHON_CMD 优先,如 "py -3.11" 或 "/usr/bin/python3.11"
-    if (process.env.SP_PYTHON_CMD) {
-        const parts = process.env.SP_PYTHON_CMD.split(/\s+/).filter(Boolean);
-        try {
-            const out = spawnSync(parts[0], [...parts.slice(1), '--version'], { encoding: 'utf8', timeout: 8000 });
-            if (out.status === 0) return { cmd: parts[0], args: parts.slice(1), version: 'custom' };
-        } catch { /* 回落到自动探测 */ }
-    }
-    const candidates = process.platform === 'win32'
-        ? [['py', ['-3']], ['python', []], ['python3', []]]
-        : [['python3', []], ['python', []]];
-    for (const [cmd, args] of candidates) {
-        try {
-            const out = spawnSync(cmd, [...args, '--version'], { encoding: 'utf8', timeout: 8000 });
-            const text = `${out.stdout || ''}${out.stderr || ''}`;
-            const m = text.match(/Python\s+(\d+)\.(\d+)/i);
-            if (out.status === 0 && m) {
-                const [major, minor] = [Number(m[1]), Number(m[2])];
-                if (major > 3 || (major === 3 && minor >= 8)) {
-                    return { cmd, args, version: `${major}.${minor}` };
-                }
-            }
-        } catch { /* 下一个候选 */ }
-    }
-    return null;
-}
 
 // ──────────────────────── 健康检查 ────────────────────────
 
@@ -133,11 +124,13 @@ async function startServer({ log = console.log } = {}) {
     const stale = readPid();
     if (stale) killPid(stale);
 
-    const python = detectPython();
-    if (!python) {
+    if (!nodeVersionOk()) {
         throw new Error(
-            '未找到 Python 3.8+。请安装 Python 后重试(https://www.python.org/downloads/),\n' +
-            '  或通过 SP_PYTHON_CMD 环境变量指定,例如: set SP_PYTHON_CMD=py -3.11');
+            `需要 Node.js >= ${MIN_NODE_VERSION.join('.')} (当前 ${process.version})。请升级 Node.js 后重试(https://nodejs.org)。\n` +
+            `Node.js >= ${MIN_NODE_VERSION.join('.')} required (current ${process.version}). Please upgrade: https://nodejs.org`);
+    }
+    if (!fs.existsSync(SERVER_ENTRY)) {
+        throw new Error(`服务端入口缺失: ${SERVER_ENTRY} (请先运行 npm run build)`);
     }
 
     const dd = dataDir();
@@ -147,15 +140,14 @@ async function startServer({ log = console.log } = {}) {
     try { if (fs.statSync(logFile).size > 5 * 1024 * 1024) fs.truncateSync(logFile, 0); } catch { }
     const logFd = fs.openSync(logFile, 'a');
 
-    log(`[sp] 启动服务: ${BASE_URL} (Python ${python.version}, 数据目录 ${dd})`);
-    const child = spawn(python.cmd, [...python.args, '-u', 'app.py'], {
+    log(`[sp] 启动服务: ${BASE_URL} (Node ${process.version}, 数据目录 ${dd})`);
+    const child = spawn(process.execPath, [SERVER_ENTRY], {
         cwd: SERVER_DIR,
         env: {
             ...process.env,
             SP_PORT: String(PORT),
             // 不传 SP_HOST:默认绑 127.0.0.1,纯本机访问免 Windows 防火墙弹窗
             SP_DATA_DIR: dd,
-            PYTHONUNBUFFERED: '1',
         },
         detached: true,
         windowsHide: true,
@@ -198,7 +190,7 @@ async function stopServer({ log = console.log } = {}) {
         await new Promise(r => setTimeout(r, 1200));
     }
     if (await isHealthy(800)) {
-        return { stopped: false, reason: `进程 ${pid} 无法终止(权限不足),请手动结束该 Python 进程` };
+        return { stopped: false, reason: `进程 ${pid} 无法终止(权限不足),请手动结束该 Node 进程` };
     }
     return { stopped: true, pid };
 }
@@ -215,8 +207,9 @@ async function getStatus() {
 }
 
 module.exports = {
-    PORT, BASE_URL, HOME_DIR, RUNTIME_DIR, APP_DIR, SERVER_DIR,
-    dataDir, detectPython,
+    PORT, BASE_URL, HOME_DIR, RUNTIME_DIR, APP_DIR, SERVER_DIR, SERVER_ENTRY,
+    MIN_NODE_VERSION, nodeVersionOk,
+    dataDir,
     isHealthy, waitHealthy, startServer, stopServer, getStatus,
     readPid, openBrowser,
 };

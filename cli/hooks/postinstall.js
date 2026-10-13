@@ -1,17 +1,16 @@
 #!/usr/bin/env node
 
 // postinstall:只做轻量检查与提示,绝不阻塞安装(见 package.json comment_postinstall)。
-// Strava Panel 是纯 Python 标准库服务,无依赖安装环节;首次 `sp start` 只需系统 Python 3.8+。
-const { detectPython, HOME_DIR } = require("../src/server");
+// Strava Panel 服务端是纯 Node.js ESM(零依赖);`sp start` 用安装时的同一个 node 运行。
+const { nodeVersionOk, MIN_NODE_VERSION, HOME_DIR } = require("../src/server");
 const fs = require("fs");
 const path = require("path");
 
 try {
-  const py = detectPython();
-  if (py) {
-    console.log(`[strava-panel] 检测到 Python ${py.version},可直接 sp start 启动`);
+  if (nodeVersionOk()) {
+    console.log(`[strava-panel] Node.js ${process.version} 满足要求,可直接 sp start 启动`);
   } else {
-    console.warn("[strava-panel] 未检测到 Python 3.8+,请先安装 Python(https://www.python.org/downloads/)后 sp start");
+    console.warn(`[strava-panel] 需要 Node.js >= ${MIN_NODE_VERSION.join(".")}(当前 ${process.version}),请先升级 Node.js(https://nodejs.org)`);
   }
 
   // macOS/Linux:惰性安装托盘依赖 systray2(Windows 用 PowerShell 托盘,无需)

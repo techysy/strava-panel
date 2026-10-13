@@ -16,12 +16,13 @@ const TREES = [
   ["server", "server"],
   ["www", "www"],
 ];
-const SKIP = new Set(["__pycache__", ".pyc"]);
+const SKIP_DIRS = new Set(["__pycache__"]);
+const SKIP_EXT = new Set([".py", ".pyc"]);   // Python 遗留一律不带进 npm 包
 
 function copyTree(src, dest) {
   fs.mkdirSync(dest, { recursive: true });
   for (const name of fs.readdirSync(src)) {
-    if (SKIP.has(name) || name.endsWith(".pyc")) continue;
+    if (SKIP_DIRS.has(name) || SKIP_EXT.has(path.extname(name))) continue;
     const s = path.join(src, name);
     const d = path.join(dest, name);
     if (fs.statSync(s).isDirectory()) copyTree(s, d);

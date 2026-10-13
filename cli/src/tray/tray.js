@@ -33,7 +33,7 @@ function buildMenuItems(port, autostartEnabled) {
   return [
     { title: `Strava Panel · 端口 ${port}`, tooltip: "服务状态", enabled: false },
     { title: "打开 Strava Panel", tooltip: "在浏览器打开", enabled: true },
-    { title: "重启服务", tooltip: "重启 Python 服务", enabled: true },
+    { title: "重启服务", tooltip: "重启后台服务", enabled: true },
     { title: "停止服务", tooltip: "停止后台服务", enabled: true },
     {
       title: autostartEnabled ? "开机自启: 已开启" : "开机自启: 已关闭",

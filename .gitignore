@@ -3,6 +3,7 @@
 *.tar.gz
 build/
 dist/
+build.json
 
 # Python
 __pycache__/
@@ -20,6 +21,8 @@ scripts/.build_num
 desktop/build/
 desktop/dist/
 desktop/node_modules/
+desktop/resources/python-x64/
+desktop/resources/python-arm64/
 cli/app/
 cli/node_modules/
 cli/*.tgz

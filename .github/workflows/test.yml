@@ -13,28 +13,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: '3.12'
+          node-version: '24'
 
-      - name: Syntax check
-        run: python -m py_compile server/app.py server/db.py
+      - name: Server sanity + syntax check
+        run: |
+          test -f server/package.json
+          node --check server/app.js
+          node --check server/db.js
 
       - name: Server smoke test
         run: |
           set -euo pipefail
-          SP_DATA_DIR=/tmp/sp-test SP_PORT=20399 SP_HOST=127.0.0.1 python server/app.py > /tmp/sp.log 2>&1 &
+          SP_DATA_DIR=/tmp/sp-test SP_PORT=20399 SP_HOST=127.0.0.1 node server/app.js > /tmp/sp.log 2>&1 &
           for i in $(seq 1 15); do
             if curl -sf http://127.0.0.1:20399/api/status > /dev/null 2>&1; then break; fi
             sleep 1
           done
-          curl -sf http://127.0.0.1:20399/api/status | python3 -m json.tool
+          curl -sf http://127.0.0.1:20399/api/status | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.stringify(JSON.parse(d),null,2)))"
           curl -sf -o /dev/null -w "index: %{http_code}\n" http://127.0.0.1:20399/
-          curl -sf http://127.0.0.1:20399/api/bootstrap | python3 -c "import sys,json; assert 'api_token' in json.load(sys.stdin); print('bootstrap ok')"
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
+          curl -sf http://127.0.0.1:20399/api/bootstrap | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const j=JSON.parse(d);if(!('api_token' in j)){console.error('bootstrap: api_token missing');process.exit(1)}console.log('bootstrap ok')})"
 
       - name: Node syntax check + CLI build
         run: |
@@ -42,3 +41,28 @@ jobs:
           node --check cli/src/server.js
           node --check desktop/main.js
           cd cli && npm run build
+
+  # 版本号单一来源:server/VERSION,其余三处必须同步(发版前由 scripts/sync-version.sh 保证)
+  version-consistency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Assert version consistency
+        run: |
+          set -euo pipefail
+          V_FILE=$(tr -d '[:space:]' < server/VERSION)
+          V_MANIFEST=$(grep -E '^version[[:space:]]*=' fnos-packaging/manifest | head -1 | sed -E 's/.*=[[:space:]]*//' | tr -d '[:space:]\r')
+          V_DESKTOP=$(node -p "require('./desktop/package.json').version")
+          V_CLI=$(node -p "require('./cli/package.json').version")
+          echo "server/VERSION=$V_FILE manifest=$V_MANIFEST desktop=$V_DESKTOP cli=$V_CLI"
+          [ -n "$V_FILE" ] || { echo "ERROR: server/VERSION is empty"; exit 1; }
+          [ "$V_MANIFEST" = "$V_FILE" ] || { echo "ERROR: manifest($V_MANIFEST) != server/VERSION($V_FILE)"; exit 1; }
+          [ "$V_DESKTOP" = "$V_FILE" ] || { echo "ERROR: desktop/package.json($V_DESKTOP) != server/VERSION($V_FILE)"; exit 1; }
+          [ "$V_CLI" = "$V_FILE" ] || { echo "ERROR: cli/package.json($V_CLI) != server/VERSION($V_FILE)"; exit 1; }
+          echo "✓ 四处版本一致:$V_FILE"

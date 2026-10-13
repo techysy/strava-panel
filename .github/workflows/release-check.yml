@@ -1,0 +1,25 @@
+name: Release Check
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  contents: read
+
+jobs:
+  release-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'release')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # 发版门禁:版本一致性 + 各渠道打包前置检查(具体检查项见 scripts/release-check.sh)
+      - name: Run release check
+        run: bash scripts/release-check.sh

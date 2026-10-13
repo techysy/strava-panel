@@ -21,7 +21,7 @@ jobs:
         with:
           node-version: '24'
 
-      # 汇集 server + www 到 cli/app,再 npm pack(纯 JS + Python 源码,无需安装依赖)
+      # 汇集 server + www 到 cli/app,再 npm pack(纯 JS,含 Node.js 后端源码,无需安装依赖)
       - name: Build and pack
         working-directory: cli
         run: |

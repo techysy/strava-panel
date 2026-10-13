@@ -6,115 +6,229 @@
 <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
 <title>Strava Panel</title>
 <style>
-:root{--bg:#0f1420;--card:#1a2130;--card2:#202a3d;--text:#e8edf5;--muted:#8a97ab;--brand:#fc4c02;--brand2:#e84300;--accent:#38bdf8;--good:#22c55e;--border:rgba(255,255,255,.08)}
-[data-theme="light"]{--bg:#f5f6fa;--card:#fff;--card2:#eef1f6;--text:#1a2130;--muted:#6b7686;--brand:#e84300;--brand2:#c73500;--accent:#0284c7;--good:#16a34a;--border:rgba(0,0,0,.08)}
+:root{
+  color-scheme:light;
+  --bg:#f5f6f8;--surface:#ffffff;--surface-2:#fafafa;--tertiary:#f0f0f0;--hover:#f5f6f8;--active:#eef0f3;
+  --border-subtle:#eeeeee;--border:#e5e5e5;--border-strong:#cccccc;
+  --text:#1f1f1f;--text-2:#5f6368;--text-3:#999999;--muted:#5f6368;
+  --accent:#fc4c02;--accent-rgb:252,76,2;--accent-2:#e84300;
+  --btn-bg:#1f1f1f;--btn-fg:#ffffff;
+  --ok:#16a34a;--warn:#d97706;--err:#dc2626;
+  --ok-soft:rgba(34,197,94,.14);--warn-soft:rgba(245,158,11,.12);--err-soft:rgba(239,68,68,.1);
+  --radius:14px;
+  --shadow:0 10px 40px rgba(0,0,0,.12);--toast-shadow:0 6px 24px rgb(0 0 0 / 14%);
+}
+html[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0a0a0c;--surface:#131316;--surface-2:#17171b;--tertiary:#1b1b20;--hover:rgba(255,255,255,.06);--active:rgba(255,255,255,.1);
+  --border-subtle:#202025;--border:rgba(255,255,255,.13);--border-strong:#3a3a42;
+  --text:#e6e6e9;--text-2:rgba(230,230,233,.72);--text-3:rgba(230,230,233,.5);--muted:rgba(230,230,233,.72);
+  --accent:#fc4c02;--accent-rgb:252,76,2;--accent-2:#ff6a2b;
+  --btn-bg:rgba(255,255,255,.92);--btn-fg:#0a0a0c;
+  --ok:#2ee59d;--warn:#ffb03a;--err:#ff6b6b;
+  --ok-soft:rgba(46,229,157,.14);--warn-soft:rgba(255,176,58,.12);--err-soft:rgba(255,107,107,.12);
+  --shadow:0 10px 40px rgba(0,0,0,.5);--toast-shadow:0 6px 24px rgb(0 0 0 / 45%);
+}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;transition:background .2s,color .2s}
-.layout{display:flex;min-height:100vh}
-.sidebar{width:200px;background:var(--card);border-right:1px solid var(--border);padding:16px 10px;flex-shrink:0}
-.sidebar .brand{font-size:16px;font-weight:700;padding:4px 12px 14px;border-bottom:1px solid var(--border);margin-bottom:10px;display:flex;flex-direction:column;align-items:flex-start}
-.sidebar .brand-ver{font-size:12px;font-weight:400;color:var(--muted);line-height:1;margin-top:4px}
-.nav-item{display:flex;align-items:center;gap:8px;padding:11px 12px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--muted);margin-bottom:2px}
-.nav-item.active{background:rgba(56,189,248,.12);color:var(--accent);font-weight:600}
-.main{flex:1;padding:16px;min-width:0;display:flex;flex-direction:column;height:100vh;overflow:hidden;box-sizing:border-box}
-.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:8px;flex-wrap:wrap}
-.topbar h1{font-size:20px}
-.topbar-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.hamburger{display:none;background:none;border:none;font-size:20px;color:var(--text);cursor:pointer;padding:4px 6px}
-.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999}
-.tab-panel{display:none}
-.tab-panel.active{display:block;overflow-y:auto;flex:1;min-height:0}
-.btn{padding:8px 14px;border:none;border-radius:8px;background:var(--brand);color:#fff;font-size:13px;font-weight:600;cursor:pointer}
-.btn.secondary{background:var(--card2);color:var(--text)}
-.btn.danger{background:transparent;color:var(--brand)}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;font-size:13px;min-height:100vh;-webkit-font-smoothing:antialiased;transition:background .2s,color .2s}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+.wrap{max-width:1120px;margin:0 auto;padding:18px 22px 40px}
+.num{font-variant-numeric:tabular-nums}
+
+/* header */
+.head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 2px 16px}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.logo{width:36px;height:36px;flex-shrink:0;display:block;border-radius:9px;overflow:hidden}
+.logo svg{width:100%;height:100%;display:block}
+.title{font-size:16px;font-weight:750;letter-spacing:-.3px;line-height:1.15}
+.ver{color:var(--text-3);font-size:11px;line-height:1.55;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.head-right{display:flex;align-items:center;gap:8px}
+/* 状态胶囊 */
+.badge{display:inline-flex;align-items:center;font-size:12px;line-height:1;padding:6px 11px;border-radius:999px;font-weight:600;background:var(--tertiary);color:var(--text-3);white-space:nowrap}
+.badge.ok{color:var(--ok);background:var(--ok-soft)}
+.badge.warn{color:var(--warn);background:var(--warn-soft)}
+@media (max-width:480px){.badge{display:none}}
+/* 右上角聚合菜单：锚定按钮下方的下拉（非全屏弹窗），工作区 / 外观 / 关于三区 */
+.hmenu{position:relative;display:inline-flex}
+.icon-btn{width:30px;height:30px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;border:1px solid transparent;background:var(--hover);color:var(--text-2);cursor:pointer;transition:all .15s;padding:0;font-size:15px;line-height:1}
+.icon-btn:hover{background:var(--active);color:var(--text)}
+.icon-btn:active{transform:scale(.92)}
+.hmenu-pop{position:absolute;right:0;top:calc(100% + 10px);z-index:60;width:252px;background:var(--surface);border:1px solid var(--border-subtle);border-radius:14px;padding:7px;box-shadow:var(--shadow);display:none}
+.hmenu-pop.show{display:block}
+.hmenu-group{padding:3px 0}
+.hmenu-group + .hmenu-group{margin-top:4px;padding-top:7px;border-top:1px solid var(--border-subtle)}
+.hmenu-title{padding:4px 10px 5px;font-size:10.5px;font-weight:700;letter-spacing:.6px;color:var(--text-3);text-transform:uppercase}
+.hmenu-item{display:flex;align-items:center;gap:9px;width:100%;padding:7px 10px;border:0;border-radius:8px;background:transparent;color:var(--text-2);font-size:13px;font-weight:600;cursor:pointer;text-align:left;font-family:inherit;text-decoration:none}
+.hmenu-item:hover{background:var(--hover);color:var(--text)}
+.hmenu-item:active{transform:translateY(1px)}
+/* 主题 / 语言分段控件（跟随系统 / 亮色 / 暗色），当前态高亮，主题只有一个真相源 */
+.mode-seg{display:inline-flex;gap:3px;margin:2px 6px 4px;padding:3px;border-radius:9px;background:var(--tertiary)}
+.lang-seg{display:flex;width:calc(100% - 12px)}
+.lang-seg .seg-btn{flex:1 1 0;padding:6px 0}
+.seg-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 9px;border:0;border-radius:7px;background:transparent;color:var(--text-3);font-size:12px;font-weight:600;line-height:1;cursor:pointer;font-family:inherit;white-space:nowrap}
+.seg-btn:hover{color:var(--text)}
+.seg-btn.on{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+html[data-theme="dark"] .seg-btn.on{background:var(--active);box-shadow:none}
+.hmenu-ver{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px 4px;margin-top:4px;border-top:1px solid var(--border-subtle);color:var(--text-3);font-size:11px}
+.hmenu-ver a{color:var(--text-3);text-decoration:none}
+.hmenu-ver a:hover{color:var(--text)}
+
+/* 顶部标签页（<768px 时横向滚动，不用汉堡菜单） */
+.nav{display:flex;gap:4px;padding:4px;margin-bottom:14px;background:var(--surface);border:1px solid var(--border-subtle);border-radius:12px;width:fit-content;max-width:100%;overflow-x:auto}
+.nav button{display:inline-flex;align-items:center;gap:6px;border:none;background:transparent;color:var(--text-2);font-size:13px;font-weight:600;padding:7px 14px;border-radius:9px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
+.nav button:hover{color:var(--text);background:var(--hover)}
+.nav button.active{background:var(--btn-bg);color:var(--btn-fg)}
+.view{display:none}
+.view.active{display:block}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:7px 13px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text-2);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;line-height:1.2;white-space:nowrap}
+.btn:hover{background:var(--hover);border-color:var(--border-strong);color:var(--text)}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.primary:hover{opacity:.88;background:var(--accent);border-color:var(--accent);color:#fff}
+.btn:active{transform:translateY(1px)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
-.panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px}
-.panel h2{font-size:14px;margin-bottom:12px}
-.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:8px}
-.stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
-.stat-group{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px}
-.stat-group-title{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:6px}
-.stat-aggr{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:6px 14px}
-.stat-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)}
+
+/* panels & stat cards */
+.panel{background:var(--surface);border:1px solid var(--border-subtle);border-radius:var(--radius);padding:16px 18px;margin-bottom:14px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.panel h2{font-size:13px;font-weight:700;margin-bottom:12px}
+.stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.stat-group{background:var(--surface-2);border:1px solid var(--border-subtle);border-radius:12px;padding:12px}
+.stat-group-title{font-size:12px;font-weight:600;color:var(--text-3);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.stat-grid{display:flex;flex-direction:column;gap:0}
+.stat-aggr{background:var(--surface);border:1px solid var(--border-subtle);border-radius:10px;padding:4px 12px}
+.stat-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border-subtle)}
 .stat-row:last-child{border-bottom:none}
-.stat-row .k{font-size:12px;color:var(--muted);flex-shrink:0}
-.stat-row .v{font-size:13px;font-weight:600;text-align:right;word-break:break-all}
-.stat-badge{display:inline-block;font-size:12px;padding:3px 12px;border-radius:999px;font-weight:600}
-.stat-badge.ok{background:rgba(34,197,94,.15);color:var(--good)}
-.stat-badge.warn{background:rgba(252,76,2,.15);color:var(--brand)}
-.stat-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
-.dot-on{background:#22c55e}.dot-off{background:#ef4444}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-bottom:24px}
-.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px}
-.card .label{font-size:12px;color:var(--muted);margin-bottom:6px}
-.card .value{font-size:26px;font-weight:800}
-.card .unit{font-size:14px;color:var(--muted);font-weight:500;margin-left:2px}
-.seg{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
-.seg button{padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card2);color:var(--muted);cursor:pointer;font-size:13px;flex:1 1 0;min-width:56px;text-align:center;white-space:nowrap}
-.seg button.active{background:rgba(56,189,248,.12);color:var(--accent);font-weight:600;border-color:rgba(56,189,248,.3)}
-.bar{height:6px;border-radius:3px;background:var(--card2);overflow:hidden;margin-top:4px}
-.bar>div{height:100%;background:var(--brand);border-radius:3px}
+.stat-row .k{font-size:12px;color:var(--text-3);flex-shrink:0}
+.stat-row .v{font-size:12.5px;font-weight:600;text-align:right;word-break:break-all;font-variant-numeric:tabular-nums}
+.stat-badge{display:inline-block;font-size:11px;padding:3px 9px;border-radius:999px;font-weight:600}
+.stat-badge.ok{background:var(--ok-soft);color:var(--ok)}
+.stat-badge.warn{background:var(--warn-soft);color:var(--warn)}
+.dot-on{background:var(--ok)}.dot-off{background:var(--err)}
+
+/* metrics cards */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.card{background:var(--surface);border:1px solid var(--border-subtle);border-radius:var(--radius);padding:16px 18px}
+.card .label{font-size:12px;color:var(--text-3);margin-bottom:6px}
+.card .value{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums}
+.card .unit{font-size:13px;color:var(--text-3);font-weight:500;margin-left:2px}
+
+/* 日期范围分段控件 */
+.seg{display:flex;gap:3px;padding:3px;border-radius:10px;background:var(--tertiary);margin-bottom:14px;overflow-x:auto;max-width:100%}
+.seg button{padding:6px 10px;border:0;border-radius:8px;background:transparent;color:var(--text-3);cursor:pointer;font-size:12px;font-weight:600;flex:1 1 0;min-width:56px;text-align:center;white-space:nowrap;transition:all .15s}
+.seg button:hover{color:var(--text)}
+.seg button.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+html[data-theme="dark"] .seg button.active{background:var(--active);box-shadow:none}
+
+/* table & pager */
 table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
-th{color:var(--muted);font-weight:500;font-size:12px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border-subtle)}
+th{color:var(--text-3);font-weight:500;font-size:12px}
+td{font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:none}
 .pager{display:flex;align-items:center;gap:8px;margin-top:12px;justify-content:center}
-.pager button{padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:var(--card2);color:var(--text);cursor:pointer;font-size:12px}
+.pager button{padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text-2);cursor:pointer;font-size:12px;font-weight:600}
+.pager button:hover{background:var(--hover);color:var(--text)}
 .pager button:disabled{opacity:.4;cursor:not-allowed}
-.pager .pager-info{font-size:12px;color:var(--muted)}
+.pager .pager-info{font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums}
+
+/* log console */
 .log-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
-.log-controls select,.log-controls button{flex:0 0 auto}
-select{width:auto;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card2);color:var(--text);font-size:13px}
-.log-view{background:rgba(0,0,0,0.82);color:#d4d4d4;border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:12px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;max-height:70vh;overflow-y:auto;line-height:1.5}
-label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
-input,textarea{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--card2);color:var(--text);font-size:13px;font-family:inherit}
+select{width:auto;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text);font-size:12px}
+.log-view{background:var(--tertiary);color:var(--text-2);border:1px solid var(--border-subtle);border-radius:10px;padding:12px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;max-height:70vh;overflow-y:auto;line-height:1.6}
+
+/* forms */
+label{display:block;font-size:12px;color:var(--text-3);margin:10px 0 4px}
+input,textarea{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text);font-size:13px;outline:none;transition:border-color .15s}
+input:focus,textarea:focus{border-color:var(--border-strong)}
+input::placeholder{color:var(--text-3);opacity:.7}
 textarea{min-height:120px;resize:vertical}
 .msg{font-size:13px;margin-top:10px;color:var(--accent);min-height:18px}
-.hint{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.6}
-.api-doc{background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:12px;line-height:1.7;max-height:70vh;overflow-y:auto;white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,Menlo,Consolas,monospace}
-.subtabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
-.subtab{padding:7px 16px;border:1px solid var(--border);border-radius:8px;background:var(--card2);color:var(--muted);cursor:pointer;font-size:13px}
-.subtab.active{background:rgba(56,189,248,.12);color:var(--accent);font-weight:600;border-color:rgba(56,189,248,.3)}
+.hint{font-size:12px;color:var(--text-3);margin-top:8px;line-height:1.6}
+.hint a{color:var(--accent);word-break:break-all}
+.api-doc{background:var(--tertiary);border:1px solid var(--border-subtle);border-radius:10px;padding:14px;font-size:12px;line-height:1.7;max-height:70vh;overflow-y:auto;white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--text-2)}
+
+/* settings subtabs */
+.subtabs{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border-subtle);border-radius:12px;padding:4px;width:fit-content;max-width:100%}
+.subtab{padding:7px 16px;border:0;border-radius:9px;background:transparent;color:var(--text-2);cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap;transition:background .15s,color .15s}
+.subtab:hover{color:var(--text);background:var(--hover)}
+.subtab.active{background:var(--btn-bg);color:var(--btn-fg)}
 .subpanel{display:none}
 .subpanel.active{display:block}
-.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--card2);border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-left:8px}
+
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-left:8px}
 @keyframes spin{to{transform:rotate(360deg)}}
-.badge{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--card2);color:var(--muted)}
-.badge.ok{background:rgba(34,197,94,.15);color:var(--good)}
-.badge.warn{background:rgba(252,76,2,.15);color:var(--brand)}
+
+/* toast */
+#toast{position:fixed;bottom:24px;left:50%;transform:translate(-50%,8px);z-index:70;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:9px 14px;font-size:12px;font-weight:600;color:var(--text);box-shadow:var(--toast-shadow);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:80vw}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#toast.err{border-color:var(--err);color:var(--err)}
+#toast.ok{border-color:var(--ok);color:var(--ok)}
+
 @media (max-width:768px){
-  .sidebar{position:fixed;left:-220px;top:0;bottom:0;z-index:1000;transition:left .25s ease;height:100vh;overflow-y:auto}
-  .sidebar.open{left:0}
-  .hamburger{display:inline-block}
-  .sidebar-overlay.show{display:block}
+  .wrap{padding:14px 12px 32px}
   .grid{grid-template-columns:repeat(2,1fr)}
   .log-controls select{flex:1 1 auto;min-width:0}
   .log-controls button{flex:1 1 auto}
 }
 </style>
 </head>
-<body data-theme="light">
-<div class="layout">
-  <div class="sidebar" id="sidebar">
-    <div class="brand">🚴 Strava Panel<div class="brand-ver" id="brandVer">v__APP_VERSION__</div></div>
-    <div class="nav-item active" onclick="switchNav('dash')" data-i18n="nav_dash">📊 仪表板</div>
-    <div class="nav-item" onclick="switchNav('data')" data-i18n="nav_data">🚴 骑行数据</div>
-    <div class="nav-item" onclick="switchNav('settings')" data-i18n="nav_settings">⚙️ 设置</div>
-  </div>
-  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
-  <div class="main">
-    <div class="topbar">
-      <div style="display:flex;align-items:center;gap:8px">
-        <button class="hamburger" onclick="toggleSidebar()">☰</button>
-      </div>
-      <div class="topbar-actions">
-        <span class="badge" id="statusBadge">…</span>
-        <button class="btn secondary" id="langToggle" onclick="toggleLang()" style="width:auto;padding:6px 10px">EN</button>
-        <button class="btn secondary" id="themeToggle" onclick="toggleTheme()" style="width:auto;padding:6px 10px">🌙</button>
+<body>
+<div class="wrap">
+  <header class="head">
+    <div class="brand">
+      <span class="logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Strava Panel"><rect width="64" height="64" rx="14" fill="#FC5200"/><path transform="translate(14 14) scale(1.5)" fill="#fff" d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg></span>
+      <div style="min-width:0">
+        <div class="title">Strava Panel</div>
+        <div class="ver" id="brandVer">v__APP_VERSION__</div>
       </div>
     </div>
+    <div class="head-right">
+      <span class="badge" id="statusBadge">…</span>
+      <!-- 聚合菜单：工作区 / 外观 / 关于分区，下拉紧贴按钮，非全屏弹窗 -->
+      <div class="hmenu" id="hmenu">
+        <button class="icon-btn" id="hmenuBtn" onclick="toggleHmenu(event)" title="Menu">⚙️</button>
+        <div class="hmenu-pop" id="hmenuPop">
+          <div class="hmenu-group">
+            <div class="hmenu-title" data-i18n="menu_workspace">工作区</div>
+            <button class="hmenu-item" onclick="closeHmenu();syncNow()" data-i18n="sync_btn">🔄 立即同步</button>
+            <button class="hmenu-item" onclick="exportCsv()" data-i18n="export_csv">⬇️ 导出 CSV</button>
+            <button class="hmenu-item" onclick="exportJson()" data-i18n="export_json">⬇️ 导出 JSON</button>
+            <button class="hmenu-item" onclick="closeHmenu();refreshStatus()" data-i18n="hm_refresh">🔄 刷新状态</button>
+          </div>
+          <div class="hmenu-group">
+            <div class="hmenu-title" data-i18n="menu_appearance">外观</div>
+            <div class="mode-seg" id="themeSeg">
+              <button class="seg-btn" data-theme-mode="system" onclick="setThemeMode('system')" data-i18n="theme_system">跟随系统</button>
+              <button class="seg-btn" data-theme-mode="light" onclick="setThemeMode('light')" data-i18n="theme_light">亮色</button>
+              <button class="seg-btn" data-theme-mode="dark" onclick="setThemeMode('dark')" data-i18n="theme_dark">暗色</button>
+            </div>
+            <div class="mode-seg lang-seg" id="langSeg">
+              <button class="seg-btn" data-lang="zh" onclick="setLang('zh')">中文</button>
+              <button class="seg-btn" data-lang="en" onclick="setLang('en')">EN</button>
+            </div>
+          </div>
+          <div class="hmenu-group">
+            <div class="hmenu-title" data-i18n="menu_about">关于</div>
+            <button class="hmenu-item" onclick="closeHmenu();switchNav('settings');switchSubTab('api')" data-i18n="hm_apidoc">📖 API 文档</button>
+            <a class="hmenu-item" href="https://github.com/techysy/strava-panel" target="_blank" rel="noopener" data-i18n="hm_github">GitHub ↗</a>
+          </div>
+          <div class="hmenu-ver"><span data-i18n="app_title">Strava Panel</span><span class="ver">v__APP_VERSION__</span></div>
+        </div>
+      </div>
+    </div>
+  </header>
 
+  <nav class="nav" id="nav">
+    <button data-view="data" class="active" onclick="switchNav('data')" data-i18n="nav_data">🚴 骑行数据</button>
+    <button data-view="rides" onclick="switchNav('rides')" data-i18n="nav_rides">🚴 最近骑行</button>
+    <button data-view="dash" onclick="switchNav('dash')" data-i18n="nav_dash">📊 仪表板</button>
+    <button data-view="settings" onclick="switchNav('settings')" data-i18n="nav_settings">⚙️ 设置</button>
+  </nav>
+
+  <main>
     <!-- 仪表板 -->
-    <div class="tab-panel active" id="tab-dash">
+    <div class="view" id="tab-dash">
       <div class="panel">
         <h2 data-i18n="dash_title">📊 服务状态</h2>
         <div class="stat-cards">
@@ -133,7 +247,7 @@ textarea{min-height:120px;resize:vertical}
         </div>
         <div style="display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap">
           <button class="btn primary" onclick="syncNow()" data-i18n="sync_btn">🔄 立即同步</button>
-          <button class="btn secondary" onclick="recreateToken()" data-i18n="token_btn">🔑 创建 token</button>
+          <button class="btn" onclick="recreateToken()" data-i18n="token_btn">🔑 创建 token</button>
           <span class="hint" id="dashMsg" style="margin:0"></span>
         </div>
       </div>
@@ -146,8 +260,8 @@ textarea{min-height:120px;resize:vertical}
             <option value="agent" data-i18n="log_src_agent">Agent 调用</option>
           </select>
           <select id="logDate" onchange="loadLogs()"><option value="" data-i18n="current">当前</option></select>
-          <button class="btn secondary" onclick="loadLogs()" data-i18n="refresh">🔄 刷新</button>
-          <button class="btn secondary" onclick="downloadLog()" data-i18n="download">⬇️ 下载</button>
+          <button class="btn" onclick="loadLogs()" data-i18n="refresh">🔄 刷新</button>
+          <button class="btn" onclick="downloadLog()" data-i18n="download">⬇️ 下载</button>
         </div>
         <div class="hint" id="logInfo" style="margin-bottom:8px"></div>
         <pre id="logView" class="log-view" data-i18n-holder="(暂无日志)"></pre>
@@ -156,7 +270,7 @@ textarea{min-height:120px;resize:vertical}
     </div>
 
     <!-- 骑行数据 -->
-    <div class="tab-panel" id="tab-data">
+    <div class="view active" id="tab-data">
       <div class="seg" id="rangeSeg">
         <button id="rg7d" class="active" onclick="setRange('7d')" data-i18n="rg_7d">近7天</button>
         <button id="rg1m" onclick="setRange('1m')" data-i18n="rg_1m">近1月</button>
@@ -176,6 +290,10 @@ textarea{min-height:120px;resize:vertical}
         <h2 data-i18n="panel_monthly">📊 每月骑行距离 (km)</h2>
         <div id="weeklyChart"></div>
       </div>
+    </div>
+
+    <!-- 最近骑行 -->
+    <div class="view" id="tab-rides">
       <div class="panel">
         <h2 data-i18n="panel_recent">🚴 最近骑行</h2>
         <table id="recentTable"><thead><tr><th data-i18n="col_date">日期</th><th data-i18n="col_name">活动</th><th data-i18n="col_dist">距离</th><th data-i18n="col_dur">时长</th><th data-i18n="col_speed">均速</th><th data-i18n="col_elev">爬升</th></tr></thead><tbody></tbody></table>
@@ -188,7 +306,7 @@ textarea{min-height:120px;resize:vertical}
     </div>
 
     <!-- 设置 -->
-    <div class="tab-panel" id="tab-settings">
+    <div class="view" id="tab-settings">
       <div class="subtabs">
         <button class="subtab active" onclick="switchSubTab('cred')" data-i18n="sub_cred">🔑 凭据</button>
         <button class="subtab" onclick="switchSubTab('api')" data-i18n="sub_api">🤖 API</button>
@@ -197,14 +315,14 @@ textarea{min-height:120px;resize:vertical}
       <div class="subpanel active" id="sub-cred">
         <div class="panel">
           <h2 data-i18n="setup_title">⚙️ 配置 Strava 凭据</h2>
-          <p class="hint" style="margin-bottom:8px" data-i18n="setup_hint">在 <a href="https://www.strava.com/settings/api" target="_blank" style="color:var(--accent)">Strava My API Application</a> 查看 Client ID / Client Secret，并添加回调地址 <code id="callbackHint" style="background:var(--card2);padding:2px 6px;border-radius:6px">/oauth/callback</code>。Refresh Token 通过 OAuth 授权自动获取。</p>
+          <p class="hint" style="margin-bottom:8px" data-i18n="setup_hint">在 <a href="https://www.strava.com/settings/api" target="_blank" style="color:var(--accent)">Strava My API Application</a> 查看 Client ID / Client Secret，并添加回调地址 <code id="callbackHint" style="background:var(--tertiary);padding:2px 6px;border-radius:6px">/oauth/callback</code>。Refresh Token 通过 OAuth 授权自动获取。</p>
           <label data-i18n="setup_clientId">Client ID</label><input id="client_id" placeholder="Client ID">
           <label data-i18n="setup_clientSecret">Client Secret</label><input id="client_secret" placeholder="Client Secret">
           <label data-i18n="setup_redirectUri">回调地址 (redirect_uri)</label><input id="redirect_uri" placeholder="http://localhost:20227/oauth/callback">
           <div class="msg" id="setupMsg"></div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <button class="btn" onclick="connectStrava()" data-i18n="setup_connect">🔗 连接 Strava</button>
-            <button class="btn secondary" onclick="saveConfig()" id="saveBtn" data-i18n="setup_save">保存凭据</button>
+            <button class="btn primary" onclick="connectStrava()" data-i18n="setup_connect">🔗 连接 Strava</button>
+            <button class="btn" onclick="saveConfig()" id="saveBtn" data-i18n="setup_save">保存凭据</button>
           </div>
           <div class="hint" style="margin-top:10px" data-i18n="setup_connectHint">「连接 Strava」会在独立窗口打开 Strava 授权页，授权后自动回填并保存 refresh_token。</div>
         </div>
@@ -214,9 +332,9 @@ textarea{min-height:120px;resize:vertical}
           <h2 data-i18n="api_title">🤖 API 使用指南</h2>
           <p class="hint" style="margin-bottom:10px" data-i18n="api_hint">以下为管理面板 REST API 的 Markdown 文档，可直接复制给 agent 使用。</p>
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
-            <button class="btn secondary" onclick="copyApiDoc()" data-i18n="api_copy">📋 复制文档</button>
-            <button class="btn secondary" onclick="viewToken()" data-i18n="view_token">🔑 查看 token</button>
-            <button class="btn secondary" onclick="recreateToken()" data-i18n="token_btn">🔄 创建新 token</button>
+            <button class="btn" onclick="copyApiDoc()" data-i18n="api_copy">📋 复制文档</button>
+            <button class="btn" onclick="viewToken()" data-i18n="view_token">🔑 查看 token</button>
+            <button class="btn" onclick="recreateToken()" data-i18n="token_btn">🔄 创建新 token</button>
           </div>
           <div class="hint" id="apiTokenMsg" style="margin-bottom:8px;display:none;word-break:break-all"></div>
           <div id="apiDoc" class="api-doc"></div>
@@ -227,22 +345,23 @@ textarea{min-height:120px;resize:vertical}
           <h2 data-i18n="data_title">🗄️ 数据管理</h2>
           <p class="hint" data-i18n="data_hint">骑行数据缓存到本地 SQLite。可手动同步 Strava→SQLite，或导出全量数据给 agent 使用。</p>
           <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
-            <button class="btn" onclick="syncNow()" data-i18n="sync_btn">🔄 立即同步</button>
-            <button class="btn secondary" onclick="exportCsv()" data-i18n="export_csv">⬇️ 导出 CSV</button>
-            <button class="btn secondary" onclick="exportJson()" data-i18n="export_json">⬇️ 导出 JSON</button>
+            <button class="btn primary" onclick="syncNow()" data-i18n="sync_btn">🔄 立即同步</button>
+            <button class="btn" onclick="exportCsv()" data-i18n="export_csv">⬇️ 导出 CSV</button>
+            <button class="btn" onclick="exportJson()" data-i18n="export_json">⬇️ 导出 JSON</button>
           </div>
           <div class="msg" id="dataMsg"></div>
         </div>
       </div>
     </div>
-  </div>
+  </main>
 </div>
+<div id="toast"></div>
 
 <script>
 // ===== i18n =====
 const I18N = {
   zh: {
-    app_title:'Strava Panel', nav_dash:'📊 仪表板', nav_data:'🚴 骑行数据', nav_settings:'⚙️ 设置',
+    app_title:'Strava Panel', nav_dash:'📊 仪表板', nav_data:'🚴 骑行数据', nav_rides:'🚴 最近骑行', nav_settings:'⚙️ 设置',
     dash_title:'📊 服务状态', console_title:'📜 日志控制台', refresh:'🔄 刷新', download:'⬇️ 下载', current:'当前', log_src_system:'系统日志', log_src_strava:'Strava API', log_src_agent:'Agent 调用',
     console_hint:'日志按日期归档，可查看历史日期。当前日志仅保留当天，历史自动归档到 data/logs/ 目录。',
     sync_btn:'🔄 立即同步', token_btn:'🔑 创建 token',
@@ -268,9 +387,11 @@ const I18N = {
     syncing:'同步中…', sync_done:'✓ 同步完成', sync_fail:'✗ 同步失败',
     token_creating:'正在生成新 token…', token_done:'✓ 新 token (立即生效):', token_fail:'创建失败:',
     load_log:'加载中…', no_log:'(暂无日志)', log_fmt:'{src} 日志 · {disp} · 共 {total} 行',
+    menu_workspace:'工作区', menu_appearance:'外观', menu_about:'关于', theme_system:'跟随系统', theme_light:'亮色', theme_dark:'暗色',
+    hm_refresh:'🔄 刷新状态', hm_apidoc:'📖 API 文档', hm_github:'GitHub ↗',
   },
   en: {
-    app_title:'Strava Panel', nav_dash:'📊 Dashboard', nav_data:'🚴 Rides', nav_settings:'⚙️ Settings',
+    app_title:'Strava Panel', nav_dash:'📊 Dashboard', nav_data:'🚴 Rides', nav_rides:'🚴 Recent Rides', nav_settings:'⚙️ Settings',
     dash_title:'📊 Service Status', console_title:'📜 Log Console', refresh:'🔄 Refresh', download:'⬇️ Download', current:'Current', log_src_system:'System', log_src_strava:'Strava API', log_src_agent:'Agent Calls',
     console_hint:'Logs archived by date. Current file keeps today only; history moves to data/logs/.',
     sync_btn:'🔄 Sync Now', token_btn:'🔑 Create Token',
@@ -296,10 +417,11 @@ const I18N = {
     syncing:'Syncing…', sync_done:'✓ Sync Complete', sync_fail:'✗ Sync Failed',
     token_creating:'Generating new token…', token_done:'✓ New token (effective now):', token_fail:'Failed:',
     load_log:'Loading…', no_log:'(no log)', log_fmt:'{src} log · {disp} · {total} lines',
+    menu_workspace:'Workspace', menu_appearance:'Appearance', menu_about:'About', theme_system:'System', theme_light:'Light', theme_dark:'Dark',
+    hm_refresh:'🔄 Refresh Status', hm_apidoc:'📖 API Docs', hm_github:'GitHub ↗',
   }
 };
 let currentLang = localStorage.getItem('sv_lang') || 'zh';
-let currentTheme = localStorage.getItem('sv_theme') || 'light';
 function t(key, vars){
   const dict = I18N[currentLang] || I18N.zh;
   let s = dict[key] !== undefined ? dict[key] : (I18N.zh[key] || key);
@@ -314,41 +436,90 @@ function applyI18n(){
     if(el.dataset.i18nHolder){ el.textContent = txt; }
     else { el.innerHTML = txt; }
   });
-  document.getElementById('langToggle').textContent = currentLang === 'zh' ? 'EN' : '中文';
+  document.querySelectorAll('#langSeg .seg-btn').forEach(b=>b.classList.toggle('on', b.dataset.lang===currentLang));
 }
-function toggleLang(){
-  currentLang = currentLang === 'zh' ? 'en' : 'zh';
-  localStorage.setItem('sv_lang', currentLang);
+function setLang(lang){
+  if(lang === currentLang) return;
+  currentLang = lang;
+  localStorage.setItem('sv_lang', lang);
   applyI18n();
   refreshStatus();
 }
 
 // ===== Theme =====
-function applyTheme(theme){
-  document.documentElement.setAttribute('data-theme', theme);
-  document.getElementById('themeToggle').textContent = theme === 'dark' ? '🌙' : '☀️';
+// 三态主题（跟随系统/亮色/暗色），sp-theme 是唯一真相源；data-theme 落到 <html> 上。
+// 旧版两态存储 sv_theme 一步到位迁移为 sp-theme。
+function currentThemeMode(){
+  const m = localStorage.getItem('sp-theme');
+  return (m === 'light' || m === 'dark' || m === 'system') ? m : 'system';
 }
-function toggleTheme(){
-  const next = (document.documentElement.getAttribute('data-theme') || 'light') === 'dark' ? 'light' : 'dark';
-  currentTheme = next; localStorage.setItem('sv_theme', next); applyTheme(next);
+function resolvedTheme(mode){
+  if(mode === 'system'){
+    return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+  }
+  return mode;
+}
+function renderThemeSeg(){
+  const m = currentThemeMode();
+  document.querySelectorAll('#themeSeg .seg-btn').forEach(b=>b.classList.toggle('on', b.dataset.themeMode===m));
+}
+function applyTheme(mode){
+  document.documentElement.setAttribute('data-theme', resolvedTheme(mode || currentThemeMode()));
+  renderThemeSeg();
+  reRenderChart();
+}
+function setThemeMode(mode){
+  localStorage.setItem('sp-theme', mode === 'system' ? 'system' : mode);
+  applyTheme();
 }
 function initTheme(){
-  let saved = localStorage.getItem('sv_theme');
-  if(!saved) saved = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-  currentTheme = saved; applyTheme(saved);
+  if(!localStorage.getItem('sp-theme')){
+    const old = localStorage.getItem('sv_theme');
+    if(old === 'light' || old === 'dark'){
+      localStorage.setItem('sp-theme', old);
+      localStorage.removeItem('sv_theme');
+    } else localStorage.setItem('sp-theme', 'system');
+  }
+  applyTheme();
+  const mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  if(mq){
+    const onSys = () => { if(currentThemeMode() === 'system') applyTheme(); };
+    if(mq.addEventListener) mq.addEventListener('change', onSys);
+    else if(mq.addListener) mq.addListener(onSys);
+  }
+}
+
+// ===== Header menu =====
+const hmenuPopEl = document.getElementById('hmenuPop');
+function toggleHmenu(e){
+  e.stopPropagation();
+  hmenuPopEl.classList.toggle('show');
+}
+function closeHmenu(){ hmenuPopEl.classList.remove('show'); }
+document.addEventListener('click', (e)=>{ if(!e.target.closest('.hmenu')) closeHmenu(); });
+
+// ===== Toast =====
+let toastTimer = null;
+function toast(msg, ok){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (ok === undefined ? '' : (ok ? ' ok' : ' err'));
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.classList.remove('show'), 4200);
 }
 
 // ===== Nav =====
-let currentNav = 'dash';
+let currentNav = 'data';   // 默认视图：骑行数据
 function switchNav(nav){
   currentNav = nav;
-  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
-  document.querySelector('.nav-item[onclick="switchNav(\''+nav+'\')"]').classList.add('active');
-  document.querySelectorAll('.tab-panel').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('#nav button[data-view]').forEach(el=>el.classList.remove('active'));
+  const btn = document.querySelector('#nav button[data-view="'+nav+'"]');
+  if(btn) btn.classList.add('active');
+  document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
   document.getElementById('tab-'+nav).classList.add('active');
-  toggleSidebar(true);
   if(nav==='dash'){ loadInfo(); loadLogDates(); }
   if(nav==='data'){ loadData(); }
+  if(nav==='rides'){ loadActivities(); }   // 最近骑行表格：打开视图才懒加载
   if(nav==='settings'){ loadCredConfig(); }  // cred 是默认子tab，直接进入时也回填凭据
   if(nav==='api'||nav==='settings'){ /* handled by subtab */ }
 }
@@ -424,12 +595,6 @@ function autoFillRedirect(){
     if(shown && !hint.textContent.includes(shown)) hint.textContent = shown;
   }
 }
-function toggleSidebar(forceClose){
-  const sb = document.getElementById('sidebar');
-  if(forceClose){ sb.classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('show'); return; }
-  sb.classList.toggle('open');
-  document.getElementById('sidebarOverlay').classList.toggle('show');
-}
 
 // ===== API helper =====
 const API = '';
@@ -469,6 +634,7 @@ async function refreshStatus(){
     if(st.configured){
       loadInfo();
       if(currentNav==='data') loadData();
+      if(currentNav==='rides') loadActivities();
     }
   }catch(e){ badge.className='badge warn'; badge.textContent=t('badge_fail'); }
 }
@@ -562,13 +728,29 @@ async function loadData(){
       renderMonthly(series, key);
     }
   }catch(e){}
-  await loadActivities();
+  if(currentNav==='rides') await loadActivities();
+}
+// 缓存最近一次的图表数据：主题切换后用同一数据按新调色板重绘（SVG 颜色取计算后的 CSS 变量）
+let lastChart = null;
+function reRenderChart(){ if(lastChart) renderMonthly(lastChart.series, lastChart.key); }
+function chartColors(){
+  const cs = getComputedStyle(document.documentElement);
+  const v = (n, d) => (cs.getPropertyValue(n).trim() || d);
+  return {
+    brand:   v('--accent', '#fc4c02'),
+    muted:   v('--text-3', '#999999'),
+    border:  v('--border-subtle', '#e5e5e5'),
+    surface: v('--surface', '#ffffff'),
+    surface2:v('--surface-2', '#fafafa'),
+  };
 }
 function renderMonthly(months, key){
   // 面积折线图（参考官方 Strava app，纯 SVG，零依赖）。key=day|month|year 决定 X 轴标签
   key = key || 'month';
+  lastChart = { series: months, key };
   const el = document.getElementById('weeklyChart');
-  if(!months || !months.length){ el.innerHTML = `<div style="color:var(--muted);font-size:13px">${t('empty')}</div>`; return; }
+  const C = chartColors();
+  if(!months || !months.length){ el.innerHTML = `<div style="color:${C.muted};font-size:13px">${t('empty')}</div>`; return; }
   const data = months.slice(-31);           // 最近 N 个点（天/周/月/年）
   const w = 560, h = 220, padL = 40, padR = 14, padT = 24, padB = 28;
   const iw = w - padL - padR, ih = h - padT - padB;
@@ -580,7 +762,7 @@ function renderMonthly(months, key){
   else if(max < 10) max = Math.ceil(max);
   else max = Math.ceil(max / 10) * 10;       // 凑整到 10，让顶部再留白、刻度干净
   const stepX = data.length > 1 ? iw/(data.length-1) : 0;
-  // 标签格式化: 日→MM-DD, 周→MM/DD(W36), 月→YYYY/MM, 年→YYYY
+  // 标签格式化: 日→MM-DD, 周→W36, 月→YYYY/MM, 年→YYYY
   const fmtLabel = (raw) => {
     const s = String(raw||'');
     if(key === 'day'){ const p=s.split('-'); return p.length>=3 ? `${p[1]}-${p[2]}` : s; }
@@ -608,12 +790,12 @@ function renderMonthly(months, key){
     const isEdge = (i === 0 || i === pts.length - 1);
     if(i % showEvery === 0 || isEdge){
       const cx = Math.min(Math.max(p.x, padL + 14), maxX - 14);   // 首尾标签向内收，避免贴边裁切
-      xLabels.push(`<text x="${cx.toFixed(1)}" y="${h-6}" text-anchor="middle" font-size="10" fill="var(--muted)">${p.label}</text>`);
+      xLabels.push(`<text x="${cx.toFixed(1)}" y="${h-6}" text-anchor="middle" font-size="10" fill="${C.muted}">${p.label}</text>`);
     }
     // 数值标签：仅在有骑行的点(>0)上标数字，0 值天不显示文字(避免一排 0)。点太密时抽稀。保留1位小数。
     if(p.dist > 0 && (data.length <= 12 || isEdge || i % 2 === 0)){
       const vy = Math.max(p.y - 9, padT + 6);  // 顶部点标签下移，避免超出图表上沿被裁
-      valLabels.push(`<text x="${Math.min(Math.max(p.x, 12), maxX - 12)}" y="${vy.toFixed(1)}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${p.dist.toFixed(1)}</text>`);
+      valLabels.push(`<text x="${Math.min(Math.max(p.x, 12), maxX - 12)}" y="${vy.toFixed(1)}" text-anchor="middle" font-size="9.5" fill="${C.muted}">${p.dist.toFixed(1)}</text>`);
     }
   }
   // --- 平滑曲线（Catmull-Rom → 三次贝塞尔），对齐官方 Strava 的圆润折线 ---
@@ -641,22 +823,22 @@ function renderMonthly(months, key){
   const yticks = [0,0.25,0.5,0.75,1].map(f=>{ const v=f*max; return {y:padT+ih-f*ih, txt:Math.round(v)}; });
   let grid = '';
   yticks.forEach(t=>{
-    grid += `<line x1="${padL}" y1="${t.y}" x2="${w-padR}" y2="${t.y}" stroke="var(--border)" stroke-width="1"/>`;
-    grid += `<text x="${padL-6}" y="${t.y+3}" text-anchor="end" font-size="10" fill="var(--muted)">${t.txt}km</text>`;
+    grid += `<line x1="${padL}" y1="${t.y}" x2="${w-padR}" y2="${t.y}" stroke="${C.border}" stroke-width="1"/>`;
+    grid += `<text x="${padL-6}" y="${t.y+3}" text-anchor="end" font-size="10" fill="${C.muted}">${t.txt}km</text>`;
   });
   // 渐变填充定义
   const gid = 'areaGrad';
-  el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" width="100%" style="display:block;background:var(--card2);border-radius:10px" role="img" aria-label="distance chart">
+  el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" width="100%" style="display:block;background:${C.surface2};border-radius:10px" role="img" aria-label="distance chart">
     <defs>
       <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="var(--brand)" stop-opacity="0.35"/>
-        <stop offset="100%" stop-color="var(--brand)" stop-opacity="0.03"/>
+        <stop offset="0%" stop-color="${C.brand}" stop-opacity="0.35"/>
+        <stop offset="100%" stop-color="${C.brand}" stop-opacity="0.03"/>
       </linearGradient>
     </defs>
     ${grid}
     <path d="${area}" fill="url(#${gid})" stroke="none"/>
-    <path d="${line}" fill="none" stroke="var(--brand)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
-    ${pts.map((p,i)=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${i===pts.length-1?4:2.6}" fill="var(--brand)" stroke="#fff" stroke-width="1" vector-effect="non-scaling-stroke"/>`).join('')}
+    <path d="${line}" fill="none" stroke="${C.brand}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    ${pts.map((p,i)=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${i===pts.length-1?4:2.6}" fill="${C.brand}" stroke="${C.surface}" stroke-width="1" vector-effect="non-scaling-stroke"/>`).join('')}
     ${xLabels.join('')}
     ${valLabels.join('')}
   </svg>`;
@@ -687,7 +869,7 @@ function renderActivities(){
     const spd = ((a.average_speed||0)*3.6).toFixed(1);
     const el = Math.round(a.total_elevation_gain||0);
     return `<tr><td>${date}</td><td>${escapeHtml(a.name||'')}</td><td>${km} km</td><td>${h} h</td><td>${spd} km/h</td><td>${el} m</td></tr>`;
-  }).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--muted)">${t('empty')}</td></tr>`;
+  }).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--text-3)">${t('empty')}</td></tr>`;
   const pager = document.getElementById('pager');
   if(pages>1){
     pager.style.display='flex';
@@ -715,11 +897,16 @@ async function syncNow(){
     if(d.ok){
       const msg = t('sync_done') + ` (${d.new} new / ${d.activities} total)`;
       if(el) el.textContent = msg;
-      loadInfo(); if(currentNav==='data') loadData();
-    } else if(el) el.textContent = t('sync_fail') + ' ' + (d.error||'');
+      toast(msg, true);
+      loadInfo(); if(currentNav==='data') loadData(); if(currentNav==='rides') loadActivities();
+    } else {
+      if(el) el.textContent = t('sync_fail') + ' ' + (d.error||'');
+      toast(t('sync_fail') + ' ' + (d.error||''), false);
+    }
   }catch(e){
     clearInterval(timer);
     if(el) el.textContent = t('sync_fail') + ' ' + e.message;
+    toast(t('sync_fail') + ' ' + e.message, false);
   }
 }
 
@@ -770,8 +957,12 @@ async function recreateToken(){
     if(d.ok){
       apiToken = d.api_token;
       if(el) el.textContent = t('token_done') + ' ' + d.api_token;
-    } else if(el) el.textContent = t('token_fail') + ' ' + (d.error||'');
-  }catch(e){ if(el) el.textContent = t('token_fail') + ' ' + e.message; }
+      toast(t('token_done'), true);
+    } else {
+      if(el) el.textContent = t('token_fail') + ' ' + (d.error||'');
+      toast(t('token_fail') + ' ' + (d.error||''), false);
+    }
+  }catch(e){ if(el) el.textContent = t('token_fail') + ' ' + e.message; toast(t('token_fail') + ' ' + e.message, false); }
 }
 async function viewToken(){
   const el = document.getElementById('apiTokenMsg');
@@ -795,6 +986,7 @@ async function copyApiDoc(){
     await navigator.clipboard.writeText(box.textContent);
     const msg = document.getElementById('apiTokenMsg');
     msg.style.display='block'; msg.textContent = t('api_copied');
+    toast(t('api_copied'), true);
   }catch(e){}
 }
 async function saveConfig(){
@@ -807,9 +999,9 @@ async function saveConfig(){
       client_secret: document.getElementById('client_secret').value,
       redirect_uri: document.getElementById('redirect_uri').value,
     });
-    if(d.ok){ msg.textContent = t('setup_ok'); setTimeout(refreshStatus, 800); }
-    else msg.textContent = t('setup_fail') + (d.error||'');
-  }catch(e){ msg.textContent = t('setup_fail') + e.message; }
+    if(d.ok){ msg.textContent = t('setup_ok'); toast(t('setup_ok'), true); setTimeout(refreshStatus, 800); }
+    else { msg.textContent = t('setup_fail') + (d.error||''); toast(t('setup_fail') + (d.error||''), false); }
+  }catch(e){ msg.textContent = t('setup_fail') + e.message; toast(t('setup_fail') + e.message, false); }
   btn.disabled = false; btn.textContent = t('setup_save');
 }
 

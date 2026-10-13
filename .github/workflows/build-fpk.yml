@@ -11,64 +11,89 @@ permissions:
 
 jobs:
   build-fpk:
+    strategy:
+      matrix:
+        # url = 桌面图标在浏览器新标签页打开(网页版);iframe = 在飞牛桌面窗口里打开(窗口版)。
+        # 两者 appname 相同、共用数据目录,覆盖安装即可互相切换
+        variant: [url, iframe]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      # 零依赖纯标准库服务,无需任何构建:直接把 server + www 拷进打包工程
-      - name: Copy server + www to fnos-packaging
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # 构建身份:打进 app 根(包内 server/ 的上一级,对应 server 读取的仓库根 build.json)
+      - name: Generate build.json
+        run: python scripts/gen-build-info.py --channel fpk
+
+      # 拷贝打包工程到构建目录,manifest / ui config 只在副本上改,不碰 tracked 文件
+      - name: Stage build dir (server + www + build.json)
         run: |
           set -euo pipefail
-          rm -rf fnos-packaging/app/server fnos-packaging/app/www
-          mkdir -p fnos-packaging/app/server fnos-packaging/app/www
-          cp -r server/. fnos-packaging/app/server/
-          cp -r www/. fnos-packaging/app/www/
-          find fnos-packaging/app -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
-          ls -la fnos-packaging/app/server/ fnos-packaging/app/www/
+          rm -rf build-fpk
+          cp -r fnos-packaging build-fpk
+          rm -rf build-fpk/app/server build-fpk/app/www
+          mkdir -p build-fpk/app/server build-fpk/app/www
+          cp -r server/. build-fpk/app/server/
+          cp -r www/. build-fpk/app/www/
+          cp build.json build-fpk/app/build.json
+          # 防御性清理:Python 后端已重构为 Node.js,历史残留 *.py/__pycache__ 一律剔除
+          find build-fpk/app -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
+          find build-fpk/app -name '*.py' -type f -delete 2>/dev/null || true
+          ls -la build-fpk/app/ build-fpk/app/server/ build-fpk/app/www/
 
       - name: Download fnpack
         env:
           FNPACK_VERSION: "1.2.1"
+          FNPACK_BIN: "fnpack-1.2.1-linux-amd64"
+          FNPACK_SHA256: "72d2a4095da676b64510b023731a227b369d80f8079bc45ff8a2f802ec0480c1"
         run: |
-          FNPACK_BIN="fnpack-${FNPACK_VERSION}-linux-amd64"
-          FNPACK_SHA256="72d2a4095da676b64510b023731a227b369d80f8079bc45ff8a2f802ec0480c1"
           curl -fsSL -o /usr/local/bin/fnpack "https://static2.fnnas.com/fnpack/${FNPACK_BIN}"
           echo "${FNPACK_SHA256}  /usr/local/bin/fnpack" | sha256sum -c -
           chmod +x /usr/local/bin/fnpack
           fnpack --help | head -3
 
-      - name: Build url variant
+      - name: Select desktop entry (url / iframe)
+        working-directory: build-fpk
         run: |
           set -euo pipefail
-          cd fnos-packaging
-          sed -i 's/"type": "iframe"/"type": "url"/' app/ui/config
-          rm -f strava.fpk
-          fnpack build -d .
-          [ -f strava.fpk ] || { echo "ERROR: fnpack build url failed"; exit 1; }
-          VERSION="$(grep -E '^version[[:space:]]*=' manifest | head -1 | sed 's/.*=//;s/[[:space:]]//g')"
-          [ -n "$VERSION" ] || { echo "ERROR: could not extract version from manifest"; exit 1; }
-          mv strava.fpk "strava-${VERSION}.fpk"
-          ls -lh "strava-${VERSION}.fpk"
+          if [ "${{ matrix.variant }}" = "iframe" ]; then
+            WANT=iframe
+          else
+            WANT=url
+          fi
+          OTHER=$([ "$WANT" = "iframe" ] && echo url || echo iframe)
+          sed -i "s/\"type\": \"${OTHER}\"/\"type\": \"${WANT}\"/" app/ui/config
+          if [ "$WANT" = "iframe" ]; then
+            sed -i -E 's/^(desc[[:space:]]*=[[:space:]]*)(.*)$/\1\2 · 窗口版(在飞牛桌面窗口里打开)/' manifest
+          fi
+          cat app/ui/config
+          grep -E '^desc[[:space:]]*=' manifest
 
-      - name: Build iframe variant
+      - name: Build fpk
         run: |
           set -euo pipefail
-          cd fnos-packaging
-          sed -i 's/"type": "url"/"type": "iframe"/' app/ui/config
+          cd build-fpk
           rm -f strava.fpk
           fnpack build -d .
-          [ -f strava.fpk ] || { echo "ERROR: fnpack build iframe failed"; exit 1; }
+          [ -f strava.fpk ] || { echo "ERROR: fnpack build failed"; exit 1; }
           VERSION="$(grep -E '^version[[:space:]]*=' manifest | head -1 | sed 's/.*=//;s/[[:space:]]//g')"
           [ -n "$VERSION" ] || { echo "ERROR: could not extract version from manifest"; exit 1; }
-          mv strava.fpk "strava-${VERSION}-iframe.fpk"
-          ls -lh "strava-${VERSION}-iframe.fpk"
+          SUFFIX=""
+          if [ "${{ matrix.variant }}" = "iframe" ]; then SUFFIX="-iframe"; fi
+          OUT="strava-${VERSION}${SUFFIX}.fpk"
+          mv strava.fpk "${OUT}"
+          sha256sum "${OUT}"
+          ls -lh "${OUT}"
 
       - name: Upload fpk artifact
         uses: actions/upload-artifact@v4
         with:
-          name: strava-fpk-${{ github.sha }}
-          path: fnos-packaging/strava-*.fpk
+          name: strava-fpk-${{ matrix.variant }}-${{ github.sha }}
+          path: build-fpk/strava-*.fpk
           if-no-files-found: error
           retention-days: 14
 
@@ -84,15 +109,35 @@ jobs:
           pattern: strava-fpk-*
           merge-multiple: true
 
-      - name: Upload to Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: fpk-assets/strava-*.fpk
-          fail_on_unmatched_files: false
+      - name: Ensure release exists
+        run: |
+          gh release view "${{ github.ref_name }}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "${{ github.ref_name }}" --repo "$GITHUB_REPOSITORY" \
+              --title "Strava Panel ${{ github.ref_name }}" \
+              --notes "Strava Panel fpk release(网页版/窗口版)"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Generate checksum
+        run: |
+          set -euo pipefail
+          ( cd fpk-assets && sha256sum strava-*.fpk > SHA256SUMS-fpk.txt )
+          cat fpk-assets/SHA256SUMS-fpk.txt
+
+      - name: Upload to Release
+        run: |
+          set -euo pipefail
+          ls -lh fpk-assets/
+          N=$(ls fpk-assets/strava-*.fpk 2>/dev/null | wc -l)
+          [ "$N" -ge 2 ] || { echo "ERROR: expected 2 fpk (url + iframe), found $N"; exit 1; }
+          gh release upload "${{ github.ref_name }}" \
+            fpk-assets/strava-*.fpk \
+            fpk-assets/SHA256SUMS-fpk.txt \
+            --clobber --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Summary
         run: |
-          echo "## ✅ Strava Panel fpk 构建完成" >> "$GITHUB_STEP_SUMMARY"
+          echo "## ✅ Strava Panel fpk 构建完成(网页版 + 窗口版 双产物)" >> "$GITHUB_STEP_SUMMARY"
           ls -lh fpk-assets/ >> "$GITHUB_STEP_SUMMARY"

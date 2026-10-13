@@ -9,7 +9,7 @@
 >
 > Strava cycling panel — credential management, auto token refresh, riding stats visualization
 
-纯 Python 标准库零依赖后端,一套代码多端部署:**飞牛 NAS (fnOS) / Docker / Windows·macOS·Linux 桌面托盘 / npm CLI**。
+零依赖纯 Node.js 后端(ESM, Node ≥22.13, node:sqlite),一套代码多端部署:**飞牛 NAS (fnOS) / Docker / Windows·macOS·Linux 桌面托盘 / npm CLI**。
 
 ## 作者 / Author
 
@@ -19,7 +19,7 @@
 
 ## 功能 / Features
 
-- 🧭 **侧边栏多 Tab 管理面板**：仪表板 / 骑行数据 / 设置，对齐 Hugo Blog 管理面板结构
+- 🧭 **顶部页签管理面板**：骑行数据（首页，区间统计 + 趋势图）/ 最近骑行 / 仪表盘 / 设置，三态主题 + 中英双语，官方 Strava 徽标
 - 📊 **三组服务状态**：🔗 Strava API（凭据/授权/同步）、🗄️ 本地数据库（缓存数/大小/路径）、🤖 Agent 外部调用（调用统计）
 - 📜 **日志控制台**：读取 `strava.log`，按日期归档查看、刷新、下载
 - 🔑 **凭据管理**：面板内配置 Client ID / Client Secret / Refresh Token
@@ -32,32 +32,45 @@
 - 🌐 **i18n**：中/英双语界面切换
 - 🗄️ **SQLite 本地缓存**：数据缓存到 NAS，读取更快、离线可看历史
 - 📤 **agent 透出接口**：本地 agent 直接 HTTP 查询
-- 🔒 **零依赖**：纯 Python 标准库（http.server + sqlite3），无第三方包
+- 🔒 **零依赖**：纯 Node.js 标准库（http + node:sqlite，Node ≥22.13），无第三方包
 
 ## 快速开始 / Quick Start
 
+**安装渠道一览**(预构建产物均见 [Releases](https://github.com/techysy/strava-panel/releases)):
+
+| 渠道 | 产物 / 命令 | 说明 |
+|------|------------|------|
+| fnOS fpk | `strava-x.x.x.fpk`(网页版,新标签页打开)、`strava-x.x.x-iframe.fpk`(窗口版,飞牛桌面窗口打开) | 飞牛 App Center → 手动安装 |
+| Docker | `ghcr.io/techysy/strava-panel:latest`(amd64 / arm64) | `docker run` / compose |
+| Windows | `StravaPanel Setup x.x.x.exe`(NSIS)/ `StravaPanel x.x.x.exe`(Portable) | NSIS 版支持应用内自动更新 |
+| macOS | `StravaPanel-x.x.x-arm64.dmg` / `StravaPanel-x.x.x-x64.dmg`(zip 同) | 自动更新;未公证,首次右键打开 |
+| npm CLI | `npm i -g @techysy/strava-panel`(`sp` 命令) | 系统 Node.js ≥22.13 即可 |
+
 **fnOS (飞牛 NAS)**:
 
-1. 从 [Releases](https://github.com/techysy/strava-panel/releases) 下载 `strava-x.x.x.fpk`
-2. 飞牛 App Center → **手动安装** → 选择 fpk 文件
+1. 从上表下载对应形态的 fpk(网页版或窗口版)
+2. 飞牛 App Center → **手动安装** → 选择 fpk 文件(运行依赖应用商店的 **nodejs_v24** 应用,安装时会自动处理)
 3. 打开 Strava Panel(端口 `20227`)
 4. 在面板填入 Strava 凭据 → 保存并验证
 
 **Docker**:
 
 ```bash
-docker run -d --name strava-panel -p 20227:20227 -v strava-data:/data techysy/strava-panel
+docker run -d --name strava-panel -p 20227:20227 -v strava-data:/data ghcr.io/techysy/strava-panel:latest
 # 或 docker compose up -d
 ```
 
-**Windows / macOS / Linux 桌面托盘版**(Electron,双击安装即用):
+**Windows / macOS 桌面托盘版**(Electron,下载安装即用;自动更新内置):
+
+从 Releases 下载对应平台的安装包。本地构建:
 
 ```powershell
 cd desktop
-.\build.ps1                # 打包 NSIS 安装包 + 便携版,产物在 desktop\dist
+.\build.ps1                # Windows: 打包 NSIS 安装包 + 便携版,产物在 desktop\dist
+# macOS: cd desktop && npm i && npx electron-builder --mac
 ```
 
-**npm CLI**(开发者/极客,系统 Python 3.8+ 即可,无 venv):
+**npm CLI**(开发者/极客,系统 Node.js ≥22.13 即可):
 
 ```bash
 npm i -g @techysy/strava-panel
@@ -98,7 +111,7 @@ sp start        # 后台启动 + 托盘;sp status / sp stop / sp open
 
 ```bash
 BASE="http://localhost:20227"
-TOKEN=$(curl -s "$BASE/api/bootstrap" | python3 -c "import sys,json;print(json.load(sys.stdin)['api_token'])")
+TOKEN=$(curl -s "$BASE/api/bootstrap" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).api_token))")
 AUTH="Authorization: Bearer $TOKEN"
 
 # 服务状态（免认证）
@@ -138,7 +151,7 @@ curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" -d "{}" "$BASE/ap
 curl -s -H "$AUTH" "$BASE/api/doc?lang=zh"
 ```
 
-> 💡 面板「设置 → API」可一键复制完整 API 指南；agent 用法示例：`curl -s -H "$AUTH" "$BASE/api/stats?start=2026-07-01&end=2026-07-31" | jq '.total_distance_km'`（无 jq 用 `python3 -m json.tool`）
+> 💡 面板「设置 → API」可一键复制完整 API 指南；agent 用法示例：`curl -s -H "$AUTH" "$BASE/api/stats?start=2026-07-01&end=2026-07-31" | jq '.total_distance_km'`（无 jq 可省略管道直接看 JSON）
 
 ## 构建 / Build
 
@@ -148,10 +161,12 @@ fnOS 打包工程在 `fnos-packaging/` 目录(布局与 10Router 一致):核心�
 
 ```bash
 # 本地(在 fnOS 或装有 fnpack 的 Linux 上,仓库根执行)
-bash scripts/build.sh            # url + iframe 两个变体,产物在仓库根
+bash scripts/build.sh                  # 默认网页版(url),产物 strava-<ver>.fpk
+bash scripts/build.sh --variant iframe # 窗口版,产物 strava-<ver>-iframe.fpk
 
 # CI(推荐)
-# 推 tag v* 或手动触发 .github/workflows/build-fpk.yml,fpk 自动挂到 GitHub Release
+# 推 tag v* 或手动触发 .github/workflows/build-fpk.yml,
+# 网页版 + 窗口版 双 fpk + SHA256SUMS-fpk.txt 自动挂到 GitHub Release
 ```
 
 ### 图标 / Icons
@@ -169,21 +184,23 @@ docker build -t techysy/strava-panel .
 docker run -d --name strava-panel -p 20227:20227 -v strava-data:/data techysy/strava-panel
 ```
 
-镜像基于 `python:3.12-alpine`(约 60MB),零 pip 依赖,带 HEALTHCHECK。数据(凭据/token/SQLite)全部持久化在 `/data` 卷。
+镜像基于 `node:24-alpine`,零 npm 依赖,带 HEALTHCHECK。数据(凭据/token/SQLite)全部持久化在 `/data` 卷。
 
 ### 桌面托盘版(Electron)
 
-`desktop/` 目录,架构:Electron 托盘壳 + Python sidecar(Embeddable Python 免装环境):
+`desktop/` 目录,架构:Electron 托盘壳 + Node.js 后端(复用 Electron 内嵌 Node,零外部运行时):
 
 ```powershell
 cd desktop
-.\build.ps1 [-Proxy http://...]      # 一条龙:Python 运行时 → 源码汇集 → electron-builder
-# 产物 desktop\dist\: StravaPanel Setup x.x.x.exe(NSIS)+ Portable 便携版
+npm i
+npx electron-builder --win          # 产物 desktop\dist\: StravaPanel Setup x.x.x.exe(NSIS)+ Portable 便携版
+# macOS: npx electron-builder --mac
 ```
 
 - 托盘菜单:打开面板 / 启动·停止·重启服务 / 开机自启 / 打开数据目录·日志
 - 点关闭缩到托盘;单实例锁;端口已被占用时自动识别为外部服务直接开窗
-- mac/Linux 构建配置已就绪(`npx electron-builder --mac/--linux`),需在对应平台执行
+- **Windows + macOS 双平台**:CI 推 tag 自动产出 NSIS/Portable(win)与 dmg/zip x64+arm64(mac),并接入 electron-updater 自动更新;mac 本地构建:`cd desktop && npm i && npx electron-builder --mac --x64 --arm64`
+- Linux:`npx electron-builder --linux` 需在 Linux 平台执行
 
 ### npm CLI
 
@@ -195,7 +212,7 @@ npm run build          # 汇集 app/server + app/www 到 cli/app
 npm publish            # prepublishOnly 自动构建
 ```
 
-零依赖优势:无需 venv/pip,系统 Python 3.8+ 直接跑。Windows 托盘用 PowerShell NotifyIcon(零二进制依赖),macOS/Linux 用 systray2(惰性安装)。
+零依赖优势:无需 venv/pip,系统 Node.js ≥22.13(node:sqlite)直接跑。Windows 托盘用 PowerShell NotifyIcon(零二进制依赖),macOS/Linux 用 systray2(惰性安装)。
 
 ### 服务端环境变量
 
@@ -213,7 +230,7 @@ npm publish            # prepublishOnly 自动构建
 |------|---------|
 | 桌面图标打不开 | 确认应用在 App Center 里是启用/运行状态，端口为 20227 |
 | `Unexpected token '<'` | 旧进程占端口，杀残留后重启应用 |
-| `Address already in use` | `pkill -9 -f "python3 app.py"` 清理残留 |
+| `EADDRINUSE` / `Address already in use` | `pkill -9 -f "strava/server/app.js"` 清理残留 |
 | Strava 401 权限缺失 | 重新授权并勾选 `activity:read_all` |
 | 数据不更新 | 面板「立即同步」或 `curl /api/sync` |
 

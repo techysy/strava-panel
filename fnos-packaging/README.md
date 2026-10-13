@@ -26,4 +26,4 @@ bash scripts/build.sh            # url + iframe 两个变体,产物在仓库根
 # 推 tag v* 或手动触发 .github/workflows/build-fpk.yml,fpk 自动挂到 Release
 ```
 
-核心服务端(server/ + www/)是零依赖纯 Python,本目录之外的所有平台(Docker/桌面/CLI)直接使用仓库根源码,不经本目录。
+核心服务端(server/ + www/)是零依赖纯 Node.js(ESM, Node ≥22.13, node:sqlite),运行依赖飞牛应用商店的 `nodejs_v24` 应用(manifest `install_dep_apps` 声明),本目录之外的所有平台(Docker/桌面/CLI)直接使用仓库根源码,不经本目录。

@@ -10,8 +10,72 @@ permissions:
   contents: write
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract changelog for this version
+        id: changelog
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # CHANGELOG.md 版本段落格式:`## vX.Y.Z (日期)`(不是 `## [X.Y.Z]`)
+          NOTES=$(awk "/^## v?\\[?${VERSION}/{found=1; next} found && /^## /{exit} found{print}" CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            NOTES="Strava Panel ${GITHUB_REF_NAME}: Strava 骑行数据面板 — 凭据管理、Token 自动刷新、骑行统计可视化。"
+          fi
+          git fetch --tags --force origin 2>/dev/null || true
+          PREV_TAG=$(git tag --sort=-v:refname | grep -vx "${GITHUB_REF_NAME}" | head -1 || true)
+          {
+            echo "notes<<EOF"
+            echo "## ${GITHUB_REF_NAME}"
+            echo
+            echo "$NOTES"
+            echo
+            echo "## 📦 安装渠道"
+            echo
+            echo "| 渠道 | 说明 |"
+            echo "| --- | --- |"
+            echo "| fnOS / NAS | \`strava-${VERSION}-x86.fpk\` / \`strava-${VERSION}-arm.fpk\`(新标签页)、\`strava-${VERSION}-x86-iframe.fpk\` / \`strava-${VERSION}-arm-iframe.fpk\`(桌面窗口),在飞牛应用中心手动安装 |"
+            echo "| Docker | \`docker pull ghcr.io/techysy/strava-panel:${VERSION}\`(amd64/arm64) |"
+            echo "| Windows | \`StravaPanel Setup ${VERSION}.exe\`(NSIS,应用内自动更新)/ \`StravaPanel ${VERSION}.exe\`(Portable 便携版) |"
+            echo "| macOS | \`StravaPanel-${VERSION}-arm64.dmg\`(Apple 芯片)/ \`StravaPanel-${VERSION}-x64.dmg\`(Intel),zip 同为对应架构,未公证,首次右键打开 |"
+            echo "| npm CLI | \`npm i -g @techysy/strava-panel@${VERSION}\`(\`sp\` 命令) |"
+            echo
+            echo "校验和见 SHA256SUMS-fpk.txt / SHA256SUMS-windows.txt / SHA256SUMS-macos.txt。"
+            if [ -n "$PREV_TAG" ]; then
+              echo
+              echo "Full Changelog: https://github.com/$GITHUB_REPOSITORY/compare/${PREV_TAG}...${GITHUB_REF_NAME}"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_NOTES: ${{ steps.changelog.outputs.notes }}
+        run: |
+          gh release view "${{ github.ref_name }}" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1 || \
+            gh release create "${{ github.ref_name }}" --repo "$GITHUB_REPOSITORY" \
+              --title "Strava Panel ${{ github.ref_name }}" \
+              --notes "$RELEASE_NOTES"
+
   build-desktop:
-    runs-on: windows-latest
+    needs: [create-release]
+    if: always()
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+            ext: exe
+          - os: macos-latest
+            name: macos
+            ext: dmg
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 60
 
     steps:
@@ -21,35 +85,96 @@ jobs:
         with:
           node-version: '24'
 
-      # build.ps1 四步一条龙:Embeddable Python 运行时 → 汇集 server+www → npm install → electron-builder
-      - name: Build NSIS + Portable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # 构建身份:打进 app 根(桌面包布局 build/app/server + build/app/www,
+      # build.json 放两者上一级,对应 server 读取的仓库根 build.json)
+      - name: Generate build.json
+        shell: bash
+        run: python scripts/gen-build-info.py --channel desktop
+
+      - name: Build NSIS + Portable (Windows)
+        if: matrix.os == 'windows-latest'
         working-directory: desktop
         shell: pwsh
         run: ./build.ps1
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
+      - name: Stage app sources (macOS)
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          appDir=desktop/build/app
+          rm -rf "$appDir"
+          mkdir -p "$appDir"
+          # 与 desktop/build.ps1 第 2 步保持一致:排除数据/日志/本地产物与 Python 残留
+          (cd server && tar cf - --exclude='*.py' --exclude='__pycache__' --exclude='*.db' --exclude='*.log' --exclude='*.pid' --exclude='strava.conf' --exclude='strava_tokens.json' .) | (mkdir -p "$appDir/server" && cd "$appDir/server" && tar xf -)
+          (cd www && tar cf - .) | (mkdir -p "$appDir/www" && cd "$appDir/www" && tar xf -)
+          cp build.json "$appDir/build.json"
+          ls -la "$appDir" "$appDir/server" "$appDir/www"
+
+      - name: Install desktop dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        working-directory: desktop
+        run: npm install --no-audit --no-fund
+
+      - name: Package macOS artifacts (dmg + zip, x64 + arm64, unsigned)
+        if: matrix.os == 'macos-latest'
+        working-directory: desktop
+        run: npx electron-builder --mac --x64 --arm64 --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          CSC_LINK: ''
+          CSC_KEY_PASSWORD: ''
+
+      - name: Assemble release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="release-files-${{ matrix.name }}"
+          mkdir -p "$OUT"
+          cp desktop/dist/*.${{ matrix.ext }} "$OUT/"
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp desktop/dist/latest.yml "$OUT/"
+            SUM=sha256sum
+          else
+            cp desktop/dist/latest-mac.yml "$OUT/"
+            SUM="shasum -a 256"
+          fi
+          ls desktop/dist/*.zip 2>/dev/null && cp desktop/dist/*.zip "$OUT/" || true
+          cp build.json "$OUT/build-info.json"
+          ( cd "$OUT" && $SUM $(ls *.${{ matrix.ext }} *.zip 2>/dev/null) > SHA256SUMS-${{ matrix.name }}.txt )
+          cat "$OUT/SHA256SUMS-${{ matrix.name }}.txt"
+          ls -lh "$OUT"
+
       - name: Upload artifact (non-tag)
         if: "!startsWith(github.ref, 'refs/tags/v')"
         uses: actions/upload-artifact@v4
         with:
-          name: strava-desktop-${{ github.sha }}
-          path: desktop/dist/*.exe
+          name: strava-desktop-${{ matrix.name }}-${{ github.sha }}
+          path: release-files-${{ matrix.name }}/
           if-no-files-found: error
           retention-days: 14
 
       - name: Upload to Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: desktop/dist/*.exe
-          fail_on_unmatched_files: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="release-files-${{ matrix.name }}"
+          gh release upload "${{ github.ref_name }}" \
+            "$OUT"/* \
+            --clobber --repo "$GITHUB_REPOSITORY"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
 
       - name: Summary
         if: startsWith(github.ref, 'refs/tags/v')
-        shell: pwsh
+        shell: bash
         run: |
-          "## ✅ Desktop 安装包已发布" | Out-File -Append $env:GITHUB_STEP_SUMMARY
-          Get-ChildItem desktop\dist\*.exe | ForEach-Object { "- $($_.Name) ($([math]::Round($_.Length/1MB,1)) MB)" } | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          echo "## ✅ Desktop ${{ matrix.name }} 产物已发布" >> "$GITHUB_STEP_SUMMARY"
+          ls -lh "release-files-${{ matrix.name }}" >> "$GITHUB_STEP_SUMMARY"

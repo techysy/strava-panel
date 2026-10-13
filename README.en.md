@@ -7,7 +7,7 @@ Strava cycling data panel — credential management, auto token refresh, riding 
 [![fnOS 1.1.31xx](https://img.shields.io/badge/fnOS-1.1.31xx+-orange.svg)](https://developer.fnnas.com/docs/guide)
 [![Strava API](https://img.shields.io/badge/API-Strava-orange.svg)](https://developers.strava.com/)
 
-> A Strava cycling panel for fnOS, pure Python standard-library backend (zero deps).
+> A Strava cycling panel for fnOS, pure Node.js backend (ESM, Node ≥22.13, node:sqlite — zero deps).
 
 - [中文 README](./README.md)
 
@@ -22,12 +22,24 @@ Strava cycling data panel — credential management, auto token refresh, riding 
 - 🌗 **dark/light theme** · 🌐 **CN/EN UI**
 - 🗄️ **SQLite local cache** — faster reads, offline history
 - 📤 **agent API** — local agent queries over HTTP
-- 🔒 **Zero deps** — pure Python stdlib (http.server + sqlite3)
+- 🔒 **Zero deps** — pure Node.js stdlib (http + node:sqlite, Node ≥22.13)
 
 ## 🚀 Quick Install
 
-1. Download `strava-x.x.x.fpk` from [Releases](https://github.com/techysy/strava-panel/releases)
-2. fnOS **App Center → Manual Install** → select the fpk
+One zero-dependency backend, all channels — prebuilt artifacts are on [Releases](https://github.com/techysy/strava-panel/releases):
+
+| Channel | Artifact / command | Notes |
+|---------|--------------------|-------|
+| fnOS fpk | `strava-x.x.x.fpk` (web variant, opens in new tab), `strava-x.x.x-iframe.fpk` (window variant, fnOS desktop window) | fnOS App Center → Manual Install |
+| Docker | `ghcr.io/techysy/strava-panel:latest` (amd64 / arm64) | `docker run -d -p 20227:20227 -v strava-data:/data ghcr.io/techysy/strava-panel:latest` |
+| Windows | `StravaPanel Setup x.x.x.exe` (NSIS) / `StravaPanel x.x.x.exe` (Portable) | in-app auto-update (NSIS) |
+| macOS | `StravaPanel-x.x.x-arm64.dmg` / `StravaPanel-x.x.x-x64.dmg` (zip too) | auto-update; unsigned — right-click to open first time |
+| npm CLI | `npm i -g @techysy/strava-panel` (`sp` command) | system Node.js ≥22.13 |
+
+**fnOS install steps**:
+
+1. Download the fpk variant (web or window) from the table above
+2. fnOS **App Center → Manual Install** → select the fpk (runtime depends on the App Center **nodejs_v24** app — handled automatically on install)
 3. Open Strava Panel (port `20227`)
 4. Fill in Strava credentials in the panel → Save & verify
 
@@ -84,15 +96,11 @@ Common issues and detailed fixes: see [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
 ## 🛠️ Build from Source
 
 ```bash
-# On the NAS
-mkdir -p "/vol1/1000/fnOS App/build/strava-fnos"
-# sync project files here
-cd "/vol1/1000/fnOS App/build/strava-fnos"
-fnpack build            # produces strava.fpk (url version)
-mv strava.fpk strava-1.0.0.fpk
-sed -i 's/"type": "url"/"type": "iframe"/' app/ui/config   # switch to iframe
-fnpack build
-mv strava.fpk strava-1.0.0-iframe.fpk
+# On a Linux box with fnpack installed, from the repo root
+bash scripts/build.sh                  # web variant (url) → strava-<ver>.fpk
+bash scripts/build.sh --variant iframe # window variant → strava-<ver>-iframe.fpk
+# CI: push tag v* or trigger .github/workflows/build-fpk.yml —
+# builds the web + window fpk pair + SHA256SUMS-fpk.txt onto the GitHub Release
 ```
 
 ## 📚 Related

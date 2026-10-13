@@ -12,12 +12,13 @@
  *   sp autostart on|off|status  开机自启(托盘方式)
  *   sp --help / --version
  *
- * 环境变量: SP_PORT(默认20227) SP_DATA_DIR SP_PYTHON_CMD
+ * 环境变量: SP_PORT(默认20227) SP_DATA_DIR
+ * 要求: Node.js >= 22.13(服务端纯 ESM 零依赖,与服务共用 node 进程)
  */
 const fs = require("fs");
 const path = require("path");
 const {
-  PORT, BASE_URL, dataDir, detectPython,
+  PORT, BASE_URL, dataDir, MIN_NODE_VERSION, nodeVersionOk,
   isHealthy, startServer, stopServer, getStatus, openBrowser,
 } = require("./src/server");
 const { initTray, killTray, updateItem, MENU_INDEX, isTraySupported } = require("./src/tray/tray");
@@ -182,13 +183,21 @@ Strava Panel CLI v${VERSION}
 环境变量:
   SP_PORT=20227             服务端口
   SP_DATA_DIR=...           数据目录(默认 %APPDATA%\\StravaPanel)
-  SP_PYTHON_CMD="py -3.11"  指定 Python 命令
+
+要求: Node.js >= 22.13
 
 文档: https://github.com/techysy/strava-panel`);
 }
 
 async function main() {
   const args = process.argv.slice(2);
+
+  if (!nodeVersionOk()) {
+    console.error(
+      `[sp] 需要 Node.js >= ${MIN_NODE_VERSION.join(".")},当前 ${process.version}。请升级 Node.js: https://nodejs.org\n` +
+      `[sp] Node.js >= ${MIN_NODE_VERSION.join(".")} required, current ${process.version}. Please upgrade: https://nodejs.org`);
+    process.exit(1);
+  }
   const cmd = args.find(a => !a.startsWith("--"));
 
   if (args.includes("--version") || args.includes("-v")) {
@@ -239,8 +248,6 @@ async function main() {
       console.log(`[sp] 服务: ${s.healthy ? "运行中" : "未运行"}   地址: ${s.url}`);
       if (s.pid) console.log(`     PID: ${s.pid}`);
       console.log(`     数据目录: ${s.dataDir}`);
-      const py = detectPython();
-      if (!py) console.log("     ⚠ 未检测到系统 Python 3.8+");
       return;
     }
     case "open": {

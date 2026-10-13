@@ -82,7 +82,7 @@ cat /var/log/apps/strava.log | tail -5
 ### 解决
 ```bash
 # 1. 找到并杀掉旧进程
-ps aux | grep "app.py" | grep -v grep
+ps aux | grep "app.js" | grep -v grep
 kill -9 <旧进程PID>
 
 # 2. 确认端口释放
@@ -99,27 +99,20 @@ bash /var/apps/strava/cmd/main restart
 ## 4. 服务起不来，日志 `Address already in use`
 
 ### 现象
-`/vol4/@appdata/strava/strava.log` 报 `OSError: [Errno 98] Address already in use`
+`/vol4/@appdata/strava/strava.log` 报 `Error: listen EADDRINUSE: address already in use 0.0.0.0:20227`
 
 ### 根因
-1. **残留进程占用端口**：多次启停后旧进程未清理干净。
-2. **TIME_WAIT socket**：频繁重启后端口处于 TIME_WAIT，`ThreadingTCPServer` 默认 `allow_reuse_address=False` 导致绑定失败（端口明明空闲却报占用）。
+**残留进程占用端口**：多次启停后旧进程未清理干净。（Node `net`/`http` server 默认启用 SO_REUSEADDR，不存在旧 Python 版的 TIME_WAIT 误报问题。）
 
 ### 解决
 ```bash
-# 1. 强制杀掉所有 app.py 残留
-pkill -9 -f "strava/server/app.py"
-pkill -9 -f "python3 app.py"
+# 1. 强制杀掉所有 app.js 残留
+pkill -9 -f "strava/server/app.js"
+pkill -9 -u strava -f "app.js"
 sleep 1
 ss -tln | grep 20227   # 应无输出
 # 再启动
 bash /var/apps/strava/cmd/main start
-```
-
-**若端口空闲却仍报 `Address already in use`**（TIME_WAIT 问题），在 app.py 里启用 SO_REUSEADDR（必须在实例化前设置类属性）：
-```python
-socketserver.ThreadingTCPServer.allow_reuse_address = True
-httpd = socketserver.ThreadingTCPServer(("0.0.0.0", port), Handler)
 ```
 
 ---
@@ -130,13 +123,17 @@ httpd = socketserver.ThreadingTCPServer(("0.0.0.0", port), Handler)
 `cmd/main start` 报 `started, but health check timed out`，日志为空。
 
 ### 根因
-旧版 cmd/main 的 `DATA_DIR` 指向不可写目录（`${APP_DIR}/var` 在 fnOS 1.1.31xx 下可能指向安装目录，不可写），导致 python 启动失败。
+旧版 cmd/main 的 `DATA_DIR` 指向不可写目录（`${APP_DIR}/var` 在 fnOS 1.1.31xx 下可能指向安装目录，不可写），导致 node 启动失败。另一常见原因：**Node.js 运行时缺失或版本过低**（需要 nodejs_v24,Node ≥22.13 才有 `node:sqlite`）——cmd/main 找不到 node 会直接报 `ERROR: Node.js runtime not found. Please install nodejs_v24 from fnOS App Center.`。
 
 ### 解决
-确保 cmd/main 里 `DATA_DIR` 固定为 `/vol4/@appdata/<App>`（v1.1.0+ 已修复）：
+1. 确保 cmd/main 里 `DATA_DIR` 固定为 `/vol4/@appdata/<App>`（v1.1.0+ 已修复）：
 ```bash
 # cmd/main 里应看到
 DATA_DIR="${TRIM_PKGVAR:-/vol4/@appdata/strava}"
+```
+2. 确认 fnOS 应用商店已安装 **nodejs_v24** 应用（manifest `install_dep_apps` 一般会自动装），并验证：
+```bash
+/var/apps/nodejs_v24/target/bin/node --version   # 应 ≥ v22.13
 ```
 
 ---
@@ -167,7 +164,7 @@ iframe 版（桌面窗口）打开白屏或无法加载 API。
 fnOS 桌面容器 iframe 跨端口（5666 → 20227）可能受浏览器跨域限制。
 
 ### 解决
-优先使用 **url 版**（`strava-x.x.x.fpk`，新标签页打开）。若需 iframe，确认后端返回的 `Access-Control-Allow-Origin: *` 生效（app.py 已内置）。
+优先使用 **url 版**（`strava-x.x.x.fpk`，新标签页打开）。若需 iframe，确认后端返回的 `Access-Control-Allow-Origin: *` 生效（server/app.js 已内置）。
 
 ---
 
