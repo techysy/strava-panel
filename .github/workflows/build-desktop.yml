@@ -146,7 +146,7 @@ jobs:
           fi
           ls desktop/dist/*.zip 2>/dev/null && cp desktop/dist/*.zip "$OUT/" || true
           cp build.json "$OUT/build-info.json"
-          ( cd "$OUT" && $SUM $(ls *.${{ matrix.ext }} *.zip 2>/dev/null) > SHA256SUMS-${{ matrix.name }}.txt )
+          ( cd "$OUT" && shopt -s nullglob && for f in *.${{ matrix.ext }} *.zip; do $SUM "$f"; done > SHA256SUMS-${{ matrix.name }}.txt )
           cat "$OUT/SHA256SUMS-${{ matrix.name }}.txt"
           ls -lh "$OUT"
 
