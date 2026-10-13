@@ -127,9 +127,8 @@ jobs:
         working-directory: desktop
         run: npx electron-builder --mac --x64 --arm64 --publish never
         env:
+          # 空串 CSC_LINK 会被 electron-builder 当成证书文件路径("not a file"),绝不要定义它
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-          CSC_LINK: ''
-          CSC_KEY_PASSWORD: ''
 
       - name: Assemble release files
         shell: bash
