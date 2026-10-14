@@ -129,6 +129,10 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:12px}
 .card{background:var(--surface);border:1px solid var(--border-subtle);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-sm);transition:transform .15s,box-shadow .15s}
 .card:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.mcard{cursor:pointer;user-select:none}
+.mcard.sel{outline:2px solid var(--viz);outline-offset:-2px}
+.mcard .label::after{content:"";display:inline-block;width:10px;height:10px;margin-left:6px;vertical-align:0;border:1.5px solid var(--border-strong);border-radius:3px;background:transparent;transition:background .15s,border-color .15s}
+.mcard.sel .label::after{background:var(--viz);border-color:var(--viz)}
 .card .label{font-size:12.5px;color:var(--text-3);margin-bottom:2px}
 .card .value{font-size:26px;font-weight:800;letter-spacing:-.6px;line-height:1.2;font-variant-numeric:tabular-nums}
 .card .unit{font-size:13.5px;color:var(--text-3);font-weight:500;margin-left:3px;letter-spacing:0}
@@ -366,10 +370,10 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         <button id="rgAll" onclick="setRange('all')" data-i18n="rg_all">所有</button>
       </div>
       <div class="grid" id="statsGrid">
-        <div class="card"><div class="label" data-i18n="stats_rides">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div><div class="delta" id="dRides"></div></div>
-        <div class="card"><div class="label" data-i18n="stats_dist">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div><div class="delta" id="dDist"></div></div>
-        <div class="card"><div class="label" data-i18n="stats_dur">总时长</div><div class="value"><span id="cDur">-</span><span class="unit">h</span></div><div class="delta" id="dDur"></div></div>
-        <div class="card"><div class="label" data-i18n="stats_elev">总爬升</div><div class="value"><span id="cElev">-</span><span class="unit">m</span></div><div class="delta" id="dElev"></div></div>
+        <div class="card mcard" id="cardCount" onclick="setChartMetric('count')"><div class="label" data-i18n="stats_rides">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div><div class="delta" id="dRides"></div></div>
+        <div class="card mcard" id="cardDist" onclick="setChartMetric('dist')"><div class="label" data-i18n="stats_dist">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div><div class="delta" id="dDist"></div></div>
+        <div class="card mcard" id="cardDur" onclick="setChartMetric('dur')"><div class="label" data-i18n="stats_dur">总时长</div><div class="value"><span id="cDur">-</span><span class="unit">h</span></div><div class="delta" id="dDur"></div></div>
+        <div class="card mcard" id="cardElev" onclick="setChartMetric('elev')"><div class="label" data-i18n="stats_elev">总爬升</div><div class="value"><span id="cElev">-</span><span class="unit">m</span></div><div class="delta" id="dElev"></div></div>
         <div class="card" id="cardHr" style="display:none"><div class="label" data-i18n="stats_hr">平均心率</div><div class="value"><span id="cHr">-</span><span class="unit">bpm</span></div><div class="delta" id="dHr"></div></div>
         <div class="card" id="cardPw" style="display:none"><div class="label" data-i18n="stats_pw">平均功率</div><div class="value"><span id="cPw">-</span><span class="unit">W</span></div><div class="delta" id="dPw"></div></div>
       </div>
@@ -458,6 +462,7 @@ const I18N = {
     stat_athlete:'Athlete ID', stat_dbsize:'DB 大小', stat_dbpath:'DB 路径', stat_apitoken:'API token', stat_calls:'调用次数', stat_lastcall:'最后调用',
     stat_configured_ok:'已配置', stat_configured_no:'未配置', stat_token_ok:'正常', stat_token_no:'失效', stat_apitoken_ok:'已生成', stat_apitoken_no:'未生成',
     rg_7d:'近7天', rg_1m:'近1月', rg_3m:'近3月', rg_6m:'近6月', rg_ytd:'本年度', rg_12m:'近12月', rg_all:'所有',
+    gran_day:'每日', gran_week:'每周', gran_month:'每月', gran_year:'每年', metric_dist:'骑行距离', metric_dur:'骑行时长', metric_elev:'骑行爬升', metric_count:'骑行次数',
     stats_rides:'骑行次数', stats_dist:'总距离', stats_dur:'总时长', stats_elev:'总爬升', stats_hr:'平均心率', stats_pw:'平均功率',
     panel_monthly:'每月骑行距离 (km)', panel_daily:'每日骑行距离 (km)', panel_weekly:'每周骑行距离 (km)', panel_yearly:'每年骑行距离 (km)', panel_recent:'最近骑行',
     col_date:'日期', col_name:'活动', col_dist:'距离', col_dur:'时长', col_speed:'均速', col_elev:'爬升', col_hr:'心率', col_pw:'功率',
@@ -489,6 +494,7 @@ const I18N = {
     stat_athlete:'Athlete ID', stat_dbsize:'DB Size', stat_dbpath:'DB Path', stat_apitoken:'API token', stat_calls:'Call Count', stat_lastcall:'Last Call',
     stat_configured_ok:'Configured', stat_configured_no:'Not Configured', stat_token_ok:'OK', stat_token_no:'Invalid', stat_apitoken_ok:'Generated', stat_apitoken_no:'Not Generated',
     rg_7d:'7D', rg_1m:'1M', rg_3m:'3M', rg_6m:'6M', rg_ytd:'YTD', rg_12m:'12M', rg_all:'All',
+    gran_day:'Daily', gran_week:'Weekly', gran_month:'Monthly', gran_year:'Yearly', metric_dist:'Ride Distance', metric_dur:'Duration', metric_elev:'Elevation', metric_count:'Rides',
     stats_rides:'Rides', stats_dist:'Distance', stats_dur:'Duration', stats_elev:'Elevation', stats_hr:'Avg HR', stats_pw:'Avg Power',
     panel_monthly:'Monthly Distance (km)', panel_daily:'Daily Distance (km)', panel_weekly:'Weekly Distance (km)', panel_yearly:'Yearly Distance (km)', panel_recent:'Recent Rides',
     col_date:'Date', col_name:'Activity', col_dist:'Distance', col_dur:'Duration', col_speed:'Avg Spd', col_elev:'Elevation', col_hr:'HR', col_pw:'Power',
@@ -774,6 +780,32 @@ function fmtBytes(b){
 // ===== Data =====
 // 统一时间范围：'7d'近7天 '1m'近1月 '3m'近3月 '6m'近6月 'ytd'本年度 '12m'近12月 'all'所有
 let range = '7d';
+// 图表指标:dist 距离 / dur 时长 / elev 爬升 / count 次数 — 点统计卡切换,状态持久化
+let chartMetric = ['dist','dur','elev','count'].includes(localStorage.getItem('sp-metric')) ? localStorage.getItem('sp-metric') : 'dist';
+const METRIC_FIELD = {dist:'dist_km', dur:'duration_h', elev:'elev_m', count:'count'};
+const METRIC_UNIT  = {dist:'km', dur:'h', elev:'m', count:'次'};
+function metricUnit(){ return chartMetric==='count' ? t('ctip_rides') : METRIC_UNIT[chartMetric]; }
+function setChartMetric(m){
+  if(!METRIC_FIELD[m] || chartMetric===m) return;
+  chartMetric = m;
+  localStorage.setItem('sp-metric', m);
+  renderMetricSel();
+  if(lastChart){
+    renderMonthly(lastChart.series, lastChart.key, lastChart.prev);
+    const th = document.querySelector('[data-i18n="panel_monthly"]');
+    if(th) th.textContent = chartTitle(lastChart.key);
+  }
+}
+function renderMetricSel(){
+  const map = {count:'cardCount', dist:'cardDist', dur:'cardDur', elev:'cardElev'};
+  for(const k in map){ const el = document.getElementById(map[k]); if(el) el.classList.toggle('sel', chartMetric===k); }
+}
+function chartTitle(key){
+  const g = {day:t('gran_day'), week:t('gran_week'), month:t('gran_month'), year:t('gran_year')}[key] || t('gran_month');
+  const m = {dist:t('metric_dist'), dur:t('metric_dur'), elev:t('metric_elev'), count:t('metric_count')}[chartMetric] || t('metric_dist');
+  const join = currentLang==='zh' ? '' : ' ';
+  return g + join + m + ' (' + metricUnit() + ')';
+}
 function setRange(r){
   range = r;
   document.querySelectorAll('#rangeSeg button').forEach(b=>b.classList.remove('active'));
@@ -853,11 +885,11 @@ async function loadData(){
       setDelta('dHr', s.avg_heartrate, p && p.avg_heartrate != null ? p.avg_heartrate : null);
       setDelta('dPw', s.avg_watts, p && p.avg_watts != null ? p.avg_watts : null);
       // 按时间范围选择图表粒度（对齐官方：7D/1M→日, 3M/6M→周, YTD/12M→月, 所有→年）
-      let series = [], prevSeries = [], key = '', title = t('panel_monthly');
-      if(range === '7d' || range === '1m'){ series = s.daily||[]; key = 'day'; title = t('panel_daily'); }
-      else if(range === '3m' || range === '6m'){ series = s.weekly||[]; key = 'week'; title = t('panel_weekly'); }
-      else if(range === 'all'){ series = s.yearly||[]; key = 'year'; title = t('panel_yearly'); }
-      else { series = s.monthly||[]; key = 'month'; title = t('panel_monthly'); }   // ytd/12m → 每月
+      let series = [], prevSeries = [], key = '';
+      if(range === '7d' || range === '1m'){ series = s.daily||[]; key = 'day'; }
+      else if(range === '3m' || range === '6m'){ series = s.weekly||[]; key = 'week'; }
+      else if(range === 'all'){ series = s.yearly||[]; key = 'year'; }
+      else { series = s.monthly||[]; key = 'month'; }   // ytd/12m → 每月
       if(p){
         if(key === 'day') prevSeries = p.daily||[];
         else if(key === 'week') prevSeries = p.weekly||[];
@@ -865,7 +897,8 @@ async function loadData(){
         else prevSeries = p.monthly||[];
       }
       const th = document.querySelector('[data-i18n="panel_monthly"]');
-      if(th) th.textContent = title;
+      if(th) th.textContent = chartTitle(key);
+      renderMetricSel();
       renderMonthly(series, key, prevSeries);
     }
   }catch(e){}
@@ -914,8 +947,11 @@ function renderMonthly(months, key, prev){
   const w = Math.max(320, host.clientWidth || 560);
   const h = 300, padL = 34, padR = 6, padT = 14, padB = 28;
   const iw = w - padL - padR, ih = h - padT - padB;
-  let rawMax = Math.max(...data.map(m=>m.dist_km), 0);
-  if(prevData) rawMax = Math.max(rawMax, ...prevData.map(m=>m.dist_km));
+  const MF = METRIC_FIELD[chartMetric] || 'dist_km';
+  const MDEC = chartMetric === 'count' ? 0 : 1;
+  const MUNIT = metricUnit();
+  let rawMax = Math.max(...data.map(m=>+m[MF]||0), 0);
+  if(prevData) rawMax = Math.max(rawMax, ...prevData.map(m=>+m[MF]||0));
   let max = rawMax * 1.15;
   if(max <= 0) max = 10;
   else if(max < 10) max = Math.ceil(max);
@@ -966,8 +1002,8 @@ function renderMonthly(months, key, prev){
       // 官方「今天」橙色三角指针
       marks.push(`<path d="M${(cx-4).toFixed(1)},${h-1} L${(cx+4).toFixed(1)},${h-1} L${cx.toFixed(1)},${h-5.5} Z" fill="${C.brand}"/>`);
     }
-    if(m.dist_km > 0){
-      const bh = Math.max(3, (m.dist_km/max)*ih);
+    if((+m[MF]||0) > 0){
+      const bh = Math.max(3, ((+m[MF]||0)/max)*ih);
       const y = baseY - bh;
       const x0 = (cx-barW/2).toFixed(1);
       bars.push(`<rect class="cbar" data-i="${i}" x="${x0}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${C.viz}"/>`);
@@ -988,7 +1024,7 @@ function renderMonthly(months, key, prev){
   if(prevData){
     const pts = data.map((m,i)=>{
       const x = padL + slot*i + slot/2;
-      const pv = i < prevData.length ? (+prevData[i].dist_km||0) : 0;
+      const pv = i < prevData.length ? (+prevData[i][MF]||0) : 0;
       const y = baseY - (pv/max)*ih;
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     });
@@ -1010,15 +1046,16 @@ function renderMonthly(months, key, prev){
     hit.addEventListener('mouseenter', ()=>{
       const i = +hit.dataset.i, m = data[i];
       barEls.forEach(b=>b.style.opacity = (+b.dataset.i === i ? '1' : '.35'));
-      let txt = `${fullDateLabel(m[key])} · ${t('cmp_this')} ${(+m.dist_km).toFixed(1)} km · ${m.count} ${t('ctip_rides')}`;
+      const mv = +m[MF]||0;
+      let txt = `${fullDateLabel(m[key])} · ${mv.toFixed(MDEC)} ${MUNIT}` + (chartMetric==='count' ? '' : ` · ${m.count} ${t('ctip_rides')}`);
       if(prevData && i < prevData.length){
-        const pv = +prevData[i].dist_km||0;
+        const pv = +prevData[i][MF]||0;
         let delta = '';
         if(pv > 0){
-          const pct = (m.dist_km - pv)/pv*100;
+          const pct = (mv - pv)/pv*100;
           delta = ` · ${pct>0?'+':''}${pct.toFixed(0)}%`;
-        } else if(m.dist_km > 0){ delta = ` · ${t('delta_new')}`; }
-        txt = `${fullDateLabel(m[key])} · ${t('cmp_this')} ${(+m.dist_km).toFixed(1)} km · ${t('cmp_prev')} ${pv.toFixed(1)} km${delta}`;
+        } else if(mv > 0){ delta = ` · ${t('delta_new')}`; }
+        txt = `${fullDateLabel(m[key])} · ${t('cmp_this')} ${mv.toFixed(MDEC)} ${MUNIT} · ${t('cmp_prev')} ${pv.toFixed(MDEC)} ${MUNIT}${delta}`;
       }
       tip.textContent = txt;
       tip.style.opacity = '1';
