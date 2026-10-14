@@ -11,6 +11,16 @@
 
 零依赖纯 Node.js 后端(ESM, Node ≥22.13, node:sqlite),一套代码多端部署:**飞牛 NAS (fnOS) / Docker / Windows·macOS·Linux 桌面托盘 / npm CLI**。
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/home-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/home-light.png">
+    <img alt="Strava Panel 主页(骑行数据)" src="docs/screenshots/home-light.png" width="900">
+  </picture>
+  <br>
+  <sub>骑行数据首页 · 统计卡即图表切换器 · 环比角标 · 对比上期虚线 · 日/夜主题自动适配 GitHub 模式</sub>
+</p>
+
 ## 作者 / Author
 
 洋芋 (YangYu) · 🚴 [Strava 主页](https://www.strava.com/athletes/121173304) · 🐂 [fnOS 应用系列](https://github.com/stars/techysy/lists/fnos-app)
@@ -19,19 +29,17 @@
 
 ## 功能 / Features
 
-- 🧭 **顶部页签管理面板**：骑行数据（首页，区间统计 + 趋势图）/ 最近骑行 / 仪表盘 / 设置，三态主题 + 中英双语，官方 Strava 徽标
-- 📊 **三组服务状态**：🔗 Strava API（凭据/授权/同步）、🗄️ 本地数据库（缓存数/大小/路径）、🤖 Agent 外部调用（调用统计）
-- 📜 **日志控制台**：读取 `strava.log`，按日期归档查看、刷新、下载
-- 🔑 **凭据管理**：面板内配置 Client ID / Client Secret / Refresh Token
-- 🔄 **Token 自动刷新**：每次访问 API 自动用 refresh_token 刷新 access_token（Strava token 6h 过期）
-- 📄 **骑行数据**：骑行次数、总距离、总时长、总爬升 + 每周骑行图表 + 最近骑行分页列表
-- 📅 **统计周期切换**：本年度 / 本月份，明确统计边界（默认年度）
-- 🔑 **API token 管理**：查看 / 重新生成，立即生效
-- 🤖 **API 使用指南**：面板内一键复制 agent 可用的 REST API 文档
-- 🌗 **日夜模式**：暗/亮主题切换（记忆选择，默认跟随系统）
-- 🌐 **i18n**：中/英双语界面切换
-- 🗄️ **SQLite 本地缓存**：数据缓存到 NAS，读取更快、离线可看历史
-- 📤 **agent 透出接口**：本地 agent 直接 HTTP 查询
+- 🧭 **顶部页签面板**：骑行数据（首页）/ 最近骑行 / 训练建议 / 仪表板 / 设置，日/夜主题自动适配系统，中英双语，官方 Strava 徽标 + 线性 SVG 图标
+- 📊 **统计卡即图表切换器**：点「总距离 / 骑行次数 / 总时长 / 总爬升」任一张卡，趋势图随之切换指标；每张卡带「较上期」环比涨跌角标
+- 📈 **对比上期**：一键叠加上一周期同粒度虚线，tooltip 同时显示本期/上期/涨跌幅；日视图星期字标 + 橙色「今天」指针（对齐官方）
+- ❤️ **心率 / 功率**：自动采集平均/最大心率、平均功率、千卡消耗；最近骑行表逐条展示，区间均值卡片按数据自动显隐
+- 🤖 **AI 训练建议教练**：接入 OpenAI 兼容 API（Ollama / LM Studio / vLLM / One-API 等本地网关），自动注入你的训练摘要（近 7/28/90 天 + 周趋势 + 最近 15 次）给出可执行计划；**多会话管理**控制上下文、**网关模型列表拉取**按供应商分组点选、会话级模型覆盖，对话记忆存本地 SQLite
+- 🔄 **增量 / 全量双模式同步**：日常增量秒级（`after=` 水位只拉新），历史字段回填用全量重同步
+- 📜 **日志控制台**：系统 / Strava API / Agent 三源分段切换，按日期归档查看、刷新、下载
+- 🔑 **凭据管理**：Client ID / Secret 面板内配置（密钥打码 + 显隐），Refresh Token 经 OAuth 授权自动获取，6h 过期自动刷新
+- 🗄️ **三组服务状态**：Strava API / 本地数据库 / Agent 外部调用，呼吸灯摘要徽章一眼定位异常
+- 📤 **agent 透出接口**：本地 agent 直接 HTTP 查询，面板内一键复制 REST API 文档
+- 🌐 **i18n**：中/英双语界面；🫧 状态反馈统一呼吸灯/圆点，无原生弹窗
 - 🔒 **零依赖**：纯 Node.js 标准库（http + node:sqlite，Node ≥22.13），无第三方包
 
 ## 快速开始 / Quick Start

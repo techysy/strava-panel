@@ -1,13 +1,23 @@
-# Strava Panel for fnOS
+# Strava Panel
 
-Strava cycling data panel — credential management, auto token refresh, riding stats visualization.
+Strava cycling data panel — credential management, auto token refresh, riding stats visualization, AI training coach.
 
 [![GitHub release](https://img.shields.io/github/v/release/techysy/strava-panel?label=Latest&color=blue)](https://github.com/techysy/strava-panel/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/techysy/strava-panel/blob/main/LICENSE)
-[![fnOS 1.1.31xx](https://img.shields.io/badge/fnOS-1.1.31xx+-orange.svg)](https://developer.fnnas.com/docs/guide)
+[![Platform](https://img.shields.io/badge/Platform-fnOS%20%7C%20Docker%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux-orange.svg)](#-quick-install)
 [![Strava API](https://img.shields.io/badge/API-Strava-orange.svg)](https://developers.strava.com/)
 
-> A Strava cycling panel for fnOS, pure Node.js backend (ESM, Node ≥22.13, node:sqlite — zero deps).
+> One zero-dependency Node.js backend (ESM, Node ≥22.13, node:sqlite), deployed everywhere — fnOS / Docker / desktop tray / npm CLI.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/home-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/home-light.png">
+    <img alt="Strava Panel home (Ride Data)" src="docs/screenshots/home-light.png" width="900">
+  </picture>
+  <br>
+  <sub>Ride Data home · stat cards switch the chart · period-over-period deltas · compare-last-period dashed line · auto light/dark</sub>
+</p>
 
 - [中文 README](./README.md)
 
@@ -15,13 +25,16 @@ Strava cycling data panel — credential management, auto token refresh, riding 
 
 ## ✨ Features
 
-- 🔑 **Credential management** — configure Client ID / Secret / Refresh Token in the panel
-- 🔄 **Auto token refresh** — refresh access_token on each API call (Strava token expires in 6h)
-- 📊 **Dashboard** — ride count, total distance, duration, elevation + weekly chart + recent rides
-- 📅 **Period switching** — this year / this month
-- 🌗 **dark/light theme** · 🌐 **CN/EN UI**
-- 🗄️ **SQLite local cache** — faster reads, offline history
-- 📤 **agent API** — local agent queries over HTTP
+- 🧭 **Tabbed panel** — Ride Data (home) / Recent Rides / Coach / Dashboard / Settings; auto light/dark, CN/EN UI, official Strava logomark + linear SVG icons
+- 📊 **Stat cards drive the chart** — click Distance / Rides / Duration / Elevation to switch the trend metric; each card shows a period-over-period delta badge
+- 📈 **Compare last period** — overlay the previous period as a dashed line; tooltip shows this/last/% change; day view uses weekday labels + an orange "today" marker (matches official Strava)
+- ❤️ **Heart rate / power** — captures avg/max HR, avg power, kJ; per-ride columns plus auto-hiding mean cards
+- 🤖 **AI training coach** — plug in any OpenAI-compatible API (Ollama / LM Studio / vLLM / One-API local gateways); it injects your training digest (7/28/90-day + weekly trend + last 15 rides) for actionable plans. **Multi-session** context control, **gateway model list** grouped by provider, per-session model override, conversation memory in local SQLite
+- 🔄 **Incremental / full sync** — daily incremental is seconds (watermark `after=`), full resync backfills historical fields
+- 📜 **Log console** — System / Strava API / Agent segmented switch, archived by date
+- 🔑 **Credentials** — Client ID / Secret in-panel (secret masked + reveal), Refresh Token via OAuth, auto-refreshed on 6h expiry
+- 🗄️ **Three service-status groups** — Strava API / local DB / agent calls, with breathing status dots
+- 📤 **Agent API** — local agents query over HTTP; copy the REST doc in-panel
 - 🔒 **Zero deps** — pure Node.js stdlib (http + node:sqlite, Node ≥22.13)
 
 ## 🚀 Quick Install
