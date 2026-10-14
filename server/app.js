@@ -1027,9 +1027,46 @@ async function handleGet(req, res, rawPath, qs) {
   if (rawPath === '/api/coach/history') {
     if (!requireApiToken(req, res, qs, rawPath)) return;
     try {
-      sendJson(res, { messages: db.getMemory(60), count: db.countMemory(), llm: (() => { const c = llmConfig(); return { configured: c.configured, base_url: c.baseUrl, model: c.model, has_key: Boolean(c.apiKey) }; })() });
+      const sid = qs.session_id != null && qs.session_id !== '' ? Number(qs.session_id) : null;
+      sendJson(res, {
+        session_id: sid,
+        messages: db.getMemory(60, sid),
+        sessions: db.listSessions(),
+        count: db.countMemory(),
+        llm: (() => { const c = llmConfig(); return { configured: c.configured, base_url: c.baseUrl, model: c.model, has_key: Boolean(c.apiKey) }; })(),
+      });
     } catch (e) {
       sendJson(res, { error: String(e.message || e) }, 500);
+    }
+    return;
+  }
+  if (rawPath === '/api/coach/models') {
+    // 从网关拉模型列表(OpenAI 兼容 GET /models)。?base=&key=&model= 可传未保存的草稿值。
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    const c = llmConfig();
+    const baseUrl = String(qs.base || c.baseUrl || '').trim().replace(/\/+$/, '');
+    let apiKey = String(qs.key || '').trim();
+    if (qs.key === '__KEEP__' || !apiKey) apiKey = c.apiKey;
+    if (!baseUrl) { sendJson(res, { ok: false, error: '请先填写 API 地址' }, 400); return; }
+    try {
+      const headers = { Accept: 'application/json' };
+      if (apiKey) headers.Authorization = 'Bearer ' + apiKey;
+      const resp = await fetchTimeout(baseUrl + '/models', { headers }, 15000);
+      if (!resp.ok) {
+        const body = (await resp.text().catch(() => '')).slice(0, 200);
+        throw new Error(`HTTP ${resp.status}: ${body || resp.statusText}`);
+      }
+      const j = await resp.json();
+      const raw = Array.isArray(j) ? j : (j.data || j.models || []);
+      const models = raw.map((m) => (typeof m === 'string'
+        ? { id: m }
+        : { id: String(m.id || m.name || m.model || ''), created: m.created || null, context: m.context_length || m.max_context_tokens || null }))
+        .filter((m) => m.id);
+      // 按 id 排序,并给当前配置模型打标记
+      models.sort((a, b) => a.id.localeCompare(b.id));
+      sendJson(res, { ok: true, models, current: String(qs.model || c.model || '') });
+    } catch (e) {
+      sendJson(res, { ok: false, error: String(e.message || e) }, 502);
     }
     return;
   }
@@ -1272,16 +1309,19 @@ async function handlePost(req, res, rawPath, qs) {
       const data = JSON.parse(await readBody(req));
       const msg = String(data.message || '').trim();
       if (!msg) { sendJson(res, { error: '消息为空' }, 400); return; }
-      db.addMemory('user', msg);
+      // 会话:sid 缺省时新建;模型名允许会话级覆盖(网关拉列表后点选)
+      const sid = db.ensureSession(data.session_id);
       const lang = data.lang === 'en' ? 'en' : 'zh';
-      const history = db.getMemory(40).filter((m) => m.id !== undefined);
+      db.addMemory('user', msg, sid);
+      const history = db.getMemory(40, sid);
       // 组消息:系统提示(含训练摘要) + 历史对话(去掉刚写入又重复的最后一条由 history 天然包含)
       const messages = [{ role: 'system', content: COACH_SYSTEM(buildTrainingDigest(), lang) }];
       for (const m of history.slice(0, -1)) messages.push({ role: m.role, content: m.content });
       messages.push({ role: 'user', content: msg });
-      const reply = await callLlm(c, messages);
-      db.addMemory('assistant', reply);
-      sendJson(res, { ok: true, reply });
+      const useCfg = String(data.model || '').trim() ? { ...c, model: String(data.model).trim() } : c;
+      const reply = await callLlm(useCfg, messages);
+      db.addMemory('assistant', reply, sid);
+      sendJson(res, { ok: true, reply, session_id: sid, sessions: db.listSessions() });
     } catch (e) {
       sendJson(res, { error: String(e.message || e) }, 502);
     }
@@ -1290,7 +1330,9 @@ async function handlePost(req, res, rawPath, qs) {
   if (rawPath === '/api/coach/clear') {
     if (!requireApiToken(req, res, qs, rawPath)) return;
     try {
-      sendJson(res, { ok: true, cleared: db.clearMemory() });
+      const data = await readBody(req).then((b) => { try { return JSON.parse(b || '{}'); } catch { return {}; } });
+      const sid = data.session_id != null ? Number(data.session_id) : null;
+      sendJson(res, { ok: true, cleared: db.clearMemory(sid), sessions: db.listSessions() });
     } catch (e) {
       sendJson(res, { error: String(e.message || e) }, 500);
     }

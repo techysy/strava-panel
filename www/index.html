@@ -254,6 +254,29 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 .chat-toolbar .spacer{flex:1}
 .llm-warn{display:none;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;background:var(--warn-soft);color:var(--warn);font-size:12.5px;font-weight:600;margin-bottom:10px}
 .llm-warn a{color:inherit;text-decoration:underline;cursor:pointer}
+/* 应用内确认模态(替代原生 confirm) */
+.modal-mask{position:fixed;inset:0;z-index:80;background:rgba(10,10,13,.45);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;padding:20px}
+.modal-mask.show{display:flex}
+.modal{width:min(400px,92vw);background:var(--surface);border:1px solid var(--border-subtle);border-radius:18px;box-shadow:var(--shadow);padding:22px;animation:modalIn .18s ease-out}
+@keyframes modalIn{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+.modal h3{font-size:15.5px;font-weight:750;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.modal h3 .ic{width:17px;height:17px;color:var(--warn)}
+.modal p{font-size:13.5px;color:var(--text-2);line-height:1.65;margin-bottom:18px}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px}
+.modal .btn.danger{background:var(--err);border-color:transparent;color:#fff;box-shadow:0 2px 12px -2px rgba(220,38,38,.5)}
+.modal .btn.danger:hover{background:var(--err);opacity:.9}
+/* 会话/模型 下拉弹层(锚定按钮下方) */
+.pop-anchor{position:relative;display:inline-flex}
+.pop-list{position:absolute;left:0;top:calc(100% + 8px);z-index:60;min-width:240px;max-width:340px;max-height:340px;overflow-y:auto;background:var(--surface);border:1px solid var(--border-subtle);border-radius:14px;padding:6px;box-shadow:var(--shadow);display:none}
+.pop-list.show{display:block}
+.pop-list.right{left:auto;right:0}
+.pop-item{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border:0;border-radius:9px;background:transparent;color:var(--text-2);font-size:12.5px;font-weight:600;cursor:pointer;text-align:left;font-family:inherit}
+.pop-item:hover{background:var(--hover);color:var(--text)}
+.pop-item.on{background:var(--ok-soft);color:var(--viz)}
+.pop-item .pi-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pop-item .pi-meta{font-size:11px;color:var(--text-3);font-weight:500;flex-shrink:0}
+.pop-group{padding:7px 10px 4px;font-size:10.5px;font-weight:700;letter-spacing:.5px;color:var(--text-3);text-transform:uppercase;position:sticky;top:0;background:var(--surface)}
+.pop-empty{padding:14px 10px;color:var(--text-3);font-size:12.5px;text-align:center}
 /* toast */
 #toast{position:fixed;bottom:26px;left:50%;transform:translate(-50%,8px);z-index:70;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 16px;font-size:13px;font-weight:600;color:var(--text);box-shadow:var(--toast-shadow);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:80vw}
 #toast.show{opacity:1;transform:translate(-50%,0)}
@@ -282,6 +305,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
 <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
 <symbol id="i-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.7a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-2a2 2 0 0 0 1.3-1.3z"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
 <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></symbol>
 <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
 <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
@@ -451,9 +475,18 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         <h2><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span data-i18n="coach_title">AI 训练建议</span></h2>
         <div class="llm-warn" id="llmWarn"><svg class="ic" aria-hidden="true"><use href="#i-warn"/></svg><span data-i18n="coach_noLlm">尚未配置模型</span> · <a onclick="switchNav('settings');switchSubTab('model')" data-i18n="coach_gotoSettings">前往 设置 → 模型</a></div>
         <div class="chat-toolbar">
-          <button class="btn" onclick="coachSuggest()" id="suggestBtn"><svg class="ic" aria-hidden="true"><use href="#i-trend"/></svg><span data-i18n="coach_suggest">生成本周训练建议</span></button>
+          <div class="pop-anchor">
+            <button class="btn" onclick="toggleCoachPop('sessPop',event)"><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg><span data-i18n="coach_sessions">会话</span><span class="pi-meta" id="curSessLabel">—</span></button>
+            <div class="pop-list" id="sessPop"></div>
+          </div>
+          <button class="btn" onclick="newCoachSession()"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span data-i18n="coach_new">新会话</span></button>
+          <div class="pop-anchor">
+            <button class="btn" onclick="toggleCoachPop('modelPop',event)" id="modelPickBtn"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span class="pi-title" id="curModelLabel" data-i18n="coach_pickModel">选择模型</span></button>
+            <div class="pop-list right" id="modelPop"></div>
+          </div>
           <span class="spacer"></span>
-          <button class="btn" onclick="clearCoach()" id="clearBtn"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg><span data-i18n="coach_clear">清空记忆</span></button>
+          <button class="btn" onclick="coachSuggest()" id="suggestBtn"><svg class="ic" aria-hidden="true"><use href="#i-trend"/></svg><span data-i18n="coach_suggest">本周建议</span></button>
+          <button class="btn" onclick="clearCoach()" id="clearBtn" title=""><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button>
         </div>
         <div class="chat-box">
           <div class="chat-msgs" id="chatMsgs"><div class="chat-empty" data-i18n="coach_empty">向 AI 教练提问训练规划,它会读取你的骑行数据(距离/时长/心率/功率)并结合历史对话给出建议。对话记忆保存在本地数据库。</div></div>
@@ -513,7 +546,10 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
           <label data-i18n="model_baseUrl">API 地址 (base URL)</label><input id="llm_base_url" placeholder="http://127.0.0.1:11434/v1">
           <label data-i18n="model_apiKey">API Key (可选)</label>
           <div class="pw-wrap"><input id="llm_api_key" type="password" placeholder="sk-..." autocomplete="off"><button type="button" class="pw-eye" onclick="togglePw('llm_api_key',this)" title="show/hide"><svg class="ic" aria-hidden="true"><use href="#i-eye"/></svg></button></div>
-          <label data-i18n="model_model">模型名</label><input id="llm_model" placeholder="qwen2.5:14b / gpt-4o-mini ...">
+          <label data-i18n="model_model">模型名</label>
+          <div class="pw-wrap"><input id="llm_model" placeholder="qwen2.5:14b / gpt-4o-mini ..." autocomplete="off"><button type="button" class="pw-eye" onclick="loadGatewayModels()" title="fetch models" style="right:6px"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg></button></div>
+          <div class="hint" id="modelFetchMsg" style="margin-top:6px;display:none"></div>
+          <div class="pop-list" id="gwModelPop" style="position:static;display:none;margin-top:8px;max-width:none"></div>
           <div class="msg" id="modelMsg"></div>
           <div class="form-actions">
             <button class="btn primary" onclick="saveLlmConfig()" id="modelSaveBtn"><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg><span data-i18n="model_save">保存配置</span></button>
@@ -539,6 +575,17 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
   </main>
 </div>
 <div id="toast"></div>
+<!-- 应用内确认模态(替代原生 confirm,Promise 化) -->
+<div class="modal-mask" id="modalMask">
+  <div class="modal" role="dialog" aria-modal="true">
+    <h3 id="modalTitle"></h3>
+    <p id="modalBody"></p>
+    <div class="modal-actions">
+      <button class="btn" id="modalCancel"></button>
+      <button class="btn primary" id="modalOk"></button>
+    </div>
+  </div>
+</div>
 
 <script>
 // ===== i18n =====
@@ -578,7 +625,10 @@ const I18N = {
     coach_suggest:'生成本周训练建议', coach_clear:'清空记忆', coach_empty:'向 AI 教练提问训练规划,它会读取你的骑行数据(距离/时长/心率/功率)并结合历史对话给出建议。对话记忆保存在本地数据库。',
     coach_ph:'例:下周想提升耐力,帮我安排训练', coach_send:'发送', coach_you:'你', coach_ai:'教练',
     coach_thinking:'教练思考中…', coach_fail:'请求失败:', coach_cleared:'记忆已清空',
-    coach_clear_confirm:'确定清空所有训练建议对话记忆?', coach_suggest_prompt:'请根据我最近的骑行数据,给出本周训练建议(含强度、时长、恢复安排)。',
+    coach_clear_confirm:'将清空当前会话的全部对话记忆,此操作不可撤销。', coach_suggest_prompt:'请根据我最近的骑行数据,给出本周训练建议(含强度、时长、恢复安排)。',
+    coach_sessions:'会话', coach_new:'新会话', coach_newSess:'新会话', coach_pickModel:'选择模型', coach_untitled:'(无标题)', coach_noSessions:'暂无历史会话',
+    model_defaultGroup:'默认', model_fetching:'拉取模型列表中…', model_fetchOk:'已拉取', model_fetchFail:'拉取失败:', model_fetchEmpty:'网关未返回模型列表',
+    modal_ok:'确定', modal_cancel:'取消',
     sub_model:'模型', model_title:'模型设置 (LLM)', model_hint:'接入 OpenAI 兼容 API(本地网关如 Ollama / LM Studio / vLLM,或云端),用于「训练建议」页签的 AI 教练。密钥仅存本地 strava.conf(权限 600)。',
     model_baseUrl:'API 地址 (base URL)', model_apiKey:'API Key (可选)', model_model:'模型名',
     model_save:'保存配置', model_test:'测试连接', model_saving:'保存中…', model_saved:'配置已保存', model_fail:'保存失败:',
@@ -622,7 +672,10 @@ const I18N = {
     coach_suggest:'Plan this week', coach_clear:'Clear memory', coach_empty:'Ask the AI coach about training plans. It reads your ride data (distance/duration/HR/power) plus conversation history. Memory is stored in the local database.',
     coach_ph:'e.g. I want to build endurance next week, plan my training', coach_send:'Send', coach_you:'You', coach_ai:'Coach',
     coach_thinking:'Coach is thinking…', coach_fail:'Request failed:', coach_cleared:'Memory cleared',
-    coach_clear_confirm:'Clear all training coach conversation memory?', coach_suggest_prompt:'Based on my recent rides, give me a training plan for this week (intensity, duration, recovery).',
+    coach_clear_confirm:'This clears the current session conversation memory and cannot be undone.', coach_suggest_prompt:'Based on my recent rides, give me a training plan for this week (intensity, duration, recovery).',
+    coach_sessions:'Sessions', coach_new:'New', coach_newSess:'New', coach_pickModel:'Pick model', coach_untitled:'(untitled)', coach_noSessions:'No past sessions',
+    model_defaultGroup:'default', model_fetching:'Fetching models…', model_fetchOk:'Fetched', model_fetchFail:'Fetch failed:', model_fetchEmpty:'Gateway returned no models',
+    modal_ok:'OK', modal_cancel:'Cancel',
     sub_model:'Model', model_title:'Model Settings (LLM)', model_hint:'Connect an OpenAI-compatible API (local gateways like Ollama / LM Studio / vLLM, or cloud) for the AI coach. The key is stored only in local strava.conf (mode 600).',
     model_baseUrl:'Base URL', model_apiKey:'API Key (optional)', model_model:'Model name',
     model_save:'Save', model_test:'Test connection', model_saving:'Saving…', model_saved:'Saved', model_fail:'Save failed:',
@@ -1266,7 +1319,7 @@ function changePage(d){ page+=d; renderActivities(); }
 // ===== Sync =====
 async function syncNow(mode){
   mode = mode === 'full' ? 'full' : 'incremental';
-  if(mode === 'full' && !confirm(t('sync_full_confirm'))) return;
+  if(mode === 'full' && !await appConfirm(t('sync_full'), t('sync_full_confirm'), true)) return;
   const el = document.getElementById('dashMsg') || document.getElementById('dataMsg');
   if(el){ el.style.display='block'; el.textContent = t('syncing') + '…'; }
   // 轮询同步进度
@@ -1453,8 +1506,30 @@ async function connectStrava(){
     }, 1000);
   }catch(e){ msg.textContent = t('setup_fail') + e.message; }
 }
-// ===== 训练建议 (AI 教练) =====
+// ===== 训练建议 (AI 教练, 会话化) =====
 let coachLoading = false;
+let coachSessionId = null;      // null = 尚未落库的新会话
+let coachSessions = [];
+let coachModels = [];           // 网关拉取的模型缓存
+let coachModelPick = '';        // 会话级模型覆盖('' = 用已保存配置)
+
+// 应用内确认模态(替代原生 confirm,Promise 化)
+function appConfirm(title, body, danger){
+  return new Promise((resolve)=>{
+    const mask = document.getElementById('modalMask');
+    document.getElementById('modalTitle').innerHTML =
+      '<svg class="ic" aria-hidden="true"><use href="#' + (danger ? 'i-warn' : 'i-spark') + '"/></svg>' + escapeHtml(title);
+    document.getElementById('modalBody').textContent = body;
+    const ok = document.getElementById('modalOk'), cancel = document.getElementById('modalCancel');
+    ok.textContent = t('modal_ok'); cancel.textContent = t('modal_cancel');
+    ok.className = 'btn ' + (danger ? 'danger' : 'primary');
+    const done = (v) => { mask.classList.remove('show'); ok.onclick = cancel.onclick = null; mask.onclick = null; resolve(v); };
+    ok.onclick = () => done(true); cancel.onclick = () => done(false);
+    mask.onclick = (e) => { if(e.target === mask) done(false); };
+    mask.classList.add('show');
+  });
+}
+
 function mdLite(src){
   // 轻量 markdown → HTML(先整体转义,再还原少量结构:段落/列表/粗体/行内代码)
   let h = escapeHtml(src);
@@ -1482,15 +1557,105 @@ function renderChat(messages){
     (m.role==='assistant'?mdLite(m.content):escapeHtml(m.content).replace(/\n/g,'<br>'))+'</div>').join('');
   box.scrollTop = box.scrollHeight;
 }
+function sessLabel(sess){
+  if(!sess || !sess.title) return t('coach_untitled');
+  return sess.title;
+}
+function renderSessions(){
+  const pop = document.getElementById('sessPop');
+  const label = document.getElementById('curSessLabel');
+  if(label) label.textContent = coachSessionId ? ('#'+coachSessionId) : t('coach_newSess');
+  if(!pop) return;
+  const list = coachSessions || [];
+  if(!list.length){ pop.innerHTML = '<div class="pop-empty">'+escapeHtml(t('coach_noSessions'))+'</div>'; return; }
+  pop.innerHTML = list.map(s =>
+    '<button class="pop-item'+(s.id===coachSessionId?' on':'')+'" onclick="switchSession('+s.id+')">'+
+    '<span class="pi-title">'+escapeHtml(sessLabel(s))+'</span>'+
+    '<span class="pi-meta">'+(s.msg_count||0)+'</span></button>').join('');
+}
+function renderModelPick(){
+  const label = document.getElementById('curModelLabel');
+  if(label) label.textContent = coachModelPick || t('coach_pickModel');
+}
 async function loadCoach(){
   await ensureApiToken();
   try{
-    const d = await apiGet('/api/coach/history');
+    const qs = coachSessionId != null ? ('?session_id=' + coachSessionId) : '';
+    const d = await apiGet('/api/coach/history' + qs);
     const warn = document.getElementById('llmWarn');
     if(warn) warn.style.display = (d.llm && d.llm.configured) ? 'none' : 'flex';
+    coachSessions = d.sessions || [];
+    if(coachSessionId == null && d.session_id != null) coachSessionId = d.session_id;
+    renderSessions();
     renderChat(d.messages);
+    renderModelPick();
   }catch(e){}
 }
+async function switchSession(id){
+  document.querySelectorAll('.pop-anchor .pop-list').forEach(p=>p.classList.remove('show'));
+  coachSessionId = Number(id);
+  await loadCoach();
+}
+function newCoachSession(){
+  document.querySelectorAll('.pop-anchor .pop-list').forEach(p=>p.classList.remove('show'));
+  coachSessionId = null;
+  renderSessions();
+  renderChat([]);
+}
+function toggleCoachPop(id, ev){
+  if(ev) ev.stopPropagation();
+  const pop = document.getElementById(id);
+  const was = pop.classList.contains('show');
+  document.querySelectorAll('.pop-anchor .pop-list').forEach(p=>p.classList.remove('show'));
+  if(!was){
+    pop.classList.add('show');
+    if(id === 'modelPop' && !coachModels.length) fetchCoachModels();
+  }
+}
+async function fetchCoachModels(){
+  const pop = document.getElementById('modelPop');
+  pop.innerHTML = '<div class="pop-empty">'+escapeHtml(t('model_fetching'))+'</div>';
+  try{
+    const d = await apiGet('/api/coach/models');
+    if(!d.ok){ pop.innerHTML = '<div class="pop-empty">'+escapeHtml(t('model_fetchFail')+' '+(d.error||''))+'</div>'; return; }
+    coachModels = d.models || [];
+    renderCoachModelPop();
+  }catch(e){
+    pop.innerHTML = '<div class="pop-empty">'+escapeHtml(t('model_fetchFail')+' '+e.message)+'</div>';
+  }
+}
+function modelProvider(id){
+  const i = id.indexOf('/');
+  return i > 0 ? id.slice(0, i) : t('model_defaultGroup');
+}
+function modelShort(id){
+  const i = id.indexOf('/');
+  return i > 0 ? id.slice(i + 1) : id;
+}
+function renderCoachModelPop(){
+  const pop = document.getElementById('modelPop');
+  if(!coachModels.length){ pop.innerHTML = '<div class="pop-empty">'+escapeHtml(t('model_fetchEmpty'))+'</div>'; return; }
+  const groups = new Map();
+  for(const m of coachModels){
+    const p = modelProvider(m.id);
+    if(!groups.has(p)) groups.set(p, []);
+    groups.get(p).push(m);
+  }
+  pop.innerHTML = [...groups.entries()].map(([prov, ms]) =>
+    '<div class="pop-group">'+escapeHtml(prov)+' '+ms.length+'</div>'+
+    ms.map(m => '<button class="pop-item'+((coachModelPick||'')===m.id?' on':'')+'" onclick="pickCoachModel(this)" data-id="'+escapeHtml(m.id)+'">'+
+    '<span class="pi-title">'+escapeHtml(modelShort(m.id))+'</span>'+
+    (m.context?'<span class="pi-meta">'+Math.round(m.context/1000)+'k</span>':'')+'</button>').join('')
+  ).join('');
+}
+function pickCoachModel(btn){
+  coachModelPick = btn.dataset.id || '';
+  document.querySelectorAll('.pop-anchor .pop-list').forEach(p=>p.classList.remove('show'));
+  renderModelPick();
+}
+// 点页面其他位置收起弹层
+document.addEventListener('click', (e)=>{ if(!e.target.closest('.pop-anchor')) document.querySelectorAll('.pop-anchor .pop-list').forEach(p=>p.classList.remove('show')); });
+
 async function coachAsk(text){
   if(coachLoading) return;
   text = String(text||'').trim();
@@ -1505,8 +1670,10 @@ async function coachAsk(text){
   box.insertAdjacentHTML('beforeend', '<div class="chat-msg user"><div class="who">'+escapeHtml(t('coach_you'))+'</div>'+escapeHtml(text).replace(/\n/g,'<br>')+'</div>');
   box.scrollTop = box.scrollHeight;
   try{
-    const d = await apiPost('/api/coach/chat', { message: text, lang: currentLang });
+    const d = await apiPost('/api/coach/chat', { message: text, lang: currentLang, session_id: coachSessionId, model: coachModelPick });
     if(d.ok){
+      if(d.session_id != null) coachSessionId = d.session_id;
+      if(d.sessions) { coachSessions = d.sessions; renderSessions(); }
       box.insertAdjacentHTML('beforeend', '<div class="chat-msg assistant"><div class="who">'+escapeHtml(t('coach_ai'))+'</div>'+mdLite(d.reply)+'</div>');
       box.scrollTop = box.scrollHeight;
       if(msgEl) msgEl.textContent = '';
@@ -1530,11 +1697,17 @@ function coachSuggest(){
   coachAsk(t('coach_suggest_prompt'));
 }
 async function clearCoach(){
-  if(!confirm(t('coach_clear_confirm'))) return;
+  if(!await appConfirm(t('coach_clear'), t('coach_clear_confirm'), true)) return;
   await ensureApiToken();
   try{
-    const d = await apiPost('/api/coach/clear', {});
-    if(d.ok){ renderChat([]); toast(t('coach_cleared'), true); }
+    const d = await apiPost('/api/coach/clear', { session_id: coachSessionId });
+    if(d.ok){
+      if(d.sessions) { coachSessions = d.sessions; }
+      coachSessionId = null;
+      renderSessions();
+      renderChat([]);
+      toast(t('coach_cleared'), true);
+    }
   }catch(e){ toast(String(e.message||e), false); }
 }
 
@@ -1553,6 +1726,35 @@ async function loadLlmConfig(){
     if(k){ k.value = c.has_key ? '__KEEP__' : ''; k.placeholder = c.has_key ? t('model_keySaved') : 'sk-...'; }
     llmKeyKept = !!c.has_key;
   }catch(e){}
+}
+async function loadGatewayModels(){
+  // 设置页「拉取模型列表」:用当前表单草稿值(未保存也可拉)
+  const msg = document.getElementById('modelFetchMsg');
+  const box = document.getElementById('gwModelPop');
+  if(msg){ msg.style.display='block'; msg.textContent = t('model_fetching'); }
+  const base = document.getElementById('llm_base_url').value.trim();
+  const keyEl = document.getElementById('llm_api_key');
+  const key = keyEl.value === '__KEEP__' ? '__KEEP__' : keyEl.value.trim();
+  try{
+    const d = await apiGet('/api/coach/models', 'base=' + encodeURIComponent(base) + '&key=' + encodeURIComponent(key || '__KEEP__'));
+    if(!d.ok){ if(msg) msg.textContent = t('model_fetchFail') + ' ' + (d.error||''); box.style.display='none'; return; }
+    coachModels = d.models || [];
+    if(msg) msg.textContent = t('model_fetchOk') + ' ' + coachModels.length;
+    if(!coachModels.length){ box.style.display='none'; return; }
+    const groups = new Map();
+    for(const m of coachModels){ const p = modelProvider(m.id); if(!groups.has(p)) groups.set(p, []); groups.get(p).push(m); }
+    box.innerHTML = [...groups.entries()].map(([prov, ms]) =>
+      '<div class="pop-group">'+escapeHtml(prov)+' '+ms.length+'</div>'+
+      ms.map(m => '<button class="pop-item'+(m.id===d.current?' on':'')+'" onclick="pickGatewayModel(this)" data-id="'+escapeHtml(m.id)+'">'+
+      '<span class="pi-title">'+escapeHtml(modelShort(m.id))+'</span>'+
+      (m.context?'<span class="pi-meta">'+Math.round(m.context/1000)+'k</span>':'')+'</button>').join('')
+    ).join('');
+    box.style.display = 'block';
+  }catch(e){ if(msg) msg.textContent = t('model_fetchFail') + ' ' + e.message; box.style.display='none'; }
+}
+function pickGatewayModel(btn){
+  document.getElementById('llm_model').value = btn.dataset.id || '';
+  document.querySelectorAll('#gwModelPop .pop-item').forEach(b=>b.classList.toggle('on', b === btn));
 }
 async function saveLlmConfig(){
   const msg = document.getElementById('modelMsg');
@@ -1575,6 +1777,9 @@ async function saveLlmConfig(){
       if(warn) warn.style.display = d.configured ? 'none' : 'flex';
       const kEl = document.getElementById('llm_api_key');
       if(kEl && d.has_key){ kEl.value = '__KEEP__'; kEl.placeholder = t('model_keySaved'); }
+      coachModels = [];   // 配置变了,模型缓存作废
+      coachModelPick = '';
+      renderModelPick();
     } else { if(msg) msg.textContent = t('model_fail') + ' ' + (d.error||''); toast(t('model_fail') + ' ' + (d.error||''), false); }
   }catch(e){ if(msg) msg.textContent = t('model_fail') + ' ' + e.message; toast(t('model_fail') + ' ' + e.message, false); }
   if(btn) btn.disabled = false;

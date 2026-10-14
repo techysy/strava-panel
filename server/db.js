@@ -26,7 +26,14 @@ CREATE TABLE IF NOT EXISTS coach_memory(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     role TEXT NOT NULL,
     content TEXT NOT NULL,
-    created_at TEXT
+    created_at TEXT,
+    session_id INTEGER DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS coach_sessions(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    created_at TEXT,
+    updated_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_start_date ON activities(start_date);`;
 
@@ -217,6 +224,11 @@ export class StravaDB {
     const existing = new Set(this.db.prepare('PRAGMA table_info(activities)').all().map(c => c.name));
     for (const [col, type] of EXTRA_COLS) {
       if (!existing.has(col)) this.db.exec(`ALTER TABLE activities ADD COLUMN ${col} ${type}`);
+    }
+    // coach_memory 会话化迁移:老表缺 session_id 列则补齐(旧数据归入会话 0)
+    const memCols = new Set(this.db.prepare('PRAGMA table_info(coach_memory)').all().map(c => c.name));
+    if (memCols.size && !memCols.has('session_id')) {
+      this.db.exec('ALTER TABLE coach_memory ADD COLUMN session_id INTEGER DEFAULT 0');
     }
   }
 
@@ -442,28 +454,69 @@ export class StravaDB {
       .map(([k, v]) => ({ year: k, ...bucketOut(v) }));
   }
 
-  // ---- 训练建议记忆 (coach_memory) ----
-  addMemory(role, content) {
-    /** 追加一条对话记忆(role: user|assistant),返回新 id */
-    const r = this.db.prepare('INSERT INTO coach_memory(role,content,created_at) VALUES(?,?,?)')
-      .run(String(role), String(content), localIsoNow());
+  // ---- 训练建议记忆 (coach_memory / coach_sessions, 会话化) ----
+  ensureSession(sid) {
+    /** 返回可用会话 id:sid 有效则原样返回,否则新建一个会话。 */
+    if (sid != null && sid !== '' && this.db.prepare('SELECT id FROM coach_sessions WHERE id=?').get(Number(sid))) {
+      return Number(sid);
+    }
+    const now = localIsoNow();
+    const r = this.db.prepare('INSERT INTO coach_sessions(title,created_at,updated_at) VALUES(?,?,?)')
+      .run('', now, now);
     return Number(r.lastInsertRowid);
   }
 
-  getMemory(limit = 40) {
-    /** 取最近 limit 条(按时间正序返回,便于拼上下文) */
+  addMemory(role, content, sid = 0) {
+    /** 追加一条对话记忆(role: user|assistant),返回新 id */
+    const r = this.db.prepare('INSERT INTO coach_memory(role,content,created_at,session_id) VALUES(?,?,?,?)')
+      .run(String(role), String(content), localIsoNow(), Number(sid) || 0);
+    // 首条用户消息自动作为会话标题;刷新 updated_at
+    if (role === 'user') {
+      const sess = this.db.prepare('SELECT title FROM coach_sessions WHERE id=?').get(Number(sid) || 0);
+      if (sess && !sess.title) {
+        this.db.prepare('UPDATE coach_sessions SET title=?, updated_at=? WHERE id=?')
+          .run(String(content).slice(0, 40), localIsoNow(), Number(sid) || 0);
+      } else if (sess) {
+        this.db.prepare('UPDATE coach_sessions SET updated_at=? WHERE id=?').run(localIsoNow(), Number(sid) || 0);
+      }
+    }
+    return Number(r.lastInsertRowid);
+  }
+
+  getMemory(limit = 40, sid = null) {
+    /** 取会话最近 limit 条(按时间正序返回,便于拼上下文);sid=null 取全部(兼容旧行为) */
     const n = Math.max(1, Math.min(200, limit | 0));
-    const rows = this.db.prepare('SELECT id,role,content,created_at FROM coach_memory ORDER BY id DESC LIMIT ?').all(n);
+    let rows;
+    if (sid === null) {
+      rows = this.db.prepare('SELECT id,role,content,created_at,session_id FROM coach_memory ORDER BY id DESC LIMIT ?').all(n);
+    } else {
+      rows = this.db.prepare('SELECT id,role,content,created_at,session_id FROM coach_memory WHERE session_id=? ORDER BY id DESC LIMIT ?').all(Number(sid) || 0, n);
+    }
     return rows.reverse();
+  }
+
+  listSessions() {
+    /** 会话列表(按最近更新倒序),含消息数与首条预览 */
+    return this.db.prepare(`
+      SELECT s.id, s.title, s.created_at, s.updated_at,
+             (SELECT COUNT(*) FROM coach_memory m WHERE m.session_id=s.id) AS msg_count
+      FROM coach_sessions s
+      ORDER BY s.updated_at DESC, s.id DESC`).all();
   }
 
   countMemory() {
     return this.db.prepare('SELECT COUNT(*) n FROM coach_memory').get().n;
   }
 
-  clearMemory() {
-    const r = this.db.prepare('DELETE FROM coach_memory').run();
-    return Number(r.changes);
+  clearMemory(sid = null) {
+    /** sid 给定只清该会话,否则清全部(含会话记录) */
+    if (sid !== null) {
+      const r = this.db.prepare('DELETE FROM coach_memory WHERE session_id=?').run(Number(sid) || 0);
+      return Number(r.changes);
+    }
+    this.db.prepare('DELETE FROM coach_memory').run();
+    const r2 = this.db.prepare('DELETE FROM coach_sessions').run();
+    return Number(r2.changes);
   }
 }
 
