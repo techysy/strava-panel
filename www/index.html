@@ -13,7 +13,7 @@
   --text:#16161a;--text-2:#55585f;--text-3:#8b8f98;--muted:#55585f;
   --accent:#fc4c02;--accent-rgb:252,76,2;--accent-2:#e03d00;
   --btn-bg:#16161a;--btn-fg:#ffffff;
-  --ok:#16a34a;--warn:#d97706;--err:#dc2626;
+  --viz:#00b3a4;--ok:#16a34a;--warn:#d97706;--err:#dc2626;
   --ok-soft:rgba(22,163,74,.12);--warn-soft:rgba(217,119,6,.12);--err-soft:rgba(220,38,38,.1);
   --radius:16px;
   --shadow-sm:0 1px 2px rgba(16,24,40,.05);
@@ -27,7 +27,7 @@ html[data-theme="dark"]{
   --text:#f0f0f3;--text-2:rgba(240,240,243,.7);--text-3:rgba(240,240,243,.45);--muted:rgba(240,240,243,.7);
   --accent:#ff5a1a;--accent-rgb:255,90,26;--accent-2:#ff7a45;
   --btn-bg:rgba(255,255,255,.92);--btn-fg:#0a0a0d;
-  --ok:#34d399;--warn:#fbbf24;--err:#f87171;
+  --viz:#2dd4bf;--ok:#34d399;--warn:#fbbf24;--err:#f87171;
   --ok-soft:rgba(52,211,153,.14);--warn-soft:rgba(251,191,36,.13);--err-soft:rgba(248,113,113,.13);
   --shadow-sm:0 1px 2px rgba(0,0,0,.35);
   --shadow:0 16px 40px -8px rgba(0,0,0,.55);
@@ -127,10 +127,8 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:12px}
 .card{background:var(--surface);border:1px solid var(--border-subtle);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-sm);transition:transform .15s,box-shadow .15s}
 .card:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
-.card .cic{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:rgba(var(--accent-rgb),.1);color:var(--accent);margin-bottom:8px}
-.card .cic svg{width:16px;height:16px}
 .card .label{font-size:12.5px;color:var(--text-3);margin-bottom:2px}
-.card .value{font-size:24px;font-weight:750;letter-spacing:-.5px;line-height:1.2;font-variant-numeric:tabular-nums}
+.card .value{font-size:26px;font-weight:800;letter-spacing:-.6px;line-height:1.2;font-variant-numeric:tabular-nums}
 .card .unit{font-size:13.5px;color:var(--text-3);font-weight:500;margin-left:3px;letter-spacing:0}
 
 /* 图表容器 + hover tooltip */
@@ -343,10 +341,10 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         <button id="rgAll" onclick="setRange('all')" data-i18n="rg_all">所有</button>
       </div>
       <div class="grid" id="statsGrid">
-        <div class="card"><div class="cic"><svg aria-hidden="true"><use href="#i-bike"/></svg></div><div class="label" data-i18n="stats_rides">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div></div>
-        <div class="card"><div class="cic"><svg aria-hidden="true"><use href="#i-route"/></svg></div><div class="label" data-i18n="stats_dist">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div></div>
-        <div class="card"><div class="cic"><svg aria-hidden="true"><use href="#i-clock"/></svg></div><div class="label" data-i18n="stats_dur">总时长</div><div class="value"><span id="cDur">-</span><span class="unit">h</span></div></div>
-        <div class="card"><div class="cic"><svg aria-hidden="true"><use href="#i-mountain"/></svg></div><div class="label" data-i18n="stats_elev">总爬升</div><div class="value"><span id="cElev">-</span><span class="unit">m</span></div></div>
+        <div class="card"><div class="label" data-i18n="stats_rides">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div></div>
+        <div class="card"><div class="label" data-i18n="stats_dist">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div></div>
+        <div class="card"><div class="label" data-i18n="stats_dur">总时长</div><div class="value"><span id="cDur">-</span><span class="unit">h</span></div></div>
+        <div class="card"><div class="label" data-i18n="stats_elev">总爬升</div><div class="value"><span id="cElev">-</span><span class="unit">m</span></div></div>
       </div>
       <div class="panel">
         <h2><svg class="ic" aria-hidden="true"><use href="#i-trend"/></svg><span data-i18n="panel_monthly">每月骑行距离 (km)</span></h2>
@@ -799,6 +797,7 @@ function chartColors(){
   const cs = getComputedStyle(document.documentElement);
   const v = (n, d) => (cs.getPropertyValue(n).trim() || d);
   return {
+    viz:     v('--viz', '#00b3a4'),
     brand:   v('--accent', '#fc4c02'),
     muted:   v('--text-3', '#999999'),
     border:  v('--border-subtle', '#e5e5e5'),
@@ -806,8 +805,8 @@ function chartColors(){
     text:    v('--text', '#16161a'),
   };
 }
-// 现代柱状图：按容器实测宽度 1:1 渲染（不再用 viewBox 拉伸放大字体/线条），
-// 顶部圆角柱 + 品牌渐变 + hover tooltip；高度固定紧凑，首屏装得下整页。
+// 官方 Strava 数据视觉:青色实心柱 + 星期字标(日视图)/日期标签 + 橙色「今天」指针,
+// 按容器实测宽度 1:1 渲染,hover tooltip 高亮当前列。
 function renderMonthly(months, key){
   key = key || 'month';
   lastChart = { series: months, key };
@@ -817,41 +816,64 @@ function renderMonthly(months, key){
   const data = months.slice(-31);
   const n = data.length;
   const w = Math.max(320, host.clientWidth || 560);
-  const h = 188, padL = 34, padR = 6, padT = 10, padB = 22;
+  const h = 188, padL = 34, padR = 6, padT = 10, padB = 24;
   const iw = w - padL - padR, ih = h - padT - padB;
   const rawMax = Math.max(...data.map(m=>m.dist_km), 0);
   let max = rawMax * 1.15;
   if(max <= 0) max = 10;
   else if(max < 10) max = Math.ceil(max);
   else max = Math.ceil(max / 10) * 10;
-  // 标签格式化: 日→MM-DD, 周→W36, 月→YYYY/MM, 年→YYYY
+  // 日视图对齐官方周视图:星期单字(一二三四五六日);其余按粒度格式化
+  const WD = ['日','一','二','三','四','五','六'];
+  const WD_EN = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  const todayKey = (()=>{ const d=new Date(), p=x=>String(x).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; })();
   const fmtLabel = (raw) => {
     const s = String(raw||'');
-    if(key === 'day'){ const p=s.split('-'); return p.length>=3 ? `${p[1]}-${p[2]}` : s; }
+    if(key === 'day'){
+      const p = s.split('-');
+      if(p.length >= 3){
+        const dt = new Date(s + 'T00:00:00');
+        if(!isNaN(dt)) return currentLang==='zh' ? WD[dt.getDay()] : WD_EN[dt.getDay()];
+        return `${p[1]}-${p[2]}`;
+      }
+      return s;
+    }
     if(key === 'week'){ const m = s.match(/(\d{4})-W(\d+)/); return m ? `W${m[2]}` : s; }
     if(key === 'year') return s;
     return s.replace('-','/');
   };
+  // tooltip 用完整日期(轴标签是星期字/缩写,信息量不够)
+  const fullDateLabel = (raw) => {
+    const s = String(raw||'');
+    if(key === 'day'){ const p=s.split('-'); return p.length>=3 ? `${p[0]}-${p[1]}-${p[2]}` : s; }
+    return fmtLabel(s);
+  };
   const slot = iw / n;
-  const barW = Math.max(4, Math.min(30, slot * 0.62));
+  const barW = Math.max(4, Math.min(26, slot * 0.5));
   const baseY = padT + ih;
-  const bars = [], xLabels = [];
-  const showEvery = n > 10 ? Math.ceil(n / 7) : 1;
+  const bars = [], xLabels = [], marks = [];
+  const showEvery = (key === 'day') ? 1 : (n > 10 ? Math.ceil(n / 7) : 1);
   for(let i = 0; i < n; i++){
     const m = data[i];
     const cx = padL + slot*i + slot/2;
-    const l = fmtLabel(m[key]);
-    if(i % showEvery === 0 || i === n-1){
-      const anchor = i === 0 ? 'start' : (i === n-1 ? 'end' : 'middle');
-      const lx = i === 0 ? padL : (i === n-1 ? w - padR : cx);
-      xLabels.push(`<text x="${lx.toFixed(1)}" y="${h-5}" text-anchor="${anchor}" font-size="10" fill="${C.muted}">${l}</text>`);
+    const isToday = key === 'day' && String(m[key]) === todayKey;
+    if(i % showEvery === 0 || i === n-1 || isToday){
+      const l = fmtLabel(m[key]);
+      const bold = isToday ? ' font-weight="700"' : '';
+      const fill = isToday ? C.text : C.muted;
+      const anchor = i === 0 && key !== 'day' ? 'start' : (i === n-1 && key !== 'day' ? 'end' : 'middle');
+      const lx = (i === 0 && key !== 'day') ? padL : ((i === n-1 && key !== 'day') ? w - padR : cx);
+      xLabels.push(`<text x="${lx.toFixed(1)}" y="${h-6}" text-anchor="${anchor}" font-size="${key==='day'?11:10}"${bold} fill="${fill}">${l}</text>`);
+    }
+    if(isToday){
+      // 官方「今天」橙色三角指针
+      marks.push(`<path d="M${(cx-4.5).toFixed(1)},${h-1} L${(cx+4.5).toFixed(1)},${h-1} L${cx.toFixed(1)},${h-7} Z" fill="${C.brand}"/>`);
     }
     if(m.dist_km > 0){
       const bh = Math.max(3, (m.dist_km/max)*ih);
       const y = baseY - bh;
-      const r = Math.min(4, barW/2, bh);
-      const x0 = (cx-barW/2).toFixed(1), x1 = (cx+barW/2).toFixed(1);
-      bars.push(`<path class="cbar" data-i="${i}" d="M${x0},${baseY} L${x0},${(y+r).toFixed(1)} Q${x0},${y.toFixed(1)} ${(cx-barW/2+r).toFixed(1)},${y.toFixed(1)} L${(cx+barW/2-r).toFixed(1)},${y.toFixed(1)} Q${x1},${y.toFixed(1)} ${x1},${(y+r).toFixed(1)} L${x1},${baseY} Z" fill="url(#barGrad)"/>`);
+      const x0 = (cx-barW/2).toFixed(1);
+      bars.push(`<rect class="cbar" data-i="${i}" x="${x0}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${C.viz}"/>`);
     } else {
       // 零值留 2px 底座保持节奏
       bars.push(`<rect class="cbar" data-i="${i}" x="${(cx-barW/2).toFixed(1)}" y="${baseY-2}" width="${barW.toFixed(1)}" height="2" rx="1" fill="${C.border}"/>`);
@@ -870,10 +892,7 @@ function renderMonthly(months, key){
     hits.push(`<rect class="chit" data-i="${i}" x="${(padL+slot*i).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${ih}" fill="transparent"/>`);
   }
   host.innerHTML = `<div class="chart-wrap"><svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block" role="img" aria-label="distance chart">
-    <defs><linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="${C.brand}"/><stop offset="100%" stop-color="${C.brand}" stop-opacity=".55"/>
-    </linearGradient></defs>
-    ${grid}${bars.join('')}${xLabels.join('')}${hits.join('')}
+    ${grid}${bars.join('')}${xLabels.join('')}${marks.join('')}${hits.join('')}
   </svg><div class="ctip" id="chartTip"></div></div>`;
   // hover 交互：高亮当前柱 + tooltip
   const tip = host.querySelector('#chartTip');
@@ -882,7 +901,7 @@ function renderMonthly(months, key){
     hit.addEventListener('mouseenter', ()=>{
       const i = +hit.dataset.i, m = data[i];
       barEls.forEach(b=>b.style.opacity = (+b.dataset.i === i ? '1' : '.35'));
-      tip.textContent = `${fmtLabel(m[key])} · ${(+m.dist_km).toFixed(1)} km · ${m.count} ${t('ctip_rides')}`;
+      tip.textContent = `${fullDateLabel(m[key])} · ${(+m.dist_km).toFixed(1)} km · ${m.count} ${t('ctip_rides')}`;
       tip.style.opacity = '1';
       const cx = padL + slot*i + slot/2;
       tip.style.left = Math.min(Math.max(cx, 70), w - 70) + 'px';
