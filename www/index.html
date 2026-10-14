@@ -130,6 +130,9 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .card .label{font-size:12.5px;color:var(--text-3);margin-bottom:2px}
 .card .value{font-size:26px;font-weight:800;letter-spacing:-.6px;line-height:1.2;font-variant-numeric:tabular-nums}
 .card .unit{font-size:13.5px;color:var(--text-3);font-weight:500;margin-left:3px;letter-spacing:0}
+/* 环比涨跌角标(官方 "vs last week" 风格) */
+.delta{font-size:12px;font-weight:600;margin-top:4px;min-height:16px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.delta.up{color:var(--ok)}.delta.down{color:var(--err)}.delta.flat{color:var(--text-3)}
 
 /* 图表容器 + hover tooltip */
 .chart-wrap{position:relative}
@@ -341,10 +344,10 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         <button id="rgAll" onclick="setRange('all')" data-i18n="rg_all">所有</button>
       </div>
       <div class="grid" id="statsGrid">
-        <div class="card"><div class="label" data-i18n="stats_rides">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div></div>
-        <div class="card"><div class="label" data-i18n="stats_dist">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div></div>
-        <div class="card"><div class="label" data-i18n="stats_dur">总时长</div><div class="value"><span id="cDur">-</span><span class="unit">h</span></div></div>
-        <div class="card"><div class="label" data-i18n="stats_elev">总爬升</div><div class="value"><span id="cElev">-</span><span class="unit">m</span></div></div>
+        <div class="card"><div class="label" data-i18n="stats_rides">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div><div class="delta" id="dRides"></div></div>
+        <div class="card"><div class="label" data-i18n="stats_dist">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div><div class="delta" id="dDist"></div></div>
+        <div class="card"><div class="label" data-i18n="stats_dur">总时长</div><div class="value"><span id="cDur">-</span><span class="unit">h</span></div><div class="delta" id="dDur"></div></div>
+        <div class="card"><div class="label" data-i18n="stats_elev">总爬升</div><div class="value"><span id="cElev">-</span><span class="unit">m</span></div><div class="delta" id="dElev"></div></div>
       </div>
       <div class="panel">
         <h2><svg class="ic" aria-hidden="true"><use href="#i-trend"/></svg><span data-i18n="panel_monthly">每月骑行距离 (km)</span></h2>
@@ -449,6 +452,7 @@ const I18N = {
     load_log:'加载中…', no_log:'(暂无日志)', log_fmt:'{src} 日志 · {disp} · 共 {total} 行',
     menu_workspace:'工作区', menu_appearance:'外观', menu_about:'关于', theme_system:'跟随系统', theme_light:'亮色', theme_dark:'暗色',
     hm_refresh:'刷新状态', hm_apidoc:'API 文档', hm_github:'GitHub', ctip_rides:'次',
+    delta_vs:'较上期', delta_flat:'持平', delta_new:'新增',
   },
   en: {
     app_title:'Strava Panel', nav_dash:'Dashboard', nav_data:'Rides', nav_rides:'Recent Rides', nav_settings:'Settings',
@@ -479,6 +483,7 @@ const I18N = {
     load_log:'Loading…', no_log:'(no log)', log_fmt:'{src} log · {disp} · {total} lines',
     menu_workspace:'Workspace', menu_appearance:'Appearance', menu_about:'About', theme_system:'System', theme_light:'Light', theme_dark:'Dark',
     hm_refresh:'Refresh Status', hm_apidoc:'API Docs', hm_github:'GitHub', ctip_rides:'rides',
+    delta_vs:'vs last', delta_flat:'flat', delta_new:'new',
   }
 };
 let currentLang = localStorage.getItem('sv_lang') || 'zh';
@@ -767,16 +772,53 @@ function periodRange(){
   if(range === 'ytd') return {start:`${y}-01-01`, end:f(now)};   // 本年度 1/1 至今
   return null;
 }
+// 上一周期(环比对照):与当前范围等长的前一段时间;'all' 无上一周期
+function prevPeriodRange(){
+  const r = periodRange();
+  if(!r) return null;
+  const p1 = n => String(n).padStart(2,'0');
+  const f = d => `${d.getFullYear()}-${p1(d.getMonth()+1)}-${p1(d.getDate())}`;
+  const parse = s => new Date(s + 'T00:00:00');
+  const start = parse(r.start), end = parse(r.end);
+  if(range === 'ytd'){
+    return {start:`${start.getFullYear()-1}-01-01`, end:f(new Date(end.getFullYear()-1, end.getMonth(), end.getDate()))};
+  }
+  const days = Math.round((end - start) / 86400000) + 1;   // 含首尾
+  const prevEnd = new Date(start); prevEnd.setDate(prevEnd.getDate() - 1);
+  const prevStart = new Date(prevEnd); prevStart.setDate(prevStart.getDate() - (days - 1));
+  return {start:f(prevStart), end:f(prevEnd)};
+}
+function setDelta(id, cur, prev){
+  const el = document.getElementById(id);
+  if(!el) return;
+  if(prev === null || prev === undefined){ el.textContent = ''; el.className = 'delta'; return; }
+  if(prev === 0 && cur === 0){ el.textContent = t('delta_flat'); el.className = 'delta flat'; return; }
+  if(prev === 0){ el.textContent = t('delta_new'); el.className = 'delta up'; return; }
+  const pct = (cur - prev) / prev * 100;
+  const sign = pct > 0 ? '+' : '';
+  el.textContent = `${sign}${Math.abs(pct) >= 100 ? Math.round(pct) : pct.toFixed(1)}% ${t('delta_vs')}`;
+  el.className = 'delta ' + (pct > 0.05 ? 'up' : (pct < -0.05 ? 'down' : 'flat'));
+}
 async function loadData(){
   try{
     const r = periodRange();
     const qs = r ? `start=${r.start}&end=${r.end}` : '';
-    const s = await apiGet('/api/stats', qs);
+    const pr = prevPeriodRange();
+    const pqs = pr ? `start=${pr.start}&end=${pr.end}` : '';
+    const [s, ps] = await Promise.all([
+      apiGet('/api/stats', qs),
+      pr ? apiGet('/api/stats', pqs) : Promise.resolve(null),
+    ]);
     if(!s.error){
       document.getElementById('cRides').textContent = s.total_rides;
       document.getElementById('cDist').textContent = s.total_distance_km;
       document.getElementById('cDur').textContent = s.total_duration_h;
       document.getElementById('cElev').textContent = s.total_elevation_m;
+      const p = ps && !ps.error ? ps : null;
+      setDelta('dRides', s.total_rides, p ? p.total_rides : null);
+      setDelta('dDist', s.total_distance_km, p ? p.total_distance_km : null);
+      setDelta('dDur', s.total_duration_h, p ? p.total_duration_h : null);
+      setDelta('dElev', s.total_elevation_m, p ? p.total_elevation_m : null);
       // 按时间范围选择图表粒度（对齐官方：7D/1M→日, 3M/6M→周, YTD/12M→月, 所有→年）
       let series = [], key = '', title = t('panel_monthly');
       if(range === '7d' || range === '1m'){ series = s.daily||[]; key = 'day'; title = t('panel_daily'); }
