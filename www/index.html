@@ -866,7 +866,7 @@ function renderMonthly(months, key){
   const data = months.slice(-31);
   const n = data.length;
   const w = Math.max(320, host.clientWidth || 560);
-  const h = 188, padL = 34, padR = 6, padT = 10, padB = 24;
+  const h = 300, padL = 34, padR = 6, padT = 14, padB = 28;
   const iw = w - padL - padR, ih = h - padT - padB;
   const rawMax = Math.max(...data.map(m=>m.dist_km), 0);
   let max = rawMax * 1.15;
