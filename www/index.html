@@ -54,6 +54,10 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .badge{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;line-height:1;padding:7px 13px;border-radius:999px;font-weight:600;background:var(--tertiary);color:var(--text-3);white-space:nowrap;border:1px solid transparent;transition:all .2s}
 .badge.ok{color:var(--ok);background:var(--ok-soft)}
 .badge.warn{color:var(--warn);background:var(--warn-soft)}
+.dot-pulse{width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0;animation:pulse 1.8s ease-out infinite}
+.badge.ok .dot-pulse{color:var(--ok)}.badge.warn .dot-pulse{color:var(--warn)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 45%,transparent)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion:reduce){.dot-pulse{animation:none}}
 @media (max-width:480px){.badge{display:none}}
 /* 右上角聚合菜单：锚定按钮下方的下拉（非全屏弹窗），工作区 / 外观 / 关于三区 */
 .hmenu{position:relative;display:inline-flex}
@@ -236,6 +240,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 <symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></symbol>
 <symbol id="i-trend" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></symbol>
 <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
 <symbol id="i-monitor" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></symbol>
 <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
 <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
@@ -266,10 +271,11 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
       </div>
     </div>
     <div class="head-right">
-      <span class="badge" id="statusBadge"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg>…</span>
-      <!-- 聚合菜单：工作区 / 外观 / 关于分区，下拉紧贴按钮，非全屏弹窗 -->
+      <span class="badge" id="statusBadge"><i class="dot-pulse"></i>…</span>
+      <!-- 日/夜快捷切换 + 聚合菜单 -->
+      <button class="icon-btn" id="themeBtn" onclick="quickToggleTheme()" title="Theme"><svg class="ic" aria-hidden="true"><use href="#i-sun"/></svg></button>
       <div class="hmenu" id="hmenu">
-        <button class="icon-btn" id="hmenuBtn" onclick="toggleHmenu(event)" title="Menu"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg></button>
+        <button class="icon-btn" id="hmenuBtn" onclick="toggleHmenu(event)" title="Menu"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg></button>
         <div class="hmenu-pop" id="hmenuPop">
           <div class="hmenu-group">
             <div class="hmenu-title" data-i18n="menu_appearance">外观</div>
@@ -474,7 +480,7 @@ const I18N = {
     api_copy:'复制文档', api_copied:'✓ 已复制到剪贴板', view_token:'查看 token',
     data_title:'数据管理', data_hint:'骑行数据缓存到本地 SQLite。可手动同步 Strava→SQLite，或导出全量数据给 agent 使用。',
     export_csv:'导出 CSV', export_json:'导出 JSON',
-    badge_detect:'检测中…', badge_ok:'运行正常 ✓', badge_noConfig:'未配置', badge_fail:'连接失败', badge_attention:'需关注',
+    badge_detect:'检测中…', badge_ok:'运行正常', badge_noConfig:'未配置', badge_fail:'连接失败', badge_attention:'需关注',
     syncing:'同步中…', sync_done:'✓ 同步完成', sync_fail:'✗ 同步失败',
     token_creating:'正在生成新 token…', token_done:'✓ 新 token (立即生效):', token_fail:'创建失败:',
     load_log:'加载中…', no_log:'(暂无日志)', log_fmt:'{src} 日志 · {disp} · 共 {total} 行',
@@ -506,7 +512,7 @@ const I18N = {
     api_copy:'Copy Doc', api_copied:'✓ Copied to clipboard', view_token:'View Token',
     data_title:'Data Management', data_hint:'Ride data cached to local SQLite. Sync Strava→SQLite manually, or export all data for an agent.',
     export_csv:'Export CSV', export_json:'Export JSON',
-    badge_detect:'Detecting…', badge_ok:'Healthy ✓', badge_noConfig:'Not Configured', badge_fail:'Connection Failed', badge_attention:'Needs Attention',
+    badge_detect:'Detecting…', badge_ok:'Healthy', badge_noConfig:'Not Configured', badge_fail:'Connection Failed', badge_attention:'Needs Attention',
     syncing:'Syncing…', sync_done:'✓ Sync Complete', sync_fail:'✗ Sync Failed',
     token_creating:'Generating new token…', token_done:'✓ New token (effective now):', token_fail:'Failed:',
     load_log:'Loading…', no_log:'(no log)', log_fmt:'{src} log · {disp} · {total} lines',
@@ -560,11 +566,22 @@ function renderThemeSeg(){
 function applyTheme(mode){
   document.documentElement.setAttribute('data-theme', resolvedTheme(mode || currentThemeMode()));
   renderThemeSeg();
+  updateThemeBtn();
   reRenderChart();
 }
 function setThemeMode(mode){
   localStorage.setItem('sp-theme', mode === 'system' ? 'system' : mode);
   applyTheme();
+}
+// 头部日/夜快捷按钮:在亮/暗之间切换(离开跟随系统),图标反映当前解析主题
+function updateThemeBtn(){
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const use = document.querySelector('#themeBtn use');
+  if(use) use.setAttribute('href', dark ? '#i-moon' : '#i-sun');
+}
+function quickToggleTheme(){
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  setThemeMode(dark ? 'light' : 'dark');
 }
 function initTheme(){
   if(!localStorage.getItem('sp-theme')){
@@ -706,7 +723,7 @@ async function apiPost(path, body){
 // ===== Status / Info =====
 async function refreshStatus(){
   const badge = document.getElementById('statusBadge');
-  badge.className = 'badge'; badge.innerHTML = t('badge_detect') + "<span class='spinner'></span>";
+  badge.className = 'badge'; badge.innerHTML = '<i class="dot-pulse"></i>' + escapeHtml(t('badge_detect'));
   try{
     const boot = await (await fetch(API + '/api/bootstrap')).json();
     if(boot.api_token){ apiToken = boot.api_token; }
@@ -718,11 +735,11 @@ async function refreshStatus(){
     const st = s.strava || {};
     const db = s.db || {};
     if(!st.configured){
-      badge.className = 'badge warn'; badge.textContent = t('badge_noConfig');
+      badge.className = 'badge warn'; badge.innerHTML = '<i class="dot-pulse"></i>' + escapeHtml(t('badge_noConfig'));
     } else if(st.has_token && (db.activities||0) > 0){
-      badge.className = 'badge ok'; badge.textContent = t('badge_ok');
+      badge.className = 'badge ok'; badge.innerHTML = '<i class="dot-pulse"></i>' + escapeHtml(t('badge_ok'));
     } else {
-      badge.className = 'badge warn'; badge.textContent = t('badge_attention');
+      badge.className = 'badge warn'; badge.innerHTML = '<i class="dot-pulse"></i>' + escapeHtml(t('badge_attention'));
     }
     // 只要配置了凭据就加载仪表盘 + 数据（读本地 DB，不依赖 token）
     if(st.configured){
@@ -730,7 +747,7 @@ async function refreshStatus(){
       if(currentNav==='data') loadData();
       if(currentNav==='rides') loadActivities();
     }
-  }catch(e){ badge.className='badge warn'; badge.textContent=t('badge_fail'); }
+  }catch(e){ badge.className='badge warn'; badge.innerHTML='<i class="dot-pulse"></i>' + escapeHtml(t('badge_fail')); }
 }
 
 async function loadInfo(){
