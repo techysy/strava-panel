@@ -1,4 +1,4 @@
-# 一键打包桌面托盘版(应用源码 + Electron;服务端为纯 Node.js ESM,打包版经 ELECTRON_RUN_AS_NODE 运行,无需额外运行时)
+﻿# 一键打包桌面托盘版(应用源码 + Electron;服务端为纯 Node.js ESM,打包版经 ELECTRON_RUN_AS_NODE 运行,无需额外运行时)
 # 用法: .\build.ps1 [-Proxy http://192.168.31.101:7890]
 param(
     [string]$Proxy = ""
@@ -8,6 +8,14 @@ $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 $repo = Split-Path $root -Parent
 $build = Join-Path $root "build"
+
+# 0. 关闭正在运行的旧实例(否则 win-unpacked 文件被锁,electron-builder 报 Access denied)
+$running = Get-Process -Name "StravaPanel" -ErrorAction SilentlyContinue
+if ($running) {
+    Write-Host "[0/3] 关闭运行中的 StravaPanel($($running.Count) 个进程)..." -ForegroundColor Yellow
+    $running | Stop-Process -Force
+    Start-Sleep -Seconds 1
+}
 
 # 1. 汇集服务端源码 → build\app(排除 *.py/__pycache__ 等历史遗留)
 Write-Host "[1/3] 汇集应用源码..." -ForegroundColor Cyan
