@@ -763,6 +763,10 @@ function llmConfig() {
   return { baseUrl, apiKey, model, configured: Boolean(baseUrl && model) };
 }
 
+// PyFloat 解包:REAL 列(distance/moving_time/total_elevation_gain/聚合 dist_km 等)
+// 在 db.js 里被包装成 PyFloat 对象(为与 Python 版字节级对齐),拼文本/算术前须还原为 number。
+const num = (v) => (v instanceof PyFloat ? v.v : (v == null ? 0 : Number(v) || 0));
+
 function buildTrainingDigest() {
   /** 汇总近期训练数据为紧凑文本,作为教练系统提示的上下文。 */
   const p1 = (n) => String(n).padStart(2, '0');
@@ -771,19 +775,19 @@ function buildTrainingDigest() {
   const dAgo = (days) => { const d = new Date(now); d.setDate(d.getDate() - days); return f(d); };
   const seg = (days) => {
     const st = db.stats(dAgo(days), f(now));
-    return `${days}天: ${st.total_rides}次 / ${st.total_distance_km}km / ${st.total_duration_h}h / 爬升${st.total_elevation_m}m`
-      + (st.avg_heartrate != null ? ` / 均心率${st.avg_heartrate}bpm` : '')
-      + (st.avg_watts != null ? ` / 均功率${st.avg_watts}W` : '');
+    return `${days}天: ${st.total_rides}次 / ${num(st.total_distance_km).toFixed(1)}km / ${num(st.total_duration_h).toFixed(1)}h / 爬升${Math.round(num(st.total_elevation_m))}m`
+      + (st.avg_heartrate != null ? ` / 均心率${num(st.avg_heartrate)}bpm` : '')
+      + (st.avg_watts != null ? ` / 均功率${num(st.avg_watts)}W` : '');
   };
   const acts = db.getActivities('Ride', 15).map((a) => {
-    const km = ((a.distance || 0) / 1000).toFixed(1);
-    const h = ((a.moving_time || 0) / 3600).toFixed(1);
-    const el = Math.round(a.total_elevation_gain || 0);
-    const hr = a.average_heartrate ? Math.round(a.average_heartrate) + 'bpm' : '-';
-    const pw = a.average_watts ? Math.round(a.average_watts) + 'W' : '-';
+    const km = (num(a.distance) / 1000).toFixed(1);
+    const h = (num(a.moving_time) / 3600).toFixed(1);
+    const el = Math.round(num(a.total_elevation_gain));
+    const hr = a.average_heartrate != null ? Math.round(num(a.average_heartrate)) + 'bpm' : '-';
+    const pw = a.average_watts != null ? Math.round(num(a.average_watts)) + 'W' : '-';
     return `${String(a.start_date_local || a.start_date || '').slice(0, 10)} ${(a.name || '').slice(0, 30)} ${km}km/${h}h/爬${el}m/HR${hr}/PW${pw}`;
   });
-  const weekly = db.weekly(dAgo(56), f(now)).map((w) => `${w.week}:${w.dist_km}km(${w.count}次)`).join(' ');
+  const weekly = db.weekly(dAgo(56), f(now)).map((w) => `${w.week}:${num(w.dist_km).toFixed(1)}km(${w.count}次)`).join(' ');
   return [
     '【近况】' + seg(7) + '; ' + seg(28) + '; ' + seg(90),
     '【近8周趋势】' + (weekly || '无'),
