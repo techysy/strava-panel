@@ -346,7 +346,7 @@ async function refreshToken(cfg) {
     throw err;
   }
   const r = await resp.json();
-  // ⚠️ 同样必须先 saveConfig 再写 token 文件（saveConfig 会删 tokens.json）
+  // 注意:同样必须先 saveConfig 再写 token 文件（saveConfig 会删 tokens.json）
   //   否则刷新成功的 token 也被随即删掉，缓存永远不存在 → 每次都重新刷新
   if (r.refresh_token) {
     cfg.refresh_token = r.refresh_token;
