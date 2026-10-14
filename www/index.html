@@ -134,6 +134,7 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .stat-row .v{font-size:13.5px;font-weight:600;text-align:right;word-break:break-all;font-variant-numeric:tabular-nums}
 .stat-row .v.path{font-size:11.5px;font-weight:500;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62%}
 .stat-badge{display:inline-flex;align-items:center;font-size:12px;padding:4px 10px;border-radius:999px;font-weight:600}
+.stat-badge .sdot{width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:6px;flex-shrink:0}
 .stat-badge.ok{background:var(--ok-soft);color:var(--ok)}
 .stat-badge.warn{background:var(--warn-soft);color:var(--warn)}
 .dot-on{background:var(--ok)}.dot-off{background:var(--err)}
@@ -499,14 +500,14 @@ const I18N = {
     setup_title:'配置 Strava 凭据', setup_hint:'在 <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a> 查看 Client ID / Client Secret。Refresh Token 需通过 OAuth 授权获取。',
     setup_clientId:'Client ID', setup_clientSecret:'Client Secret', setup_refreshToken:'Refresh Token', setup_redirectUri:'回调地址 (redirect_uri)', setup_save:'保存凭据', setup_connect:'连接 Strava', setup_connectHint:'「连接 Strava」会在独立窗口打开 Strava 授权页，授权后自动回填并保存 refresh_token。',
     setup_oauthOpen:'已打开授权窗口，请在新窗口完成 Strava 授权…', setup_oauthHint:'若授权窗口未自动弹出，请点击下方链接在新页面完成授权：', setup_clickOpen:'点此打开 Strava 授权', setup_oauthTimeout:'授权超时，请重新点击「连接 Strava」',
-    setup_ok:'✓ 凭据有效，已连接！', setup_fail:'✗ ', setup_saving:'保存中…', setup_configured_hint:'✓ 凭据已保存，点击「连接 Strava」重新授权即可（无需重输）。',
+    setup_ok:'凭据有效，已连接', setup_fail:'失败：', setup_saving:'保存中…', setup_configured_hint:'凭据已保存，点击「连接 Strava」重新授权即可（无需重输）。',
     api_title:'API 使用指南', api_hint:'以下为管理面板 REST API 的 Markdown 文档，可直接复制给 agent 使用。',
-    api_copy:'复制文档', api_copied:'✓ 已复制到剪贴板', view_token:'查看 token',
+    api_copy:'复制文档', api_copied:'已复制到剪贴板', view_token:'查看 token',
     data_title:'数据管理', data_hint:'骑行数据缓存到本地 SQLite。可手动同步 Strava→SQLite，或导出全量数据给 agent 使用。',
     export_csv:'导出 CSV', export_json:'导出 JSON',
     badge_detect:'检测中…', badge_ok:'运行正常', badge_noConfig:'未配置', badge_fail:'连接失败', badge_attention:'需关注',
-    syncing:'同步中…', sync_done:'✓ 同步完成', sync_fail:'✗ 同步失败',
-    token_creating:'正在生成新 token…', token_done:'✓ 新 token (立即生效):', token_fail:'创建失败:',
+    syncing:'同步中…', sync_done:'同步完成', sync_fail:'同步失败',
+    token_creating:'正在生成新 token…', token_done:'新 token (立即生效)：', token_fail:'创建失败:',
     load_log:'加载中…', no_log:'(暂无日志)', log_fmt:'{src} 日志 · {disp} · 共 {total} 行',
     menu_workspace:'工作区', menu_appearance:'外观', menu_language:'语言', menu_about:'关于', theme_system:'跟随系统', theme_light:'亮色', theme_dark:'暗色',
     hm_refresh:'刷新状态', hm_apidoc:'API 文档', hm_github:'GitHub', ctip_rides:'次',
@@ -533,14 +534,14 @@ const I18N = {
     setup_title:'Configure Strava Credentials', setup_hint:'View Client ID / Client Secret at <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a>. Refresh Token obtained via OAuth.',
     setup_clientId:'Client ID', setup_clientSecret:'Client Secret', setup_refreshToken:'Refresh Token', setup_redirectUri:'Redirect URI', setup_save:'Save Credentials', setup_connect:'Connect Strava', setup_connectHint:'Connect Strava opens an authorization window; refresh_token is saved automatically after approval.',
     setup_oauthOpen:'Auth window opened, please approve in the new window…', setup_oauthHint:'If the auth window did not pop up, click the link below to authorize in a new page:', setup_clickOpen:'Open Strava authorization', setup_oauthTimeout:'Auth timed out, please click Connect Strava again',
-    setup_ok:'✓ Credentials valid, connected!', setup_fail:'✗ ', setup_saving:'Saving…', setup_configured_hint:'✓ Credentials saved. Click Connect Strava to authorize (no re-entry needed).',
+    setup_ok:'Credentials valid, connected', setup_fail:'Failed: ', setup_saving:'Saving…', setup_configured_hint:'Credentials saved. Click Connect Strava to authorize (no re-entry needed).',
     api_title:'API Guide', api_hint:'Markdown doc of the admin REST API, copy-paste for an agent.',
-    api_copy:'Copy Doc', api_copied:'✓ Copied to clipboard', view_token:'View Token',
+    api_copy:'Copy Doc', api_copied:'Copied to clipboard', view_token:'View Token',
     data_title:'Data Management', data_hint:'Ride data cached to local SQLite. Sync Strava→SQLite manually, or export all data for an agent.',
     export_csv:'Export CSV', export_json:'Export JSON',
     badge_detect:'Detecting…', badge_ok:'Healthy', badge_noConfig:'Not Configured', badge_fail:'Connection Failed', badge_attention:'Needs Attention',
-    syncing:'Syncing…', sync_done:'✓ Sync Complete', sync_fail:'✗ Sync Failed',
-    token_creating:'Generating new token…', token_done:'✓ New token (effective now):', token_fail:'Failed:',
+    syncing:'Syncing…', sync_done:'Sync Complete', sync_fail:'Sync Failed',
+    token_creating:'Generating new token…', token_done:'New token (effective now):', token_fail:'Failed:',
     load_log:'Loading…', no_log:'(no log)', log_fmt:'{src} log · {disp} · {total} lines',
     menu_workspace:'Workspace', menu_appearance:'Appearance', menu_language:'Language', menu_about:'About', theme_system:'System', theme_light:'Light', theme_dark:'Dark',
     hm_refresh:'Refresh Status', hm_apidoc:'API Docs', hm_github:'GitHub', ctip_rides:'rides',
@@ -793,7 +794,7 @@ async function refreshStatus(){
 async function loadInfo(){
   const grids = { strava: document.getElementById('statStrava'), db: document.getElementById('statDb'), agent: document.getElementById('statAgent') };
   const badge = (ok, okText, noText) =>
-    `<span class="stat-badge ${ok?'ok':'warn'}">${ok ? '✓ '+(okText||'') : '✗ '+(noText||'')}</span>`;
+    `<span class="stat-badge ${ok?'ok':'warn'}"><i class="sdot"></i>${ok ? (okText||'') : (noText||'')}</span>`;
   // 聚合卡片：一个业务一张卡片，内部多行（label 左 / value 右）
   const aggr = (rows) => `<div class="stat-aggr">${rows.map(r=>`<div class="stat-row"><span class="k">${r.k}</span><span class="v${r.cls ? ' ' + r.cls : ''}"${r.title ? ' title="' + escapeHtml(r.title) + '"' : ''}>${r.v}</span></div>`).join('')}</div>`;
   try{
