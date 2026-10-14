@@ -76,6 +76,8 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .lang-seg{display:flex;width:calc(100% - 12px)}
 .lang-seg .seg-btn{flex:1 1 0;padding:7px 0}
 .seg-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:7px 11px;border:0;border-radius:8px;background:transparent;color:var(--text-3);font-size:12.5px;font-weight:600;line-height:1;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .15s}
+.seg-btn .ic{width:13px;height:13px;color:var(--text-3)}
+.seg-btn.on .ic{color:var(--accent)}
 .seg-btn:hover{color:var(--text)}
 .seg-btn.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
 html[data-theme="dark"] .seg-btn.on{background:var(--active);box-shadow:none}
@@ -219,7 +221,10 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></symbol>
 <symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></symbol>
 <symbol id="i-trend" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></symbol>
-<symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></symbol>
+<symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-monitor" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
 <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
 <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
 <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></symbol>
@@ -253,23 +258,26 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         <button class="icon-btn" id="hmenuBtn" onclick="toggleHmenu(event)" title="Menu"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg></button>
         <div class="hmenu-pop" id="hmenuPop">
           <div class="hmenu-group">
-            <div class="hmenu-title" data-i18n="menu_workspace">工作区</div>
-            <button class="hmenu-item" onclick="closeHmenu();syncNow()"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span class="mi-txt" data-i18n="sync_btn">立即同步</span></button>
-            <button class="hmenu-item" onclick="exportCsv()"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span class="mi-txt" data-i18n="export_csv">导出 CSV</span></button>
-            <button class="hmenu-item" onclick="exportJson()"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span class="mi-txt" data-i18n="export_json">导出 JSON</span></button>
-            <button class="hmenu-item" onclick="closeHmenu();refreshStatus()"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span class="mi-txt" data-i18n="hm_refresh">刷新状态</span></button>
-          </div>
-          <div class="hmenu-group">
             <div class="hmenu-title" data-i18n="menu_appearance">外观</div>
             <div class="mode-seg" id="themeSeg">
-              <button class="seg-btn" data-theme-mode="system" onclick="setThemeMode('system')" data-i18n="theme_system">跟随系统</button>
-              <button class="seg-btn" data-theme-mode="light" onclick="setThemeMode('light')" data-i18n="theme_light">亮色</button>
-              <button class="seg-btn" data-theme-mode="dark" onclick="setThemeMode('dark')" data-i18n="theme_dark">暗色</button>
+              <button class="seg-btn" data-theme-mode="system" onclick="setThemeMode('system')"><svg class="ic" aria-hidden="true"><use href="#i-monitor"/></svg><span data-i18n="theme_system">跟随系统</span></button>
+              <button class="seg-btn" data-theme-mode="light" onclick="setThemeMode('light')"><svg class="ic" aria-hidden="true"><use href="#i-sun"/></svg><span data-i18n="theme_light">亮色</span></button>
+              <button class="seg-btn" data-theme-mode="dark" onclick="setThemeMode('dark')"><svg class="ic" aria-hidden="true"><use href="#i-moon"/></svg><span data-i18n="theme_dark">暗色</span></button>
             </div>
+          </div>
+          <div class="hmenu-group">
+            <div class="hmenu-title" data-i18n="menu_language">语言</div>
             <div class="mode-seg lang-seg" id="langSeg">
               <button class="seg-btn" data-lang="zh" onclick="setLang('zh')">中文</button>
               <button class="seg-btn" data-lang="en" onclick="setLang('en')">EN</button>
             </div>
+          </div>
+          <div class="hmenu-group">
+            <div class="hmenu-title" data-i18n="menu_workspace">工作区</div>
+            <button class="hmenu-item" onclick="closeHmenu();syncNow()"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span class="mi-txt" data-i18n="sync_btn">立即同步</span></button>
+            <button class="hmenu-item" onclick="exportCsv()"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span class="mi-txt" data-i18n="export_csv">导出 CSV</span></button>
+            <button class="hmenu-item" onclick="exportJson()"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span class="mi-txt" data-i18n="export_json">导出 JSON</span></button>
+            <button class="hmenu-item" onclick="closeHmenu();refreshStatus()"><svg class="ic" aria-hidden="true"><use href="#i-server"/></svg><span class="mi-txt" data-i18n="hm_refresh">刷新状态</span></button>
           </div>
           <div class="hmenu-group">
             <div class="hmenu-title" data-i18n="menu_about">关于</div>
@@ -450,7 +458,7 @@ const I18N = {
     syncing:'同步中…', sync_done:'✓ 同步完成', sync_fail:'✗ 同步失败',
     token_creating:'正在生成新 token…', token_done:'✓ 新 token (立即生效):', token_fail:'创建失败:',
     load_log:'加载中…', no_log:'(暂无日志)', log_fmt:'{src} 日志 · {disp} · 共 {total} 行',
-    menu_workspace:'工作区', menu_appearance:'外观', menu_about:'关于', theme_system:'跟随系统', theme_light:'亮色', theme_dark:'暗色',
+    menu_workspace:'工作区', menu_appearance:'外观', menu_language:'语言', menu_about:'关于', theme_system:'跟随系统', theme_light:'亮色', theme_dark:'暗色',
     hm_refresh:'刷新状态', hm_apidoc:'API 文档', hm_github:'GitHub', ctip_rides:'次',
     delta_vs:'较上期', delta_flat:'持平', delta_new:'新增',
   },
@@ -481,7 +489,7 @@ const I18N = {
     syncing:'Syncing…', sync_done:'✓ Sync Complete', sync_fail:'✗ Sync Failed',
     token_creating:'Generating new token…', token_done:'✓ New token (effective now):', token_fail:'Failed:',
     load_log:'Loading…', no_log:'(no log)', log_fmt:'{src} log · {disp} · {total} lines',
-    menu_workspace:'Workspace', menu_appearance:'Appearance', menu_about:'About', theme_system:'System', theme_light:'Light', theme_dark:'Dark',
+    menu_workspace:'Workspace', menu_appearance:'Appearance', menu_language:'Language', menu_about:'About', theme_system:'System', theme_light:'Light', theme_dark:'Dark',
     hm_refresh:'Refresh Status', hm_apidoc:'API Docs', hm_github:'GitHub', ctip_rides:'rides',
     delta_vs:'vs last', delta_flat:'flat', delta_new:'new',
   }
