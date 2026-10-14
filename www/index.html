@@ -99,7 +99,7 @@ html[data-theme="dark"] .seg-btn.on{background:var(--active);box-shadow:none}
 html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var(--border-subtle)}
 .view{display:none}
 .view.active{display:flex;flex-direction:column;min-height:calc(100vh - 212px)}
-#tab-data .panel:last-child,#tab-rides .panel,#tab-dash .panel:last-child{flex:1;display:flex;flex-direction:column}
+#tab-data .panel:last-child,#tab-rides .panel,#tab-dash .panel:last-child,#tab-coach .panel{flex:1;display:flex;flex-direction:column}
 #weeklyChart{flex:1;min-height:220px}
 #tab-dash .log-view{flex:1;max-height:none}
 
@@ -235,6 +235,25 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-left:8px}
 @keyframes spin{to{transform:rotate(360deg)}}
 
+/* 训练建议聊天 */
+#tab-coach .panel h2{flex-shrink:0}
+#tab-coach .llm-warn,#tab-coach .chat-toolbar,#tab-coach .chat-input,#tab-coach #coachMsg{flex-shrink:0}
+.chat-box{display:flex;flex-direction:column;flex:1;min-height:0}
+.chat-msgs{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px 2px;min-height:120px}
+.chat-msg{max-width:78%;padding:10px 14px;border-radius:14px;font-size:13.5px;line-height:1.65;word-break:break-word;white-space:normal}
+.chat-msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.chat-msg.assistant{align-self:flex-start;background:var(--surface-2);border:1px solid var(--border-subtle);color:var(--text);border-bottom-left-radius:4px}
+.chat-msg.assistant p{margin:0 0 8px}.chat-msg.assistant p:last-child{margin-bottom:0}
+.chat-msg.assistant code{background:var(--tertiary);border:1px solid var(--border-subtle);border-radius:5px;padding:1px 5px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace}
+.chat-msg.assistant ul,.chat-msg.assistant ol{margin:4px 0 8px;padding-left:20px}
+.chat-msg .who{font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;opacity:.55;margin-bottom:3px}
+.chat-input{display:flex;gap:8px;margin-top:12px;align-items:flex-end}
+.chat-input textarea{flex:1;min-height:44px;max-height:120px;resize:vertical}
+.chat-empty{color:var(--text-3);font-size:13px;text-align:center;padding:30px 10px;line-height:1.8}
+.chat-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.chat-toolbar .spacer{flex:1}
+.llm-warn{display:none;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;background:var(--warn-soft);color:var(--warn);font-size:12.5px;font-weight:600;margin-bottom:10px}
+.llm-warn a{color:inherit;text-decoration:underline;cursor:pointer}
 /* toast */
 #toast{position:fixed;bottom:26px;left:50%;transform:translate(-50%,8px);z-index:70;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 16px;font-size:13px;font-weight:600;color:var(--text);box-shadow:var(--toast-shadow);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:80vw}
 #toast.show{opacity:1;transform:translate(-50%,0)}
@@ -262,6 +281,10 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 <symbol id="i-trend" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></symbol>
 <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
 <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+<symbol id="i-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.7a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-2a2 2 0 0 0 1.3-1.3z"/></symbol>
+<symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+<symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
 <symbol id="i-monitor" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></symbol>
 <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
 <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
@@ -335,6 +358,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
   <nav class="nav" id="nav">
     <button data-view="data" class="active" onclick="switchNav('data')"><svg class="ic" aria-hidden="true"><use href="#i-bike"/></svg><span class="tab-txt" data-i18n="nav_data">骑行数据</span></button>
     <button data-view="rides" onclick="switchNav('rides')"><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg><span class="tab-txt" data-i18n="nav_rides">最近骑行</span></button>
+    <button data-view="coach" onclick="switchNav('coach')"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span class="tab-txt" data-i18n="nav_coach">训练建议</span></button>
     <button data-view="dash" onclick="switchNav('dash')"><svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg><span class="tab-txt" data-i18n="nav_dash">仪表板</span></button>
     <button data-view="settings" onclick="switchNav('settings')"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg><span class="tab-txt" data-i18n="nav_settings">设置</span></button>
   </nav>
@@ -421,11 +445,33 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
       </div>
     </div>
 
+    <!-- 训练建议 -->
+    <div class="view" id="tab-coach">
+      <div class="panel">
+        <h2><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span data-i18n="coach_title">AI 训练建议</span></h2>
+        <div class="llm-warn" id="llmWarn"><svg class="ic" aria-hidden="true"><use href="#i-warn"/></svg><span data-i18n="coach_noLlm">尚未配置模型</span> · <a onclick="switchNav('settings');switchSubTab('model')" data-i18n="coach_gotoSettings">前往 设置 → 模型</a></div>
+        <div class="chat-toolbar">
+          <button class="btn" onclick="coachSuggest()" id="suggestBtn"><svg class="ic" aria-hidden="true"><use href="#i-trend"/></svg><span data-i18n="coach_suggest">生成本周训练建议</span></button>
+          <span class="spacer"></span>
+          <button class="btn" onclick="clearCoach()" id="clearBtn"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg><span data-i18n="coach_clear">清空记忆</span></button>
+        </div>
+        <div class="chat-box">
+          <div class="chat-msgs" id="chatMsgs"><div class="chat-empty" data-i18n="coach_empty">向 AI 教练提问训练规划,它会读取你的骑行数据(距离/时长/心率/功率)并结合历史对话给出建议。对话记忆保存在本地数据库。</div></div>
+          <div class="chat-input">
+            <textarea id="chatText" rows="1" data-i18n-ph="coach_ph" placeholder="例:下周想提升耐力,帮我安排训练" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCoach();}"></textarea>
+            <button class="btn primary" onclick="sendCoach()" id="sendBtn"><svg class="ic" aria-hidden="true"><use href="#i-send"/></svg><span data-i18n="coach_send">发送</span></button>
+          </div>
+          <div class="hint" id="coachMsg" style="margin-top:8px"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- 设置 -->
     <div class="view" id="tab-settings">
       <div class="subtabs">
         <button class="subtab active" onclick="switchSubTab('cred')"><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg><span class="tab-txt" data-i18n="sub_cred">凭据</span></button>
         <button class="subtab" onclick="switchSubTab('api')"><svg class="ic" aria-hidden="true"><use href="#i-cpu"/></svg><span class="tab-txt" data-i18n="sub_api">API</span></button>
+        <button class="subtab" onclick="switchSubTab('model')"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span class="tab-txt" data-i18n="sub_model">模型</span></button>
         <button class="subtab" onclick="switchSubTab('data')"><svg class="ic" aria-hidden="true"><use href="#i-database"/></svg><span class="tab-txt" data-i18n="sub_data">数据</span></button>
       </div>
       <div class="subpanel active" id="sub-cred">
@@ -458,6 +504,22 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
           </div>
           <div class="hint" id="apiTokenMsg" style="margin-bottom:8px;display:none;word-break:break-all"></div>
           <div id="apiDoc" class="api-doc"></div>
+        </div>
+      </div>
+      <div class="subpanel" id="sub-model">
+        <div class="panel">
+          <h2><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span data-i18n="model_title">模型设置 (LLM)</span></h2>
+          <p class="hint" style="margin-bottom:8px" data-i18n="model_hint">接入 OpenAI 兼容 API(本地网关如 Ollama / LM Studio / vLLM,或云端),用于「训练建议」页签的 AI 教练。密钥仅存本地 strava.conf(权限 600)。</p>
+          <label data-i18n="model_baseUrl">API 地址 (base URL)</label><input id="llm_base_url" placeholder="http://127.0.0.1:11434/v1">
+          <label data-i18n="model_apiKey">API Key (可选)</label>
+          <div class="pw-wrap"><input id="llm_api_key" type="password" placeholder="sk-..." autocomplete="off"><button type="button" class="pw-eye" onclick="togglePw('llm_api_key',this)" title="show/hide"><svg class="ic" aria-hidden="true"><use href="#i-eye"/></svg></button></div>
+          <label data-i18n="model_model">模型名</label><input id="llm_model" placeholder="qwen2.5:14b / gpt-4o-mini ...">
+          <div class="msg" id="modelMsg"></div>
+          <div class="form-actions">
+            <button class="btn primary" onclick="saveLlmConfig()" id="modelSaveBtn"><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg><span data-i18n="model_save">保存配置</span></button>
+            <button class="btn" onclick="testLlm()"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg><span data-i18n="model_test">测试连接</span></button>
+          </div>
+          <div class="hint" style="margin-top:10px" data-i18n="model_gatewayHint">本地 API 网关示例:Ollama 填 <code style="background:var(--tertiary);padding:1px 5px;border-radius:5px">http://127.0.0.1:11434/v1</code>(Key 任意);LM Studio 填 <code style="background:var(--tertiary);padding:1px 5px;border-radius:5px">http://127.0.0.1:1234/v1</code>;也支持任何 OpenAI 兼容网关(One-API / LiteLLM)。</div>
         </div>
       </div>
       <div class="subpanel" id="sub-data">
@@ -512,6 +574,16 @@ const I18N = {
     menu_workspace:'工作区', menu_appearance:'外观', menu_language:'语言', menu_about:'关于', theme_system:'跟随系统', theme_light:'亮色', theme_dark:'暗色',
     hm_refresh:'刷新状态', hm_apidoc:'API 文档', hm_github:'GitHub', ctip_rides:'次',
     sg_ok:'正常', sg_attention:'需关注', sg_ready:'就绪', sg_empty:'空', sg_pending:'未生成',
+    nav_coach:'训练建议', coach_title:'AI 训练建议', coach_noLlm:'尚未配置模型', coach_gotoSettings:'前往 设置 → 模型',
+    coach_suggest:'生成本周训练建议', coach_clear:'清空记忆', coach_empty:'向 AI 教练提问训练规划,它会读取你的骑行数据(距离/时长/心率/功率)并结合历史对话给出建议。对话记忆保存在本地数据库。',
+    coach_ph:'例:下周想提升耐力,帮我安排训练', coach_send:'发送', coach_you:'你', coach_ai:'教练',
+    coach_thinking:'教练思考中…', coach_fail:'请求失败:', coach_cleared:'记忆已清空',
+    coach_clear_confirm:'确定清空所有训练建议对话记忆?', coach_suggest_prompt:'请根据我最近的骑行数据,给出本周训练建议(含强度、时长、恢复安排)。',
+    sub_model:'模型', model_title:'模型设置 (LLM)', model_hint:'接入 OpenAI 兼容 API(本地网关如 Ollama / LM Studio / vLLM,或云端),用于「训练建议」页签的 AI 教练。密钥仅存本地 strava.conf(权限 600)。',
+    model_baseUrl:'API 地址 (base URL)', model_apiKey:'API Key (可选)', model_model:'模型名',
+    model_save:'保存配置', model_test:'测试连接', model_saving:'保存中…', model_saved:'配置已保存', model_fail:'保存失败:',
+    model_testing:'测试连接中…', model_testOk:'连接成功:', model_testFail:'连接失败:', model_keySaved:'已保存(留空保持不变)',
+    model_gatewayHint:'本地 API 网关示例:Ollama 填 <code style="background:var(--tertiary);padding:1px 5px;border-radius:5px">http://127.0.0.1:11434/v1</code>(Key 任意);LM Studio 填 <code style="background:var(--tertiary);padding:1px 5px;border-radius:5px">http://127.0.0.1:1234/v1</code>;也支持任何 OpenAI 兼容网关(One-API / LiteLLM)。',
     conn_ok:'Strava 已连接', conn_noToken:'凭据已配置,尚未授权',
     delta_vs:'较上期', delta_flat:'持平', delta_new:'新增', cmp_label:'对比上期', cmp_this:'本期', cmp_prev:'上期',
   },
@@ -546,6 +618,16 @@ const I18N = {
     menu_workspace:'Workspace', menu_appearance:'Appearance', menu_language:'Language', menu_about:'About', theme_system:'System', theme_light:'Light', theme_dark:'Dark',
     hm_refresh:'Refresh Status', hm_apidoc:'API Docs', hm_github:'GitHub', ctip_rides:'rides',
     sg_ok:'OK', sg_attention:'Attention', sg_ready:'Ready', sg_empty:'Empty', sg_pending:'Not generated',
+    nav_coach:'Coach', coach_title:'AI Training Coach', coach_noLlm:'Model not configured', coach_gotoSettings:'Go to Settings → Model',
+    coach_suggest:'Plan this week', coach_clear:'Clear memory', coach_empty:'Ask the AI coach about training plans. It reads your ride data (distance/duration/HR/power) plus conversation history. Memory is stored in the local database.',
+    coach_ph:'e.g. I want to build endurance next week, plan my training', coach_send:'Send', coach_you:'You', coach_ai:'Coach',
+    coach_thinking:'Coach is thinking…', coach_fail:'Request failed:', coach_cleared:'Memory cleared',
+    coach_clear_confirm:'Clear all training coach conversation memory?', coach_suggest_prompt:'Based on my recent rides, give me a training plan for this week (intensity, duration, recovery).',
+    sub_model:'Model', model_title:'Model Settings (LLM)', model_hint:'Connect an OpenAI-compatible API (local gateways like Ollama / LM Studio / vLLM, or cloud) for the AI coach. The key is stored only in local strava.conf (mode 600).',
+    model_baseUrl:'Base URL', model_apiKey:'API Key (optional)', model_model:'Model name',
+    model_save:'Save', model_test:'Test connection', model_saving:'Saving…', model_saved:'Saved', model_fail:'Save failed:',
+    model_testing:'Testing…', model_testOk:'Connected:', model_testFail:'Connection failed:', model_keySaved:'Saved (leave blank to keep)',
+    model_gatewayHint:'Local gateway examples: Ollama → <code style="background:var(--tertiary);padding:1px 5px;border-radius:5px">http://127.0.0.1:11434/v1</code> (any key); LM Studio → <code style="background:var(--tertiary);padding:1px 5px;border-radius:5px">http://127.0.0.1:1234/v1</code>; any OpenAI-compatible gateway (One-API / LiteLLM) works.',
     conn_ok:'Strava connected', conn_noToken:'Credentials saved, not authorized yet',
     delta_vs:'vs last', delta_flat:'flat', delta_new:'new', cmp_label:'Compare', cmp_this:'This', cmp_prev:'Prev',
   }
@@ -565,6 +647,7 @@ function applyI18n(){
     if(el.dataset.i18nHolder){ el.textContent = txt; }
     else { el.innerHTML = txt; }
   });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{ el.placeholder = t(el.dataset.i18nPh); });
   document.querySelectorAll('#langSeg .seg-btn').forEach(b=>b.classList.toggle('on', b.dataset.lang===currentLang));
 }
 function setLang(lang){
@@ -660,6 +743,7 @@ function switchNav(nav){
   if(nav==='dash'){ loadInfo(); loadLogDates(); }
   if(nav==='data'){ loadData(); }
   if(nav==='rides'){ loadActivities(); }   // 最近骑行表格：打开视图才懒加载
+  if(nav==='coach'){ loadCoach(); }
   if(nav==='settings'){ loadCredConfig(); }  // cred 是默认子tab，直接进入时也回填凭据
   if(nav==='api'||nav==='settings'){ /* handled by subtab */ }
 }
@@ -670,6 +754,7 @@ function switchSubTab(name){
   document.getElementById('sub-'+name).classList.add('active');
   if(name==='api') loadApiDoc();
   if(name==='cred') loadCredConfig();
+  if(name==='model') loadLlmConfig();
 }
 // 确保 apiToken 已就绪（refreshStatus 异步拿 bootstrap，可能尚未完成）
 async function ensureApiToken(){
@@ -1368,6 +1453,142 @@ async function connectStrava(){
     }, 1000);
   }catch(e){ msg.textContent = t('setup_fail') + e.message; }
 }
+// ===== 训练建议 (AI 教练) =====
+let coachLoading = false;
+function mdLite(src){
+  // 轻量 markdown → HTML(先整体转义,再还原少量结构:段落/列表/粗体/行内代码)
+  let h = escapeHtml(src);
+  h = h.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  h = h.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  h = h.replace(/(?:^|\n)((?:[-*] .*(?:\n|$))+)/g, (m, block) => {
+    const items = block.trim().split('\n').map(l => l.replace(/^[-*] /, '')).map(li => '<li>'+li+'</li>').join('');
+    return '\n<ul>'+items+'</ul>';
+  });
+  h = h.replace(/(?:^|\n)((?:\d+\. .*(?:\n|$))+)/g, (m, block) => {
+    const items = block.trim().split('\n').map(l => l.replace(/^\d+\. /, '')).map(li => '<li>'+li+'</li>').join('');
+    return '\n<ol>'+items+'</ol>';
+  });
+  const paras = h.split(/\n{2,}/).map(p => '<p>'+p.replace(/\n/g,'<br>')+'</p>');
+  return paras.join('');
+}
+function renderChat(messages){
+  const box = document.getElementById('chatMsgs');
+  if(!messages || !messages.length){
+    box.innerHTML = '<div class="chat-empty">'+escapeHtml(t('coach_empty'))+'</div>';
+    return;
+  }
+  box.innerHTML = messages.map(m =>
+    '<div class="chat-msg '+escapeHtml(m.role)+'"><div class="who">'+(m.role==='user'?t('coach_you'):t('coach_ai'))+'</div>'+
+    (m.role==='assistant'?mdLite(m.content):escapeHtml(m.content).replace(/\n/g,'<br>'))+'</div>').join('');
+  box.scrollTop = box.scrollHeight;
+}
+async function loadCoach(){
+  await ensureApiToken();
+  try{
+    const d = await apiGet('/api/coach/history');
+    const warn = document.getElementById('llmWarn');
+    if(warn) warn.style.display = (d.llm && d.llm.configured) ? 'none' : 'flex';
+    renderChat(d.messages);
+  }catch(e){}
+}
+async function coachAsk(text){
+  if(coachLoading) return;
+  text = String(text||'').trim();
+  if(!text) return;
+  coachLoading = true;
+  const sendBtn = document.getElementById('sendBtn');
+  const msgEl = document.getElementById('coachMsg');
+  if(sendBtn) sendBtn.disabled = true;
+  if(msgEl) msgEl.textContent = t('coach_thinking');
+  const box = document.getElementById('chatMsgs');
+  const empty = box.querySelector('.chat-empty'); if(empty) empty.remove();
+  box.insertAdjacentHTML('beforeend', '<div class="chat-msg user"><div class="who">'+escapeHtml(t('coach_you'))+'</div>'+escapeHtml(text).replace(/\n/g,'<br>')+'</div>');
+  box.scrollTop = box.scrollHeight;
+  try{
+    const d = await apiPost('/api/coach/chat', { message: text, lang: currentLang });
+    if(d.ok){
+      box.insertAdjacentHTML('beforeend', '<div class="chat-msg assistant"><div class="who">'+escapeHtml(t('coach_ai'))+'</div>'+mdLite(d.reply)+'</div>');
+      box.scrollTop = box.scrollHeight;
+      if(msgEl) msgEl.textContent = '';
+    } else {
+      if(msgEl) msgEl.textContent = t('coach_fail') + ' ' + (d.error||'');
+      toast(t('coach_fail') + ' ' + (d.error||''), false);
+    }
+  }catch(e){
+    if(msgEl) msgEl.textContent = t('coach_fail') + ' ' + e.message;
+    toast(t('coach_fail') + ' ' + e.message, false);
+  }
+  if(sendBtn) sendBtn.disabled = false;
+  coachLoading = false;
+  const ta = document.getElementById('chatText'); if(ta){ ta.value=''; ta.style.height='auto'; }
+}
+function sendCoach(){
+  const ta = document.getElementById('chatText');
+  coachAsk(ta ? ta.value : '');
+}
+function coachSuggest(){
+  coachAsk(t('coach_suggest_prompt'));
+}
+async function clearCoach(){
+  if(!confirm(t('coach_clear_confirm'))) return;
+  await ensureApiToken();
+  try{
+    const d = await apiPost('/api/coach/clear', {});
+    if(d.ok){ renderChat([]); toast(t('coach_cleared'), true); }
+  }catch(e){ toast(String(e.message||e), false); }
+}
+
+// ===== 模型设置 =====
+let llmKeyKept = false;
+async function loadLlmConfig(){
+  await ensureApiToken();
+  try{
+    const d = await apiGet('/api/coach/history');   // 复用:返回 llm 配置(不含 key 明文)
+    const c = d.llm || {};
+    const b = document.getElementById('llm_base_url');
+    const m = document.getElementById('llm_model');
+    const k = document.getElementById('llm_api_key');
+    if(b && !b.value.trim()) b.value = c.base_url || '';
+    if(m && !m.value.trim()) m.value = c.model || '';
+    if(k){ k.value = c.has_key ? '__KEEP__' : ''; k.placeholder = c.has_key ? t('model_keySaved') : 'sk-...'; }
+    llmKeyKept = !!c.has_key;
+  }catch(e){}
+}
+async function saveLlmConfig(){
+  const msg = document.getElementById('modelMsg');
+  const btn = document.getElementById('modelSaveBtn');
+  if(btn) btn.disabled = true;
+  if(msg) msg.textContent = t('model_saving');
+  let key = document.getElementById('llm_api_key').value;
+  if(key !== '__KEEP__' && !key.trim()) key = llmKeyKept ? '__CLEAR__' : '';
+  try{
+    const d = await apiPost('/api/llm/config', {
+      llm_base_url: document.getElementById('llm_base_url').value.trim(),
+      llm_model: document.getElementById('llm_model').value.trim(),
+      llm_api_key: key,
+    });
+    if(d.ok){
+      if(msg) msg.textContent = t('model_saved');
+      toast(t('model_saved'), true);
+      llmKeyKept = d.has_key;
+      const warn = document.getElementById('llmWarn');
+      if(warn) warn.style.display = d.configured ? 'none' : 'flex';
+      const kEl = document.getElementById('llm_api_key');
+      if(kEl && d.has_key){ kEl.value = '__KEEP__'; kEl.placeholder = t('model_keySaved'); }
+    } else { if(msg) msg.textContent = t('model_fail') + ' ' + (d.error||''); toast(t('model_fail') + ' ' + (d.error||''), false); }
+  }catch(e){ if(msg) msg.textContent = t('model_fail') + ' ' + e.message; toast(t('model_fail') + ' ' + e.message, false); }
+  if(btn) btn.disabled = false;
+}
+async function testLlm(){
+  const msg = document.getElementById('modelMsg');
+  if(msg) msg.textContent = t('model_testing');
+  try{
+    const d = await apiPost('/api/coach/test', {});
+    if(d.ok){ if(msg) msg.textContent = t('model_testOk') + ' ' + (d.reply||''); toast(t('model_testOk'), true); }
+    else { if(msg) msg.textContent = t('model_testFail') + ' ' + (d.error||''); toast(t('model_testFail'), false); }
+  }catch(e){ if(msg) msg.textContent = t('model_testFail') + ' ' + e.message; toast(t('model_testFail') + ' ' + e.message, false); }
+}
+
 function exportCsv(){ window.open(`${API}/api/export?fmt=csv&token=${encodeURIComponent(apiToken)}`, '_blank'); }
 function exportJson(){ window.open(`${API}/api/export?fmt=json&token=${encodeURIComponent(apiToken)}`, '_blank'); }
 

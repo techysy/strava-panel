@@ -22,6 +22,12 @@ CREATE TABLE IF NOT EXISTS meta(
     key TEXT PRIMARY KEY,
     value TEXT
 );
+CREATE TABLE IF NOT EXISTS coach_memory(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT
+);
 CREATE INDEX IF NOT EXISTS idx_start_date ON activities(start_date);`;
 
 // 心率/功率扩展列:老库(PRAGMA 检测缺列)自动 ALTER 升级,新库建表后同样补齐。
@@ -434,6 +440,30 @@ export class StravaDB {
     }
     return [...years.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))
       .map(([k, v]) => ({ year: k, ...bucketOut(v) }));
+  }
+
+  // ---- 训练建议记忆 (coach_memory) ----
+  addMemory(role, content) {
+    /** 追加一条对话记忆(role: user|assistant),返回新 id */
+    const r = this.db.prepare('INSERT INTO coach_memory(role,content,created_at) VALUES(?,?,?)')
+      .run(String(role), String(content), localIsoNow());
+    return Number(r.lastInsertRowid);
+  }
+
+  getMemory(limit = 40) {
+    /** 取最近 limit 条(按时间正序返回,便于拼上下文) */
+    const n = Math.max(1, Math.min(200, limit | 0));
+    const rows = this.db.prepare('SELECT id,role,content,created_at FROM coach_memory ORDER BY id DESC LIMIT ?').all(n);
+    return rows.reverse();
+  }
+
+  countMemory() {
+    return this.db.prepare('SELECT COUNT(*) n FROM coach_memory').get().n;
+  }
+
+  clearMemory() {
+    const r = this.db.prepare('DELETE FROM coach_memory').run();
+    return Number(r.changes);
   }
 }
 

@@ -149,6 +149,9 @@ function saveConfig(cfg) {
     `api_token=${cfg.api_token || ''}`,
     `oauth_state=${cfg.oauth_state || ''}`,
     `redirect_uri=${cfg.redirect_uri || ''}`,
+    `llm_base_url=${cfg.llm_base_url || ''}`,
+    `llm_api_key=${cfg.llm_api_key || ''}`,
+    `llm_model=${cfg.llm_model || ''}`,
   ];
   fs.writeFileSync(CONF_FILE, lines.join('\n') + '\n', 'utf8');
   chmod600(CONF_FILE); // 权限 600，仅属主可读
@@ -751,6 +754,76 @@ function buildApiDoc(lang = 'zh', requestHost = null) {
   );
 }
 
+// ---------- LLM 教练 (训练建议) ----------
+function llmConfig() {
+  const cfg = loadConfig();
+  const baseUrl = String(cfg.llm_base_url || '').trim().replace(/\/+$/, '');
+  const apiKey = String(cfg.llm_api_key || '').trim();
+  const model = String(cfg.llm_model || '').trim();
+  return { baseUrl, apiKey, model, configured: Boolean(baseUrl && model) };
+}
+
+function buildTrainingDigest() {
+  /** 汇总近期训练数据为紧凑文本,作为教练系统提示的上下文。 */
+  const p1 = (n) => String(n).padStart(2, '0');
+  const f = (d) => `${d.getFullYear()}-${p1(d.getMonth() + 1)}-${p1(d.getDate())}`;
+  const now = new Date();
+  const dAgo = (days) => { const d = new Date(now); d.setDate(d.getDate() - days); return f(d); };
+  const seg = (days) => {
+    const st = db.stats(dAgo(days), f(now));
+    return `${days}天: ${st.total_rides}次 / ${st.total_distance_km}km / ${st.total_duration_h}h / 爬升${st.total_elevation_m}m`
+      + (st.avg_heartrate != null ? ` / 均心率${st.avg_heartrate}bpm` : '')
+      + (st.avg_watts != null ? ` / 均功率${st.avg_watts}W` : '');
+  };
+  const acts = db.getActivities('Ride', 15).map((a) => {
+    const km = ((a.distance || 0) / 1000).toFixed(1);
+    const h = ((a.moving_time || 0) / 3600).toFixed(1);
+    const el = Math.round(a.total_elevation_gain || 0);
+    const hr = a.average_heartrate ? Math.round(a.average_heartrate) + 'bpm' : '-';
+    const pw = a.average_watts ? Math.round(a.average_watts) + 'W' : '-';
+    return `${String(a.start_date_local || a.start_date || '').slice(0, 10)} ${(a.name || '').slice(0, 30)} ${km}km/${h}h/爬${el}m/HR${hr}/PW${pw}`;
+  });
+  const weekly = db.weekly(dAgo(56), f(now)).map((w) => `${w.week}:${w.dist_km}km(${w.count}次)`).join(' ');
+  return [
+    '【近况】' + seg(7) + '; ' + seg(28) + '; ' + seg(90),
+    '【近8周趋势】' + (weekly || '无'),
+    '【最近15次骑行】',
+    ...acts,
+  ].join('\n');
+}
+
+const COACH_SYSTEM = (digest, lang) => [
+  '你是 Strava Panel 内置的骑行教练。以下是该骑手从本地数据库汇总的训练数据:',
+  '',
+  digest,
+  '',
+  '规则: 基于上述真实数据回答,不要编造数据;数据不足时明确说明并给出需要补充的信息。',
+  '给出具体的、可执行的训练建议(强度用心率/功率/体感描述)。回答保持简洁,用 markdown 轻量排版。',
+  lang === 'zh' ? '始终使用简体中文回答。' : 'Always answer in English.',
+].join('\n');
+
+async function callLlm(cfg, messages, timeoutMs = 90000) {
+  /** OpenAI 兼容 /chat/completions 调用。返回 assistant 文本。 */
+  const url = cfg.baseUrl + '/chat/completions';
+  const headers = { 'Content-Type': 'application/json' };
+  if (cfg.apiKey) headers.Authorization = 'Bearer ' + cfg.apiKey;
+  const resp = await fetchTimeout(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ model: cfg.model, messages, temperature: 0.7 }),
+  }, timeoutMs);
+  if (!resp.ok) {
+    const body = (await resp.text().catch(() => '')).slice(0, 300);
+    const err = new Error(`LLM HTTP ${resp.status}: ${body || resp.statusText}`);
+    err.llm = true;
+    throw err;
+  }
+  const j = await resp.json();
+  const content = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+  if (!content) { const err = new Error('LLM 返回内容为空'); err.llm = true; throw err; }
+  return String(content);
+}
+
 // ---------- HTTP server ----------
 function sendJson(res, obj, code = 200) {
   // pyDump: 输出与 python json.dumps(obj, ensure_ascii=False) 一致 (含 float repr 与默认分隔符)
@@ -942,6 +1015,15 @@ async function handleGet(req, res, rawPath, qs) {
       stats.yearly = db.yearly(qs.start || null, qs.end || null);
       stats.last_sync = db.getMeta('last_sync');
       sendJson(res, stats);
+    } catch (e) {
+      sendJson(res, { error: String(e.message || e) }, 500);
+    }
+    return;
+  }
+  if (rawPath === '/api/coach/history') {
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    try {
+      sendJson(res, { messages: db.getMemory(60), count: db.countMemory(), llm: (() => { const c = llmConfig(); return { configured: c.configured, base_url: c.baseUrl, model: c.model, has_key: Boolean(c.apiKey) }; })() });
     } catch (e) {
       sendJson(res, { error: String(e.message || e) }, 500);
     }
@@ -1144,6 +1226,71 @@ async function handlePost(req, res, rawPath, qs) {
       sendJson(res, { error: String(e.message || e) }, 500);
       return;
     }
+  }
+  if (rawPath === '/api/llm/config') {
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    try {
+      const data = JSON.parse(await readBody(req));
+      await syncSerial(() => {
+        const cfg = loadConfig();
+        if ('llm_base_url' in data) cfg.llm_base_url = String(data.llm_base_url || '').trim();
+        if ('llm_model' in data) cfg.llm_model = String(data.llm_model || '').trim();
+        // api_key 传空字符串表示保持不变;传 __CLEAR__ 清空
+        if (data.llm_api_key && data.llm_api_key !== '__KEEP__') {
+          cfg.llm_api_key = data.llm_api_key === '__CLEAR__' ? '' : String(data.llm_api_key).trim();
+        }
+        saveConfig(cfg);
+      });
+      const c = llmConfig();
+      sendJson(res, { ok: true, configured: c.configured, base_url: c.baseUrl, model: c.model, has_key: Boolean(c.apiKey) });
+    } catch (e) {
+      sendJson(res, { error: String(e.message || e) }, 500);
+    }
+    return;
+  }
+  if (rawPath === '/api/coach/test') {
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    const c = llmConfig();
+    if (!c.configured) { sendJson(res, { ok: false, error: '请先配置 API 地址与模型' }, 400); return; }
+    try {
+      const reply = await callLlm(c, [{ role: 'user', content: 'Reply with exactly: OK' }], 20000);
+      sendJson(res, { ok: true, reply: reply.slice(0, 80) });
+    } catch (e) {
+      sendJson(res, { ok: false, error: String(e.message || e) }, 502);
+    }
+    return;
+  }
+  if (rawPath === '/api/coach/chat') {
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    const c = llmConfig();
+    if (!c.configured) { sendJson(res, { error: '尚未配置模型:请到 设置 → 模型 填写 API 地址与模型名' }, 400); return; }
+    try {
+      const data = JSON.parse(await readBody(req));
+      const msg = String(data.message || '').trim();
+      if (!msg) { sendJson(res, { error: '消息为空' }, 400); return; }
+      db.addMemory('user', msg);
+      const lang = data.lang === 'en' ? 'en' : 'zh';
+      const history = db.getMemory(40).filter((m) => m.id !== undefined);
+      // 组消息:系统提示(含训练摘要) + 历史对话(去掉刚写入又重复的最后一条由 history 天然包含)
+      const messages = [{ role: 'system', content: COACH_SYSTEM(buildTrainingDigest(), lang) }];
+      for (const m of history.slice(0, -1)) messages.push({ role: m.role, content: m.content });
+      messages.push({ role: 'user', content: msg });
+      const reply = await callLlm(c, messages);
+      db.addMemory('assistant', reply);
+      sendJson(res, { ok: true, reply });
+    } catch (e) {
+      sendJson(res, { error: String(e.message || e) }, 502);
+    }
+    return;
+  }
+  if (rawPath === '/api/coach/clear') {
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    try {
+      sendJson(res, { ok: true, cleared: db.clearMemory() });
+    } catch (e) {
+      sendJson(res, { error: String(e.message || e) }, 500);
+    }
+    return;
   }
   if (rawPath === '/api/sync') {
     if (!requireApiToken(req, res, qs, rawPath)) return;
