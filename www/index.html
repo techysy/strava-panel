@@ -368,8 +368,8 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         <button id="rgAll" onclick="setRange('all')" data-i18n="rg_all">所有</button>
       </div>
       <div class="grid" id="statsGrid">
-        <div class="card mcard" id="cardCount" onclick="setChartMetric('count')"><div class="label" data-i18n="stats_rides">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div><div class="delta" id="dRides"></div></div>
         <div class="card mcard" id="cardDist" onclick="setChartMetric('dist')"><div class="label" data-i18n="stats_dist">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div><div class="delta" id="dDist"></div></div>
+        <div class="card mcard" id="cardCount" onclick="setChartMetric('count')"><div class="label" data-i18n="stats_rides">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div><div class="delta" id="dRides"></div></div>
         <div class="card mcard" id="cardDur" onclick="setChartMetric('dur')"><div class="label" data-i18n="stats_dur">总时长</div><div class="value"><span id="cDur">-</span><span class="unit">h</span></div><div class="delta" id="dDur"></div></div>
         <div class="card mcard" id="cardElev" onclick="setChartMetric('elev')"><div class="label" data-i18n="stats_elev">总爬升</div><div class="value"><span id="cElev">-</span><span class="unit">m</span></div><div class="delta" id="dElev"></div></div>
         <div class="card" id="cardHr" style="display:none"><div class="label" data-i18n="stats_hr">平均心率</div><div class="value"><span id="cHr">-</span><span class="unit">bpm</span></div><div class="delta" id="dHr"></div></div>
