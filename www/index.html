@@ -370,8 +370,8 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         <div class="card"><div class="label" data-i18n="stats_dist">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div><div class="delta" id="dDist"></div></div>
         <div class="card"><div class="label" data-i18n="stats_dur">总时长</div><div class="value"><span id="cDur">-</span><span class="unit">h</span></div><div class="delta" id="dDur"></div></div>
         <div class="card"><div class="label" data-i18n="stats_elev">总爬升</div><div class="value"><span id="cElev">-</span><span class="unit">m</span></div><div class="delta" id="dElev"></div></div>
-        <div class="card" id="cardHr" style="display:none"><div class="label" data-i18n="stats_hr">平均心率</div><div class="value"><span id="cHr">-</span><span class="unit">bpm</span></div></div>
-        <div class="card" id="cardPw" style="display:none"><div class="label" data-i18n="stats_pw">平均功率</div><div class="value"><span id="cPw">-</span><span class="unit">W</span></div></div>
+        <div class="card" id="cardHr" style="display:none"><div class="label" data-i18n="stats_hr">平均心率</div><div class="value"><span id="cHr">-</span><span class="unit">bpm</span></div><div class="delta" id="dHr"></div></div>
+        <div class="card" id="cardPw" style="display:none"><div class="label" data-i18n="stats_pw">平均功率</div><div class="value"><span id="cPw">-</span><span class="unit">W</span></div><div class="delta" id="dPw"></div></div>
       </div>
       <div class="panel">
         <h2><svg class="ic" aria-hidden="true"><use href="#i-trend"/></svg><span data-i18n="panel_monthly">每月骑行距离 (km)</span><span class="clegend" id="chartLegend" style="display:none"><span class="sw"><i class="box"></i><span data-i18n="cmp_this">本期</span></span><span class="sw"><i class="dash"></i><span data-i18n="cmp_prev">上期</span></span></span><span class="cmp-toggle" id="cmpToggle" onclick="toggleCompare()"><span data-i18n="cmp_label">对比上期</span><span class="switch"></span></span></h2>
@@ -850,6 +850,8 @@ async function loadData(){
       document.getElementById('cardPw').style.display = pwOk ? '' : 'none';
       if(hrOk) document.getElementById('cHr').textContent = Math.round(s.avg_heartrate);
       if(pwOk) document.getElementById('cPw').textContent = Math.round(s.avg_watts);
+      setDelta('dHr', s.avg_heartrate, p && p.avg_heartrate != null ? p.avg_heartrate : null);
+      setDelta('dPw', s.avg_watts, p && p.avg_watts != null ? p.avg_watts : null);
       // 按时间范围选择图表粒度（对齐官方：7D/1M→日, 3M/6M→周, YTD/12M→月, 所有→年）
       let series = [], prevSeries = [], key = '', title = t('panel_monthly');
       if(range === '7d' || range === '1m'){ series = s.daily||[]; key = 'day'; title = t('panel_daily'); }
@@ -958,11 +960,11 @@ function renderMonthly(months, key, prev){
       const fill = isToday ? C.text : C.muted;
       const anchor = i === 0 && key !== 'day' ? 'start' : (i === n-1 && key !== 'day' ? 'end' : 'middle');
       const lx = (i === 0 && key !== 'day') ? padL : ((i === n-1 && key !== 'day') ? w - padR : cx);
-      xLabels.push(`<text x="${lx.toFixed(1)}" y="${h-6}" text-anchor="${anchor}" font-size="${key==='day'?11:10}"${bold} fill="${fill}">${l}</text>`);
+      xLabels.push(`<text x="${lx.toFixed(1)}" y="${h-7}" text-anchor="${anchor}" font-size="${key==='day'?11:10}"${bold} fill="${fill}">${l}</text>`);
     }
     if(isToday){
       // 官方「今天」橙色三角指针
-      marks.push(`<path d="M${(cx-4.5).toFixed(1)},${h-1} L${(cx+4.5).toFixed(1)},${h-1} L${cx.toFixed(1)},${h-7} Z" fill="${C.brand}"/>`);
+      marks.push(`<path d="M${(cx-4).toFixed(1)},${h-1} L${(cx+4).toFixed(1)},${h-1} L${cx.toFixed(1)},${h-5.5} Z" fill="${C.brand}"/>`);
     }
     if(m.dist_km > 0){
       const bh = Math.max(3, (m.dist_km/max)*ih);
