@@ -8,151 +8,180 @@
 <style>
 :root{
   color-scheme:light;
-  --bg:#f5f6f8;--surface:#ffffff;--surface-2:#fafafa;--tertiary:#f0f0f0;--hover:#f5f6f8;--active:#eef0f3;
-  --border-subtle:#eeeeee;--border:#e5e5e5;--border-strong:#cccccc;
-  --text:#1f1f1f;--text-2:#5f6368;--text-3:#999999;--muted:#5f6368;
-  --accent:#fc4c02;--accent-rgb:252,76,2;--accent-2:#e84300;
-  --btn-bg:#1f1f1f;--btn-fg:#ffffff;
+  --bg:#f6f7f9;--surface:#ffffff;--surface-2:#fafbfc;--tertiary:#f1f2f4;--hover:#f4f5f7;--active:#e9ebef;
+  --border-subtle:#eef0f3;--border:#e4e6ea;--border-strong:#cfd3da;
+  --text:#16161a;--text-2:#55585f;--text-3:#8b8f98;--muted:#55585f;
+  --accent:#fc4c02;--accent-rgb:252,76,2;--accent-2:#e03d00;
+  --btn-bg:#16161a;--btn-fg:#ffffff;
   --ok:#16a34a;--warn:#d97706;--err:#dc2626;
-  --ok-soft:rgba(34,197,94,.14);--warn-soft:rgba(245,158,11,.12);--err-soft:rgba(239,68,68,.1);
-  --radius:14px;
-  --shadow:0 10px 40px rgba(0,0,0,.12);--toast-shadow:0 6px 24px rgb(0 0 0 / 14%);
+  --ok-soft:rgba(22,163,74,.12);--warn-soft:rgba(217,119,6,.12);--err-soft:rgba(220,38,38,.1);
+  --radius:16px;
+  --shadow-sm:0 1px 2px rgba(16,24,40,.05);
+  --shadow:0 12px 32px -8px rgba(16,24,40,.16);
+  --toast-shadow:0 10px 32px rgba(16,24,40,.18);
 }
 html[data-theme="dark"]{
   color-scheme:dark;
-  --bg:#0a0a0c;--surface:#131316;--surface-2:#17171b;--tertiary:#1b1b20;--hover:rgba(255,255,255,.06);--active:rgba(255,255,255,.1);
-  --border-subtle:#202025;--border:rgba(255,255,255,.13);--border-strong:#3a3a42;
-  --text:#e6e6e9;--text-2:rgba(230,230,233,.72);--text-3:rgba(230,230,233,.5);--muted:rgba(230,230,233,.72);
-  --accent:#fc4c02;--accent-rgb:252,76,2;--accent-2:#ff6a2b;
-  --btn-bg:rgba(255,255,255,.92);--btn-fg:#0a0a0c;
-  --ok:#2ee59d;--warn:#ffb03a;--err:#ff6b6b;
-  --ok-soft:rgba(46,229,157,.14);--warn-soft:rgba(255,176,58,.12);--err-soft:rgba(255,107,107,.12);
-  --shadow:0 10px 40px rgba(0,0,0,.5);--toast-shadow:0 6px 24px rgb(0 0 0 / 45%);
+  --bg:#0a0a0d;--surface:#151519;--surface-2:#1a1a20;--tertiary:#202027;--hover:rgba(255,255,255,.06);--active:rgba(255,255,255,.1);
+  --border-subtle:#22232a;--border:rgba(255,255,255,.1);--border-strong:#3c3e48;
+  --text:#f0f0f3;--text-2:rgba(240,240,243,.7);--text-3:rgba(240,240,243,.45);--muted:rgba(240,240,243,.7);
+  --accent:#ff5a1a;--accent-rgb:255,90,26;--accent-2:#ff7a45;
+  --btn-bg:rgba(255,255,255,.92);--btn-fg:#0a0a0d;
+  --ok:#34d399;--warn:#fbbf24;--err:#f87171;
+  --ok-soft:rgba(52,211,153,.14);--warn-soft:rgba(251,191,36,.13);--err-soft:rgba(248,113,113,.13);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.35);
+  --shadow:0 16px 40px -8px rgba(0,0,0,.55);
+  --toast-shadow:0 10px 32px rgba(0,0,0,.5);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;font-size:13px;min-height:100vh;-webkit-font-smoothing:antialiased;transition:background .2s,color .2s}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:14px;line-height:1.5;min-height:100vh;-webkit-font-smoothing:antialiased;transition:background .25s,color .25s}
 button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
-.wrap{max-width:1120px;margin:0 auto;padding:18px 22px 40px}
+::selection{background:rgba(var(--accent-rgb),.22)}
+.wrap{max-width:1160px;margin:0 auto;padding:20px 24px 48px}
 .num{font-variant-numeric:tabular-nums}
+/* 行内线性图标（Lucide 风格，stroke=currentColor） */
+.ic{width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 
 /* header */
-.head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 2px 16px}
-.brand{display:flex;align-items:center;gap:10px;min-width:0}
-.logo{width:36px;height:36px;flex-shrink:0;display:block;border-radius:9px;overflow:hidden}
+.head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 2px 20px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.logo{width:40px;height:40px;flex-shrink:0;display:block;border-radius:11px;overflow:hidden;box-shadow:0 6px 16px -6px rgba(var(--accent-rgb),.55)}
 .logo svg{width:100%;height:100%;display:block}
-.title{font-size:16px;font-weight:750;letter-spacing:-.3px;line-height:1.15}
-.ver{color:var(--text-3);font-size:11px;line-height:1.55;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.head-right{display:flex;align-items:center;gap:8px}
+.title{font-size:17px;font-weight:750;letter-spacing:-.4px;line-height:1.2}
+.ver{color:var(--text-3);font-size:11.5px;line-height:1.45;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.head-right{display:flex;align-items:center;gap:9px}
 /* 状态胶囊 */
-.badge{display:inline-flex;align-items:center;font-size:12px;line-height:1;padding:6px 11px;border-radius:999px;font-weight:600;background:var(--tertiary);color:var(--text-3);white-space:nowrap}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;line-height:1;padding:7px 13px;border-radius:999px;font-weight:600;background:var(--tertiary);color:var(--text-3);white-space:nowrap;border:1px solid transparent;transition:all .2s}
 .badge.ok{color:var(--ok);background:var(--ok-soft)}
 .badge.warn{color:var(--warn);background:var(--warn-soft)}
 @media (max-width:480px){.badge{display:none}}
 /* 右上角聚合菜单：锚定按钮下方的下拉（非全屏弹窗），工作区 / 外观 / 关于三区 */
 .hmenu{position:relative;display:inline-flex}
-.icon-btn{width:30px;height:30px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;border:1px solid transparent;background:var(--hover);color:var(--text-2);cursor:pointer;transition:all .15s;padding:0;font-size:15px;line-height:1}
-.icon-btn:hover{background:var(--active);color:var(--text)}
-.icon-btn:active{transform:scale(.92)}
-.hmenu-pop{position:absolute;right:0;top:calc(100% + 10px);z-index:60;width:252px;background:var(--surface);border:1px solid var(--border-subtle);border-radius:14px;padding:7px;box-shadow:var(--shadow);display:none}
+.icon-btn{width:34px;height:34px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--border);background:var(--surface);color:var(--text-2);cursor:pointer;transition:all .15s;padding:0;line-height:1;box-shadow:var(--shadow-sm)}
+.icon-btn .ic{width:17px;height:17px}
+.icon-btn:hover{background:var(--hover);color:var(--text);border-color:var(--border-strong)}
+.icon-btn:active{transform:scale(.93)}
+.hmenu-pop{position:absolute;right:0;top:calc(100% + 10px);z-index:60;width:264px;background:var(--surface);border:1px solid var(--border-subtle);border-radius:16px;padding:7px;box-shadow:var(--shadow);display:none}
 .hmenu-pop.show{display:block}
 .hmenu-group{padding:3px 0}
 .hmenu-group + .hmenu-group{margin-top:4px;padding-top:7px;border-top:1px solid var(--border-subtle)}
-.hmenu-title{padding:4px 10px 5px;font-size:10.5px;font-weight:700;letter-spacing:.6px;color:var(--text-3);text-transform:uppercase}
-.hmenu-item{display:flex;align-items:center;gap:9px;width:100%;padding:7px 10px;border:0;border-radius:8px;background:transparent;color:var(--text-2);font-size:13px;font-weight:600;cursor:pointer;text-align:left;font-family:inherit;text-decoration:none}
+.hmenu-title{padding:5px 10px 6px;font-size:11px;font-weight:700;letter-spacing:.7px;color:var(--text-3);text-transform:uppercase}
+.hmenu-item{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border:0;border-radius:10px;background:transparent;color:var(--text-2);font-size:13.5px;font-weight:600;cursor:pointer;text-align:left;font-family:inherit;text-decoration:none}
+.hmenu-item .ic{color:var(--text-3);transition:color .15s}
 .hmenu-item:hover{background:var(--hover);color:var(--text)}
+.hmenu-item:hover .ic{color:var(--accent)}
 .hmenu-item:active{transform:translateY(1px)}
 /* 主题 / 语言分段控件（跟随系统 / 亮色 / 暗色），当前态高亮，主题只有一个真相源 */
-.mode-seg{display:inline-flex;gap:3px;margin:2px 6px 4px;padding:3px;border-radius:9px;background:var(--tertiary)}
+.mode-seg{display:inline-flex;gap:3px;margin:3px 6px 5px;padding:4px;border-radius:11px;background:var(--tertiary)}
 .lang-seg{display:flex;width:calc(100% - 12px)}
-.lang-seg .seg-btn{flex:1 1 0;padding:6px 0}
-.seg-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 9px;border:0;border-radius:7px;background:transparent;color:var(--text-3);font-size:12px;font-weight:600;line-height:1;cursor:pointer;font-family:inherit;white-space:nowrap}
+.lang-seg .seg-btn{flex:1 1 0;padding:7px 0}
+.seg-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:7px 11px;border:0;border-radius:8px;background:transparent;color:var(--text-3);font-size:12.5px;font-weight:600;line-height:1;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .15s}
 .seg-btn:hover{color:var(--text)}
-.seg-btn.on{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg-btn.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
 html[data-theme="dark"] .seg-btn.on{background:var(--active);box-shadow:none}
-.hmenu-ver{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px 4px;margin-top:4px;border-top:1px solid var(--border-subtle);color:var(--text-3);font-size:11px}
+.hmenu-ver{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px 4px;margin-top:4px;border-top:1px solid var(--border-subtle);color:var(--text-3);font-size:11.5px}
 .hmenu-ver a{color:var(--text-3);text-decoration:none}
 .hmenu-ver a:hover{color:var(--text)}
 
 /* 顶部标签页（<768px 时横向滚动，不用汉堡菜单） */
-.nav{display:flex;gap:4px;padding:4px;margin-bottom:14px;background:var(--surface);border:1px solid var(--border-subtle);border-radius:12px;width:fit-content;max-width:100%;overflow-x:auto}
-.nav button{display:inline-flex;align-items:center;gap:6px;border:none;background:transparent;color:var(--text-2);font-size:13px;font-weight:600;padding:7px 14px;border-radius:9px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
-.nav button:hover{color:var(--text);background:var(--hover)}
-.nav button.active{background:var(--btn-bg);color:var(--btn-fg)}
+.nav{display:flex;gap:4px;padding:4px;margin-bottom:18px;background:var(--tertiary);border-radius:13px;width:fit-content;max-width:100%;overflow-x:auto}
+.nav button{display:inline-flex;align-items:center;gap:7px;border:none;background:transparent;color:var(--text-2);font-size:13.5px;font-weight:600;padding:8px 16px;border-radius:10px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,box-shadow .15s}
+.nav button .ic{color:var(--text-3)}
+.nav button:hover{color:var(--text)}
+.nav button.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
+.nav button.active .ic{color:var(--accent)}
+html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var(--border-subtle)}
 .view{display:none}
 .view.active{display:block}
 
 /* buttons */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:7px 13px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text-2);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;line-height:1.2;white-space:nowrap}
-.btn:hover{background:var(--hover);border-color:var(--border-strong);color:var(--text)}
-.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-.btn.primary:hover{opacity:.88;background:var(--accent);border-color:var(--accent);color:#fff}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:8px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text-2);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;line-height:1.3;white-space:nowrap;box-shadow:var(--shadow-sm)}
+.btn .ic{color:var(--text-3)}
+.btn:hover{border-color:var(--border-strong);color:var(--text)}
 .btn:active{transform:translateY(1px)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.primary{background:var(--accent);color:#fff;border-color:transparent;box-shadow:0 2px 12px -2px rgba(var(--accent-rgb),.55)}
+.btn.primary .ic{color:#fff}
+.btn.primary:hover{background:var(--accent-2);color:#fff;border-color:transparent}
 
 /* panels & stat cards */
-.panel{background:var(--surface);border:1px solid var(--border-subtle);border-radius:var(--radius);padding:16px 18px;margin-bottom:14px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
-.panel h2{font-size:13px;font-weight:700;margin-bottom:12px}
-.stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
-.stat-group{background:var(--surface-2);border:1px solid var(--border-subtle);border-radius:12px;padding:12px}
-.stat-group-title{font-size:12px;font-weight:600;color:var(--text-3);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.panel{background:var(--surface);border:1px solid var(--border-subtle);border-radius:var(--radius);padding:20px 22px;margin-bottom:16px;box-shadow:var(--shadow-sm)}
+.panel h2{font-size:15px;font-weight:700;letter-spacing:-.2px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.panel h2 .ic{width:16px;height:16px;color:var(--accent)}
+.stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.stat-group{background:var(--surface-2);border:1px solid var(--border-subtle);border-radius:14px;padding:16px}
+.stat-group-title{font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:12px;display:flex;align-items:center;gap:7px}
+.stat-group-title .ic{width:15px;height:15px;color:var(--text-3)}
 .stat-grid{display:flex;flex-direction:column;gap:0}
-.stat-aggr{background:var(--surface);border:1px solid var(--border-subtle);border-radius:10px;padding:4px 12px}
-.stat-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border-subtle)}
+.stat-aggr{background:var(--surface);border:1px solid var(--border-subtle);border-radius:12px;padding:4px 13px}
+.stat-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-subtle)}
 .stat-row:last-child{border-bottom:none}
-.stat-row .k{font-size:12px;color:var(--text-3);flex-shrink:0}
-.stat-row .v{font-size:12.5px;font-weight:600;text-align:right;word-break:break-all;font-variant-numeric:tabular-nums}
-.stat-badge{display:inline-block;font-size:11px;padding:3px 9px;border-radius:999px;font-weight:600}
+.stat-row .k{font-size:13px;color:var(--text-3);flex-shrink:0}
+.stat-row .v{font-size:13.5px;font-weight:600;text-align:right;word-break:break-all;font-variant-numeric:tabular-nums}
+.stat-badge{display:inline-flex;align-items:center;font-size:12px;padding:4px 10px;border-radius:999px;font-weight:600}
 .stat-badge.ok{background:var(--ok-soft);color:var(--ok)}
 .stat-badge.warn{background:var(--warn-soft);color:var(--warn)}
 .dot-on{background:var(--ok)}.dot-off{background:var(--err)}
 
 /* metrics cards */
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
-.card{background:var(--surface);border:1px solid var(--border-subtle);border-radius:var(--radius);padding:16px 18px}
-.card .label{font-size:12px;color:var(--text-3);margin-bottom:6px}
-.card .value{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums}
-.card .unit{font-size:13px;color:var(--text-3);font-weight:500;margin-left:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+.card{background:var(--surface);border:1px solid var(--border-subtle);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow-sm);transition:transform .15s,box-shadow .15s}
+.card:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.card .cic{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;background:rgba(var(--accent-rgb),.1);color:var(--accent);margin-bottom:12px}
+.card .cic svg{width:18px;height:18px}
+.card .label{font-size:13px;color:var(--text-3);margin-bottom:5px}
+.card .value{font-size:28px;font-weight:750;letter-spacing:-.5px;line-height:1.15;font-variant-numeric:tabular-nums}
+.card .unit{font-size:13.5px;color:var(--text-3);font-weight:500;margin-left:3px;letter-spacing:0}
 
 /* 日期范围分段控件 */
-.seg{display:flex;gap:3px;padding:3px;border-radius:10px;background:var(--tertiary);margin-bottom:14px;overflow-x:auto;max-width:100%}
-.seg button{padding:6px 10px;border:0;border-radius:8px;background:transparent;color:var(--text-3);cursor:pointer;font-size:12px;font-weight:600;flex:1 1 0;min-width:56px;text-align:center;white-space:nowrap;transition:all .15s}
+.seg{display:flex;gap:3px;padding:4px;border-radius:12px;background:var(--tertiary);margin-bottom:16px;overflow-x:auto;max-width:100%}
+.seg button{padding:7px 12px;border:0;border-radius:9px;background:transparent;color:var(--text-3);cursor:pointer;font-size:13px;font-weight:600;flex:1 1 0;min-width:56px;text-align:center;white-space:nowrap;transition:all .15s}
 .seg button:hover{color:var(--text)}
-.seg button.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg button.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
 html[data-theme="dark"] .seg button.active{background:var(--active);box-shadow:none}
 
 /* table & pager */
-table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border-subtle)}
-th{color:var(--text-3);font-weight:500;font-size:12px}
-td{font-variant-numeric:tabular-nums}
-tr:last-child td{border-bottom:none}
-.pager{display:flex;align-items:center;gap:8px;margin-top:12px;justify-content:center}
-.pager button{padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text-2);cursor:pointer;font-size:12px;font-weight:600}
-.pager button:hover{background:var(--hover);color:var(--text)}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--border-subtle)}
+th{color:var(--text-3);font-weight:600;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:9px 14px;border-bottom:1px solid var(--border);background:var(--surface-2)}
+td{font-variant-numeric:tabular-nums;color:var(--text)}
+th:nth-child(n+3),td:nth-child(n+3){text-align:right}
+tbody tr{transition:background .12s}
+tbody tr:hover td{background:var(--hover)}
+tbody tr:last-child td{border-bottom:none}
+td:first-child{color:var(--text-2)}
+.pager{display:flex;align-items:center;gap:8px;margin-top:14px;justify-content:center}
+.pager button{padding:7px 13px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text-2);cursor:pointer;font-size:13px;font-weight:600;box-shadow:var(--shadow-sm);transition:all .15s}
+.pager button:hover{border-color:var(--border-strong);color:var(--text)}
 .pager button:disabled{opacity:.4;cursor:not-allowed}
-.pager .pager-info{font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.pager .pager-info{font-size:12.5px;color:var(--text-3);font-variant-numeric:tabular-nums}
 
+/* 页签/菜单文本节点（线性图标已移出 i18n 字典，避免覆盖 SVG） */
+.tab-txt,.mi-txt{min-width:0}
 /* log console */
 .log-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
-select{width:auto;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text);font-size:12px}
-.log-view{background:var(--tertiary);color:var(--text-2);border:1px solid var(--border-subtle);border-radius:10px;padding:12px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;max-height:70vh;overflow-y:auto;line-height:1.6}
+select{width:auto;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:13px;box-shadow:var(--shadow-sm)}
+.log-view{background:var(--tertiary);color:var(--text-2);border:1px solid var(--border-subtle);border-radius:12px;padding:14px 16px;font-size:12.5px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;max-height:70vh;overflow-y:auto;line-height:1.7}
 
 /* forms */
-label{display:block;font-size:12px;color:var(--text-3);margin:10px 0 4px}
-input,textarea{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text);font-size:13px;outline:none;transition:border-color .15s}
-input:focus,textarea:focus{border-color:var(--border-strong)}
-input::placeholder{color:var(--text-3);opacity:.7}
+label{display:block;font-size:13px;font-weight:600;color:var(--text-2);margin:14px 0 6px}
+input,textarea{width:100%;padding:10px 13px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text);font-size:14px;outline:none;transition:border-color .15s,box-shadow .15s,background .15s}
+input:focus,textarea:focus{border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.14)}
+input::placeholder{color:var(--text-3);opacity:.8}
 textarea{min-height:120px;resize:vertical}
 .msg{font-size:13px;margin-top:10px;color:var(--accent);min-height:18px}
-.hint{font-size:12px;color:var(--text-3);margin-top:8px;line-height:1.6}
+.hint{font-size:12.5px;color:var(--text-3);margin-top:8px;line-height:1.65}
 .hint a{color:var(--accent);word-break:break-all}
-.api-doc{background:var(--tertiary);border:1px solid var(--border-subtle);border-radius:10px;padding:14px;font-size:12px;line-height:1.7;max-height:70vh;overflow-y:auto;white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--text-2)}
+.api-doc{background:var(--tertiary);border:1px solid var(--border-subtle);border-radius:12px;padding:16px;font-size:12.5px;line-height:1.75;max-height:70vh;overflow-y:auto;white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--text-2)}
 
 /* settings subtabs */
-.subtabs{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border-subtle);border-radius:12px;padding:4px;width:fit-content;max-width:100%}
-.subtab{padding:7px 16px;border:0;border-radius:9px;background:transparent;color:var(--text-2);cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap;transition:background .15s,color .15s}
-.subtab:hover{color:var(--text);background:var(--hover)}
-.subtab.active{background:var(--btn-bg);color:var(--btn-fg)}
+.subtabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap;background:var(--tertiary);border-radius:13px;padding:4px;width:fit-content;max-width:100%}
+.subtab{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:0;border-radius:10px;background:transparent;color:var(--text-2);cursor:pointer;font-size:13.5px;font-weight:600;white-space:nowrap;transition:background .15s,color .15s,box-shadow .15s}
+.subtab .ic{color:var(--text-3)}
+.subtab:hover{color:var(--text)}
+.subtab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
+.subtab.active .ic{color:var(--accent)}
+html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--border-subtle)}
 .subpanel{display:none}
 .subpanel.active{display:block}
 
@@ -160,20 +189,48 @@ textarea{min-height:120px;resize:vertical}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* toast */
-#toast{position:fixed;bottom:24px;left:50%;transform:translate(-50%,8px);z-index:70;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:9px 14px;font-size:12px;font-weight:600;color:var(--text);box-shadow:var(--toast-shadow);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:80vw}
+#toast{position:fixed;bottom:26px;left:50%;transform:translate(-50%,8px);z-index:70;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 16px;font-size:13px;font-weight:600;color:var(--text);box-shadow:var(--toast-shadow);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:80vw}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 #toast.err{border-color:var(--err);color:var(--err)}
 #toast.ok{border-color:var(--ok);color:var(--ok)}
 
 @media (max-width:768px){
-  .wrap{padding:14px 12px 32px}
+  .wrap{padding:14px 12px 36px}
   .grid{grid-template-columns:repeat(2,1fr)}
+  .card{padding:14px 16px}
+  .card .value{font-size:22px}
+  .panel{padding:16px 16px}
   .log-controls select{flex:1 1 auto;min-width:0}
   .log-controls button{flex:1 1 auto}
 }
 </style>
 </head>
 <body>
+<!-- 线性图标 sprite（stroke=currentColor，随主题自动取色） -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+<defs>
+<symbol id="i-bike" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5V14l-3-3 4-6 5 6h-3"/></symbol>
+<symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></symbol>
+<symbol id="i-trend" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></symbol>
+<symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></symbol>
+<symbol id="i-github" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></symbol>
+<symbol id="i-database" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></symbol>
+<symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+<symbol id="i-cpu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1.5"/><line x1="8" y1="14" x2="8.01" y2="14"/><line x1="16" y1="14" x2="16.01" y2="14"/><line x1="9" y1="17.5" x2="15" y2="17.5"/></symbol>
+<symbol id="i-clipboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></symbol>
+<symbol id="i-server" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><line x1="6" y1="7" x2="6.01" y2="7"/><line x1="6" y1="17" x2="6.01" y2="17"/></symbol>
+<symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+<symbol id="i-mountain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3l4 8 5-5 5 15H2L8 3z"/></symbol>
+<symbol id="i-route" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h6a3 3 0 0 0 3-3V8"/></symbol>
+</defs>
+</svg>
 <div class="wrap">
   <header class="head">
     <div class="brand">
@@ -184,17 +241,17 @@ textarea{min-height:120px;resize:vertical}
       </div>
     </div>
     <div class="head-right">
-      <span class="badge" id="statusBadge">…</span>
+      <span class="badge" id="statusBadge"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg>…</span>
       <!-- 聚合菜单：工作区 / 外观 / 关于分区，下拉紧贴按钮，非全屏弹窗 -->
       <div class="hmenu" id="hmenu">
-        <button class="icon-btn" id="hmenuBtn" onclick="toggleHmenu(event)" title="Menu">⚙️</button>
+        <button class="icon-btn" id="hmenuBtn" onclick="toggleHmenu(event)" title="Menu"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg></button>
         <div class="hmenu-pop" id="hmenuPop">
           <div class="hmenu-group">
             <div class="hmenu-title" data-i18n="menu_workspace">工作区</div>
-            <button class="hmenu-item" onclick="closeHmenu();syncNow()" data-i18n="sync_btn">🔄 立即同步</button>
-            <button class="hmenu-item" onclick="exportCsv()" data-i18n="export_csv">⬇️ 导出 CSV</button>
-            <button class="hmenu-item" onclick="exportJson()" data-i18n="export_json">⬇️ 导出 JSON</button>
-            <button class="hmenu-item" onclick="closeHmenu();refreshStatus()" data-i18n="hm_refresh">🔄 刷新状态</button>
+            <button class="hmenu-item" onclick="closeHmenu();syncNow()"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span class="mi-txt" data-i18n="sync_btn">立即同步</span></button>
+            <button class="hmenu-item" onclick="exportCsv()"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span class="mi-txt" data-i18n="export_csv">导出 CSV</span></button>
+            <button class="hmenu-item" onclick="exportJson()"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span class="mi-txt" data-i18n="export_json">导出 JSON</span></button>
+            <button class="hmenu-item" onclick="closeHmenu();refreshStatus()"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span class="mi-txt" data-i18n="hm_refresh">刷新状态</span></button>
           </div>
           <div class="hmenu-group">
             <div class="hmenu-title" data-i18n="menu_appearance">外观</div>
@@ -210,8 +267,8 @@ textarea{min-height:120px;resize:vertical}
           </div>
           <div class="hmenu-group">
             <div class="hmenu-title" data-i18n="menu_about">关于</div>
-            <button class="hmenu-item" onclick="closeHmenu();switchNav('settings');switchSubTab('api')" data-i18n="hm_apidoc">📖 API 文档</button>
-            <a class="hmenu-item" href="https://github.com/techysy/strava-panel" target="_blank" rel="noopener" data-i18n="hm_github">GitHub ↗</a>
+            <button class="hmenu-item" onclick="closeHmenu();switchNav('settings');switchSubTab('api')"><svg class="ic" aria-hidden="true"><use href="#i-book"/></svg><span class="mi-txt" data-i18n="hm_apidoc">API 文档</span></button>
+            <a class="hmenu-item" href="https://github.com/techysy/strava-panel" target="_blank" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg><span class="mi-txt" data-i18n="hm_github">GitHub</span></a>
           </div>
           <div class="hmenu-ver"><span data-i18n="app_title">Strava Panel</span><span class="ver">v__APP_VERSION__</span></div>
         </div>
@@ -220,39 +277,39 @@ textarea{min-height:120px;resize:vertical}
   </header>
 
   <nav class="nav" id="nav">
-    <button data-view="data" class="active" onclick="switchNav('data')" data-i18n="nav_data">🚴 骑行数据</button>
-    <button data-view="rides" onclick="switchNav('rides')" data-i18n="nav_rides">🚴 最近骑行</button>
-    <button data-view="dash" onclick="switchNav('dash')" data-i18n="nav_dash">📊 仪表板</button>
-    <button data-view="settings" onclick="switchNav('settings')" data-i18n="nav_settings">⚙️ 设置</button>
+    <button data-view="data" class="active" onclick="switchNav('data')"><svg class="ic" aria-hidden="true"><use href="#i-bike"/></svg><span class="tab-txt" data-i18n="nav_data">骑行数据</span></button>
+    <button data-view="rides" onclick="switchNav('rides')"><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg><span class="tab-txt" data-i18n="nav_rides">最近骑行</span></button>
+    <button data-view="dash" onclick="switchNav('dash')"><svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg><span class="tab-txt" data-i18n="nav_dash">仪表板</span></button>
+    <button data-view="settings" onclick="switchNav('settings')"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg><span class="tab-txt" data-i18n="nav_settings">设置</span></button>
   </nav>
 
   <main>
     <!-- 仪表板 -->
     <div class="view" id="tab-dash">
       <div class="panel">
-        <h2 data-i18n="dash_title">📊 服务状态</h2>
+        <h2><svg class="ic" aria-hidden="true"><use href="#i-server"/></svg><span data-i18n="dash_title">服务状态</span></h2>
         <div class="stat-cards">
           <div class="stat-group">
-            <div class="stat-group-title" data-i18n="stat_group_strava">🔗 Strava API</div>
+            <div class="stat-group-title"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg><span data-i18n="stat_group_strava">Strava API</span></div>
             <div class="stat-grid" id="statStrava"></div>
           </div>
           <div class="stat-group">
-            <div class="stat-group-title" data-i18n="stat_group_db">🗄️ 本地数据库</div>
+            <div class="stat-group-title"><svg class="ic" aria-hidden="true"><use href="#i-database"/></svg><span data-i18n="stat_group_db">本地数据库</span></div>
             <div class="stat-grid" id="statDb"></div>
           </div>
           <div class="stat-group">
-            <div class="stat-group-title" data-i18n="stat_group_agent">🤖 Agent 外部调用</div>
+            <div class="stat-group-title"><svg class="ic" aria-hidden="true"><use href="#i-cpu"/></svg><span data-i18n="stat_group_agent">Agent 外部调用</span></div>
             <div class="stat-grid" id="statAgent"></div>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap">
-          <button class="btn primary" onclick="syncNow()" data-i18n="sync_btn">🔄 立即同步</button>
-          <button class="btn" onclick="recreateToken()" data-i18n="token_btn">🔑 创建 token</button>
+          <button class="btn primary" onclick="syncNow()"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span data-i18n="sync_btn">立即同步</span></button>
+          <button class="btn" onclick="recreateToken()"><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg><span data-i18n="token_btn">创建 token</span></button>
           <span class="hint" id="dashMsg" style="margin:0"></span>
         </div>
       </div>
       <div class="panel">
-        <h2 data-i18n="console_title">📜 日志控制台</h2>
+        <h2><svg class="ic" aria-hidden="true"><use href="#i-file"/></svg><span data-i18n="console_title">日志控制台</span></h2>
         <div class="log-controls">
           <select id="logSource" onchange="loadLogDates()">
             <option value="system" data-i18n="log_src_system">系统日志</option>
@@ -260,8 +317,8 @@ textarea{min-height:120px;resize:vertical}
             <option value="agent" data-i18n="log_src_agent">Agent 调用</option>
           </select>
           <select id="logDate" onchange="loadLogs()"><option value="" data-i18n="current">当前</option></select>
-          <button class="btn" onclick="loadLogs()" data-i18n="refresh">🔄 刷新</button>
-          <button class="btn" onclick="downloadLog()" data-i18n="download">⬇️ 下载</button>
+          <button class="btn" onclick="loadLogs()"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span data-i18n="refresh">刷新</span></button>
+          <button class="btn" onclick="downloadLog()"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="download">下载</span></button>
         </div>
         <div class="hint" id="logInfo" style="margin-bottom:8px"></div>
         <pre id="logView" class="log-view" data-i18n-holder="(暂无日志)"></pre>
@@ -281,13 +338,13 @@ textarea{min-height:120px;resize:vertical}
         <button id="rgAll" onclick="setRange('all')" data-i18n="rg_all">所有</button>
       </div>
       <div class="grid" id="statsGrid">
-        <div class="card"><div class="label" data-i18n="stats_rides">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div></div>
-        <div class="card"><div class="label" data-i18n="stats_dist">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div></div>
-        <div class="card"><div class="label" data-i18n="stats_dur">总时长</div><div class="value"><span id="cDur">-</span><span class="unit">h</span></div></div>
-        <div class="card"><div class="label" data-i18n="stats_elev">总爬升</div><div class="value"><span id="cElev">-</span><span class="unit">m</span></div></div>
+        <div class="card"><div class="cic"><svg aria-hidden="true"><use href="#i-bike"/></svg></div><div class="label" data-i18n="stats_rides">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div></div>
+        <div class="card"><div class="cic"><svg aria-hidden="true"><use href="#i-route"/></svg></div><div class="label" data-i18n="stats_dist">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div></div>
+        <div class="card"><div class="cic"><svg aria-hidden="true"><use href="#i-clock"/></svg></div><div class="label" data-i18n="stats_dur">总时长</div><div class="value"><span id="cDur">-</span><span class="unit">h</span></div></div>
+        <div class="card"><div class="cic"><svg aria-hidden="true"><use href="#i-mountain"/></svg></div><div class="label" data-i18n="stats_elev">总爬升</div><div class="value"><span id="cElev">-</span><span class="unit">m</span></div></div>
       </div>
       <div class="panel">
-        <h2 data-i18n="panel_monthly">📊 每月骑行距离 (km)</h2>
+        <h2><svg class="ic" aria-hidden="true"><use href="#i-trend"/></svg><span data-i18n="panel_monthly">每月骑行距离 (km)</span></h2>
         <div id="weeklyChart"></div>
       </div>
     </div>
@@ -295,7 +352,7 @@ textarea{min-height:120px;resize:vertical}
     <!-- 最近骑行 -->
     <div class="view" id="tab-rides">
       <div class="panel">
-        <h2 data-i18n="panel_recent">🚴 最近骑行</h2>
+        <h2><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg><span data-i18n="panel_recent">最近骑行</span></h2>
         <table id="recentTable"><thead><tr><th data-i18n="col_date">日期</th><th data-i18n="col_name">活动</th><th data-i18n="col_dist">距离</th><th data-i18n="col_dur">时长</th><th data-i18n="col_speed">均速</th><th data-i18n="col_elev">爬升</th></tr></thead><tbody></tbody></table>
         <div class="pager" id="pager" style="display:none">
           <button id="prevPage" onclick="changePage(-1)" data-i18n="prev_page">‹ 上一页</button>
@@ -308,20 +365,20 @@ textarea{min-height:120px;resize:vertical}
     <!-- 设置 -->
     <div class="view" id="tab-settings">
       <div class="subtabs">
-        <button class="subtab active" onclick="switchSubTab('cred')" data-i18n="sub_cred">🔑 凭据</button>
-        <button class="subtab" onclick="switchSubTab('api')" data-i18n="sub_api">🤖 API</button>
-        <button class="subtab" onclick="switchSubTab('data')" data-i18n="sub_data">🗄️ 数据</button>
+        <button class="subtab active" onclick="switchSubTab('cred')"><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg><span class="tab-txt" data-i18n="sub_cred">凭据</span></button>
+        <button class="subtab" onclick="switchSubTab('api')"><svg class="ic" aria-hidden="true"><use href="#i-cpu"/></svg><span class="tab-txt" data-i18n="sub_api">API</span></button>
+        <button class="subtab" onclick="switchSubTab('data')"><svg class="ic" aria-hidden="true"><use href="#i-database"/></svg><span class="tab-txt" data-i18n="sub_data">数据</span></button>
       </div>
       <div class="subpanel active" id="sub-cred">
         <div class="panel">
-          <h2 data-i18n="setup_title">⚙️ 配置 Strava 凭据</h2>
+          <h2><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg><span data-i18n="setup_title">配置 Strava 凭据</span></h2>
           <p class="hint" style="margin-bottom:8px" data-i18n="setup_hint">在 <a href="https://www.strava.com/settings/api" target="_blank" style="color:var(--accent)">Strava My API Application</a> 查看 Client ID / Client Secret，并添加回调地址 <code id="callbackHint" style="background:var(--tertiary);padding:2px 6px;border-radius:6px">/oauth/callback</code>。Refresh Token 通过 OAuth 授权自动获取。</p>
           <label data-i18n="setup_clientId">Client ID</label><input id="client_id" placeholder="Client ID">
           <label data-i18n="setup_clientSecret">Client Secret</label><input id="client_secret" placeholder="Client Secret">
           <label data-i18n="setup_redirectUri">回调地址 (redirect_uri)</label><input id="redirect_uri" placeholder="http://localhost:20227/oauth/callback">
           <div class="msg" id="setupMsg"></div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <button class="btn primary" onclick="connectStrava()" data-i18n="setup_connect">🔗 连接 Strava</button>
+            <button class="btn primary" onclick="connectStrava()"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg><span data-i18n="setup_connect">连接 Strava</span></button>
             <button class="btn" onclick="saveConfig()" id="saveBtn" data-i18n="setup_save">保存凭据</button>
           </div>
           <div class="hint" style="margin-top:10px" data-i18n="setup_connectHint">「连接 Strava」会在独立窗口打开 Strava 授权页，授权后自动回填并保存 refresh_token。</div>
@@ -329,12 +386,12 @@ textarea{min-height:120px;resize:vertical}
       </div>
       <div class="subpanel" id="sub-api">
         <div class="panel">
-          <h2 data-i18n="api_title">🤖 API 使用指南</h2>
+          <h2><svg class="ic" aria-hidden="true"><use href="#i-cpu"/></svg><span data-i18n="api_title">API 使用指南</span></h2>
           <p class="hint" style="margin-bottom:10px" data-i18n="api_hint">以下为管理面板 REST API 的 Markdown 文档，可直接复制给 agent 使用。</p>
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
-            <button class="btn" onclick="copyApiDoc()" data-i18n="api_copy">📋 复制文档</button>
-            <button class="btn" onclick="viewToken()" data-i18n="view_token">🔑 查看 token</button>
-            <button class="btn" onclick="recreateToken()" data-i18n="token_btn">🔄 创建新 token</button>
+            <button class="btn" onclick="copyApiDoc()"><svg class="ic" aria-hidden="true"><use href="#i-clipboard"/></svg><span data-i18n="api_copy">复制文档</span></button>
+            <button class="btn" onclick="viewToken()"><svg class="ic" aria-hidden="true"><use href="#i-eye"/></svg><span data-i18n="view_token">查看 token</span></button>
+            <button class="btn" onclick="recreateToken()"><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg><span data-i18n="token_btn">创建 token</span></button>
           </div>
           <div class="hint" id="apiTokenMsg" style="margin-bottom:8px;display:none;word-break:break-all"></div>
           <div id="apiDoc" class="api-doc"></div>
@@ -342,12 +399,12 @@ textarea{min-height:120px;resize:vertical}
       </div>
       <div class="subpanel" id="sub-data">
         <div class="panel">
-          <h2 data-i18n="data_title">🗄️ 数据管理</h2>
+          <h2><svg class="ic" aria-hidden="true"><use href="#i-database"/></svg><span data-i18n="data_title">数据管理</span></h2>
           <p class="hint" data-i18n="data_hint">骑行数据缓存到本地 SQLite。可手动同步 Strava→SQLite，或导出全量数据给 agent 使用。</p>
           <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
-            <button class="btn primary" onclick="syncNow()" data-i18n="sync_btn">🔄 立即同步</button>
-            <button class="btn" onclick="exportCsv()" data-i18n="export_csv">⬇️ 导出 CSV</button>
-            <button class="btn" onclick="exportJson()" data-i18n="export_json">⬇️ 导出 JSON</button>
+            <button class="btn primary" onclick="syncNow()"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span data-i18n="sync_btn">立即同步</span></button>
+            <button class="btn" onclick="exportCsv()"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="export_csv">导出 CSV</span></button>
+            <button class="btn" onclick="exportJson()"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="export_json">导出 JSON</span></button>
           </div>
           <div class="msg" id="dataMsg"></div>
         </div>
@@ -361,64 +418,64 @@ textarea{min-height:120px;resize:vertical}
 // ===== i18n =====
 const I18N = {
   zh: {
-    app_title:'Strava Panel', nav_dash:'📊 仪表板', nav_data:'🚴 骑行数据', nav_rides:'🚴 最近骑行', nav_settings:'⚙️ 设置',
-    dash_title:'📊 服务状态', console_title:'📜 日志控制台', refresh:'🔄 刷新', download:'⬇️ 下载', current:'当前', log_src_system:'系统日志', log_src_strava:'Strava API', log_src_agent:'Agent 调用',
+    app_title:'Strava Panel', nav_dash:'仪表板', nav_data:'骑行数据', nav_rides:'最近骑行', nav_settings:'设置',
+    dash_title:'服务状态', console_title:'日志控制台', refresh:'刷新', download:'下载', current:'当前', log_src_system:'系统日志', log_src_strava:'Strava API', log_src_agent:'Agent 调用',
     console_hint:'日志按日期归档，可查看历史日期。当前日志仅保留当天，历史自动归档到 data/logs/ 目录。',
-    sync_btn:'🔄 立即同步', token_btn:'🔑 创建 token',
-    stat_group_strava:'🔗 Strava API', stat_group_db:'🗄️ 本地数据库', stat_group_agent:'🤖 Agent 外部调用',
+    sync_btn:'立即同步', token_btn:'创建 token',
+    stat_group_strava:'Strava API', stat_group_db:'本地数据库', stat_group_agent:'Agent 外部调用',
     stat_configured:'凭据', stat_token:'授权', stat_activities:'缓存活动', stat_sync:'最后同步', stat_port:'端口', stat_version:'版本', stat_connected:'已连接', stat_not_configured:'未配置', stat_error:'异常',
     stat_athlete:'Athlete ID', stat_dbsize:'DB 大小', stat_dbpath:'DB 路径', stat_apitoken:'API token', stat_calls:'调用次数', stat_lastcall:'最后调用',
     stat_configured_ok:'已配置', stat_configured_no:'未配置', stat_token_ok:'正常', stat_token_no:'失效', stat_apitoken_ok:'已生成', stat_apitoken_no:'未生成',
     rg_7d:'近7天', rg_1m:'近1月', rg_3m:'近3月', rg_6m:'近6月', rg_ytd:'本年度', rg_12m:'近12月', rg_all:'所有',
     stats_rides:'骑行次数', stats_dist:'总距离', stats_dur:'总时长', stats_elev:'总爬升',
-    panel_monthly:'📊 每月骑行距离 (km)', panel_daily:'📊 每日骑行距离 (km)', panel_weekly:'📊 每周骑行距离 (km)', panel_yearly:'📊 每年骑行距离 (km)', panel_recent:'🚴 最近骑行',
+    panel_monthly:'每月骑行距离 (km)', panel_daily:'每日骑行距离 (km)', panel_weekly:'每周骑行距离 (km)', panel_yearly:'每年骑行距离 (km)', panel_recent:'最近骑行',
     col_date:'日期', col_name:'活动', col_dist:'距离', col_dur:'时长', col_speed:'均速', col_elev:'爬升',
     prev_page:'‹ 上一页', next_page:'下一页 ›', empty:'暂无数据',
-    sub_cred:'🔑 凭据', sub_api:'🤖 API', sub_data:'🗄️ 数据',
-    setup_title:'⚙️ 配置 Strava 凭据', setup_hint:'在 <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a> 查看 Client ID / Client Secret。Refresh Token 需通过 OAuth 授权获取。',
-    setup_clientId:'Client ID', setup_clientSecret:'Client Secret', setup_refreshToken:'Refresh Token', setup_redirectUri:'回调地址 (redirect_uri)', setup_save:'保存凭据', setup_connect:'🔗 连接 Strava', setup_connectHint:'「连接 Strava」会在独立窗口打开 Strava 授权页，授权后自动回填并保存 refresh_token。',
-    setup_oauthOpen:'⏳ 已打开授权窗口，请在新窗口完成 Strava 授权…', setup_oauthHint:'⚠️ 若授权窗口未自动弹出，请点击下方链接在新页面完成授权：', setup_clickOpen:'🔗 点此打开 Strava 授权', setup_oauthTimeout:'⏱️ 授权超时，请重新点击「连接 Strava」',
+    sub_cred:'凭据', sub_api:'API', sub_data:'数据',
+    setup_title:'配置 Strava 凭据', setup_hint:'在 <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a> 查看 Client ID / Client Secret。Refresh Token 需通过 OAuth 授权获取。',
+    setup_clientId:'Client ID', setup_clientSecret:'Client Secret', setup_refreshToken:'Refresh Token', setup_redirectUri:'回调地址 (redirect_uri)', setup_save:'保存凭据', setup_connect:'连接 Strava', setup_connectHint:'「连接 Strava」会在独立窗口打开 Strava 授权页，授权后自动回填并保存 refresh_token。',
+    setup_oauthOpen:'⏳ 已打开授权窗口，请在新窗口完成 Strava 授权…', setup_oauthHint:'⚠️ 若授权窗口未自动弹出，请点击下方链接在新页面完成授权：', setup_clickOpen:'点此打开 Strava 授权', setup_oauthTimeout:'⏱️ 授权超时，请重新点击「连接 Strava」',
     setup_ok:'✓ 凭据有效，已连接！', setup_fail:'✗ ', setup_saving:'保存中…', setup_configured_hint:'✓ 凭据已保存，点击「连接 Strava」重新授权即可（无需重输）。',
-    api_title:'🤖 API 使用指南', api_hint:'以下为管理面板 REST API 的 Markdown 文档，可直接复制给 agent 使用。',
-    api_copy:'📋 复制文档', api_copied:'✓ 已复制到剪贴板', view_token:'🔑 查看 token',
-    data_title:'🗄️ 数据管理', data_hint:'骑行数据缓存到本地 SQLite。可手动同步 Strava→SQLite，或导出全量数据给 agent 使用。',
-    export_csv:'⬇️ 导出 CSV', export_json:'⬇️ 导出 JSON',
+    api_title:'API 使用指南', api_hint:'以下为管理面板 REST API 的 Markdown 文档，可直接复制给 agent 使用。',
+    api_copy:'复制文档', api_copied:'✓ 已复制到剪贴板', view_token:'查看 token',
+    data_title:'数据管理', data_hint:'骑行数据缓存到本地 SQLite。可手动同步 Strava→SQLite，或导出全量数据给 agent 使用。',
+    export_csv:'导出 CSV', export_json:'导出 JSON',
     badge_detect:'检测中…', badge_ok:'运行正常 ✓', badge_noConfig:'未配置', badge_fail:'连接失败', badge_attention:'需关注',
     syncing:'同步中…', sync_done:'✓ 同步完成', sync_fail:'✗ 同步失败',
     token_creating:'正在生成新 token…', token_done:'✓ 新 token (立即生效):', token_fail:'创建失败:',
     load_log:'加载中…', no_log:'(暂无日志)', log_fmt:'{src} 日志 · {disp} · 共 {total} 行',
     menu_workspace:'工作区', menu_appearance:'外观', menu_about:'关于', theme_system:'跟随系统', theme_light:'亮色', theme_dark:'暗色',
-    hm_refresh:'🔄 刷新状态', hm_apidoc:'📖 API 文档', hm_github:'GitHub ↗',
+    hm_refresh:'刷新状态', hm_apidoc:'API 文档', hm_github:'GitHub',
   },
   en: {
-    app_title:'Strava Panel', nav_dash:'📊 Dashboard', nav_data:'🚴 Rides', nav_rides:'🚴 Recent Rides', nav_settings:'⚙️ Settings',
-    dash_title:'📊 Service Status', console_title:'📜 Log Console', refresh:'🔄 Refresh', download:'⬇️ Download', current:'Current', log_src_system:'System', log_src_strava:'Strava API', log_src_agent:'Agent Calls',
+    app_title:'Strava Panel', nav_dash:'Dashboard', nav_data:'Rides', nav_rides:'Recent Rides', nav_settings:'Settings',
+    dash_title:'Service Status', console_title:'Log Console', refresh:'Refresh', download:'Download', current:'Current', log_src_system:'System', log_src_strava:'Strava API', log_src_agent:'Agent Calls',
     console_hint:'Logs archived by date. Current file keeps today only; history moves to data/logs/.',
-    sync_btn:'🔄 Sync Now', token_btn:'🔑 Create Token',
-    stat_group_strava:'🔗 Strava API', stat_group_db:'🗄️ Local Database', stat_group_agent:'🤖 Agent Calls',
+    sync_btn:'Sync Now', token_btn:'Create Token',
+    stat_group_strava:'Strava API', stat_group_db:'Local Database', stat_group_agent:'Agent Calls',
     stat_configured:'Credentials', stat_token:'Auth', stat_activities:'Cached Acts', stat_sync:'Last Sync', stat_port:'Port', stat_version:'Version', stat_connected:'Connected', stat_not_configured:'Not Configured', stat_error:'Error',
     stat_athlete:'Athlete ID', stat_dbsize:'DB Size', stat_dbpath:'DB Path', stat_apitoken:'API token', stat_calls:'Call Count', stat_lastcall:'Last Call',
     stat_configured_ok:'Configured', stat_configured_no:'Not Configured', stat_token_ok:'OK', stat_token_no:'Invalid', stat_apitoken_ok:'Generated', stat_apitoken_no:'Not Generated',
     rg_7d:'7D', rg_1m:'1M', rg_3m:'3M', rg_6m:'6M', rg_ytd:'YTD', rg_12m:'12M', rg_all:'All',
     stats_rides:'Rides', stats_dist:'Distance', stats_dur:'Duration', stats_elev:'Elevation',
-    panel_monthly:'📊 Monthly Distance (km)', panel_daily:'📊 Daily Distance (km)', panel_weekly:'📊 Weekly Distance (km)', panel_yearly:'📊 Yearly Distance (km)', panel_recent:'🚴 Recent Rides',
+    panel_monthly:'Monthly Distance (km)', panel_daily:'Daily Distance (km)', panel_weekly:'Weekly Distance (km)', panel_yearly:'Yearly Distance (km)', panel_recent:'Recent Rides',
     col_date:'Date', col_name:'Activity', col_dist:'Distance', col_dur:'Duration', col_speed:'Avg Spd', col_elev:'Elevation',
     prev_page:'‹ Prev', next_page:'Next ›', empty:'No data',
-    sub_cred:'🔑 Credentials', sub_api:'🤖 API', sub_data:'🗄️ Data',
-    setup_title:'⚙️ Configure Strava Credentials', setup_hint:'View Client ID / Client Secret at <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a>. Refresh Token obtained via OAuth.',
-    setup_clientId:'Client ID', setup_clientSecret:'Client Secret', setup_refreshToken:'Refresh Token', setup_redirectUri:'Redirect URI', setup_save:'Save Credentials', setup_connect:'🔗 Connect Strava', setup_connectHint:'Connect Strava opens an authorization window; refresh_token is saved automatically after approval.',
-    setup_oauthOpen:'⏳ Auth window opened, please approve in the new window…', setup_oauthHint:'⚠️ If the auth window did not pop up, click the link below to authorize in a new page:', setup_clickOpen:'🔗 Open Strava authorization', setup_oauthTimeout:'⏱️ Auth timed out, please click Connect Strava again',
+    sub_cred:'Credentials', sub_api:'API', sub_data:'Data',
+    setup_title:'Configure Strava Credentials', setup_hint:'View Client ID / Client Secret at <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a>. Refresh Token obtained via OAuth.',
+    setup_clientId:'Client ID', setup_clientSecret:'Client Secret', setup_refreshToken:'Refresh Token', setup_redirectUri:'Redirect URI', setup_save:'Save Credentials', setup_connect:'Connect Strava', setup_connectHint:'Connect Strava opens an authorization window; refresh_token is saved automatically after approval.',
+    setup_oauthOpen:'⏳ Auth window opened, please approve in the new window…', setup_oauthHint:'⚠️ If the auth window did not pop up, click the link below to authorize in a new page:', setup_clickOpen:'Open Strava authorization', setup_oauthTimeout:'⏱️ Auth timed out, please click Connect Strava again',
     setup_ok:'✓ Credentials valid, connected!', setup_fail:'✗ ', setup_saving:'Saving…', setup_configured_hint:'✓ Credentials saved. Click Connect Strava to authorize (no re-entry needed).',
-    api_title:'🤖 API Guide', api_hint:'Markdown doc of the admin REST API, copy-paste for an agent.',
-    api_copy:'📋 Copy Doc', api_copied:'✓ Copied to clipboard', view_token:'🔑 View Token',
-    data_title:'🗄️ Data Management', data_hint:'Ride data cached to local SQLite. Sync Strava→SQLite manually, or export all data for an agent.',
-    export_csv:'⬇️ Export CSV', export_json:'⬇️ Export JSON',
+    api_title:'API Guide', api_hint:'Markdown doc of the admin REST API, copy-paste for an agent.',
+    api_copy:'Copy Doc', api_copied:'✓ Copied to clipboard', view_token:'View Token',
+    data_title:'Data Management', data_hint:'Ride data cached to local SQLite. Sync Strava→SQLite manually, or export all data for an agent.',
+    export_csv:'Export CSV', export_json:'Export JSON',
     badge_detect:'Detecting…', badge_ok:'Healthy ✓', badge_noConfig:'Not Configured', badge_fail:'Connection Failed', badge_attention:'Needs Attention',
     syncing:'Syncing…', sync_done:'✓ Sync Complete', sync_fail:'✗ Sync Failed',
     token_creating:'Generating new token…', token_done:'✓ New token (effective now):', token_fail:'Failed:',
     load_log:'Loading…', no_log:'(no log)', log_fmt:'{src} log · {disp} · {total} lines',
     menu_workspace:'Workspace', menu_appearance:'Appearance', menu_about:'About', theme_system:'System', theme_light:'Light', theme_dark:'Dark',
-    hm_refresh:'🔄 Refresh Status', hm_apidoc:'📖 API Docs', hm_github:'GitHub ↗',
+    hm_refresh:'Refresh Status', hm_apidoc:'API Docs', hm_github:'GitHub',
   }
 };
 let currentLang = localStorage.getItem('sv_lang') || 'zh';
@@ -888,7 +945,7 @@ async function syncNow(){
   const timer = setInterval(async ()=>{
     try{
       const p = await apiGet('/api/sync/progress');
-      if(el && p.message){ el.textContent = '🔄 ' + p.message; }
+      if(el && p.message){ el.textContent = p.message; }
     }catch(e){}
   }, 1000);
   try{

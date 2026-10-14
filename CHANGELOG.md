@@ -2,6 +2,13 @@
 
 ---
 
+## [Unreleased]
+
+- 🎨 **UI 现代化重设计**:告别复古风——基准 14px/行高 1.5、16px 大圆角卡片 + 双层阴影体系、页签选中态改白底浮起卡片(Linear/Raycast 式)、主按钮品牌橙彩色投影、输入框 focus 橙色 ring、表头小字大写 + 字距、数值列右对齐、行 hover 高亮。
+- ✒️ **图标去 emoji 化**:页签/菜单/按钮/面板标题共 40 处 emoji 全部替换为内置线性 SVG sprite(20 个 symbol,stroke 取 `currentColor` 随主题自动适配,选中态图标染品牌橙);统计卡新增语义图标徽章;i18n 字典同步剥离表情(保留 ✓/✗/⚠ 语义标记),中英文文案更干净。仍为单文件零依赖。
+
+---
+
 ## v2.0.0 (2026-10-13)
 
 - 🔄 **后端重构为 Node.js**:零依赖 ESM(Node ≥22.13,node:sqlite),全渠道(Python 运行时依赖彻底移除:Docker node:24-alpine、桌面复用 Electron 内嵌 Node、CLI 复用宿主 Node、fnOS 依赖 nodejs_v24 应用);既有 strava.db / strava.conf 数据全兼容。
