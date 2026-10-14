@@ -289,6 +289,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
             <button class="hmenu-item" onclick="closeHmenu();syncNow()"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span class="mi-txt" data-i18n="sync_btn">立即同步</span></button>
             <button class="hmenu-item" onclick="exportCsv()"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span class="mi-txt" data-i18n="export_csv">导出 CSV</span></button>
             <button class="hmenu-item" onclick="exportJson()"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span class="mi-txt" data-i18n="export_json">导出 JSON</span></button>
+            <button class="hmenu-item" onclick="closeHmenu();syncNow('full')"><svg class="ic" aria-hidden="true"><use href="#i-database"/></svg><span class="mi-txt" data-i18n="sync_full">全量重同步</span></button>
             <button class="hmenu-item" onclick="closeHmenu();refreshStatus()"><svg class="ic" aria-hidden="true"><use href="#i-server"/></svg><span class="mi-txt" data-i18n="hm_refresh">刷新状态</span></button>
           </div>
           <div class="hmenu-group">
@@ -330,6 +331,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         </div>
         <div style="display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap">
           <button class="btn primary" onclick="syncNow()"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span data-i18n="sync_btn">立即同步</span></button>
+          <button class="btn" onclick="syncNow('full')"><svg class="ic" aria-hidden="true"><use href="#i-database"/></svg><span data-i18n="sync_full">全量重同步</span></button>
           <button class="btn" onclick="recreateToken()"><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg><span data-i18n="token_btn">创建 token</span></button>
           <span class="hint" id="dashMsg" style="margin:0"></span>
         </div>
@@ -368,6 +370,8 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         <div class="card"><div class="label" data-i18n="stats_dist">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div><div class="delta" id="dDist"></div></div>
         <div class="card"><div class="label" data-i18n="stats_dur">总时长</div><div class="value"><span id="cDur">-</span><span class="unit">h</span></div><div class="delta" id="dDur"></div></div>
         <div class="card"><div class="label" data-i18n="stats_elev">总爬升</div><div class="value"><span id="cElev">-</span><span class="unit">m</span></div><div class="delta" id="dElev"></div></div>
+        <div class="card" id="cardHr" style="display:none"><div class="label" data-i18n="stats_hr">平均心率</div><div class="value"><span id="cHr">-</span><span class="unit">bpm</span></div></div>
+        <div class="card" id="cardPw" style="display:none"><div class="label" data-i18n="stats_pw">平均功率</div><div class="value"><span id="cPw">-</span><span class="unit">W</span></div></div>
       </div>
       <div class="panel">
         <h2><svg class="ic" aria-hidden="true"><use href="#i-trend"/></svg><span data-i18n="panel_monthly">每月骑行距离 (km)</span><span class="clegend" id="chartLegend" style="display:none"><span class="sw"><i class="box"></i><span data-i18n="cmp_this">本期</span></span><span class="sw"><i class="dash"></i><span data-i18n="cmp_prev">上期</span></span></span><span class="cmp-toggle" id="cmpToggle" onclick="toggleCompare()"><span data-i18n="cmp_label">对比上期</span><span class="switch"></span></span></h2>
@@ -379,7 +383,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
     <div class="view" id="tab-rides">
       <div class="panel">
         <h2><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg><span data-i18n="panel_recent">最近骑行</span></h2>
-        <table id="recentTable"><thead><tr><th data-i18n="col_date">日期</th><th data-i18n="col_name">活动</th><th data-i18n="col_dist">距离</th><th data-i18n="col_dur">时长</th><th data-i18n="col_speed">均速</th><th data-i18n="col_elev">爬升</th></tr></thead><tbody></tbody></table>
+        <table id="recentTable"><thead><tr><th data-i18n="col_date">日期</th><th data-i18n="col_name">活动</th><th data-i18n="col_dist">距离</th><th data-i18n="col_dur">时长</th><th data-i18n="col_speed">均速</th><th data-i18n="col_elev">爬升</th><th data-i18n="col_hr">心率</th><th data-i18n="col_pw">功率</th></tr></thead><tbody></tbody></table>
         <div class="pager" id="pager" style="display:none">
           <button id="prevPage" onclick="changePage(-1)" data-i18n="prev_page">‹ 上一页</button>
           <span class="pager-info" id="pagerInfo"></span>
@@ -429,6 +433,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
           <p class="hint" data-i18n="data_hint">骑行数据缓存到本地 SQLite。可手动同步 Strava→SQLite，或导出全量数据给 agent 使用。</p>
           <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
             <button class="btn primary" onclick="syncNow()"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span data-i18n="sync_btn">立即同步</span></button>
+            <button class="btn" onclick="syncNow('full')"><svg class="ic" aria-hidden="true"><use href="#i-database"/></svg><span data-i18n="sync_full">全量重同步</span></button>
             <button class="btn" onclick="exportCsv()"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="export_csv">导出 CSV</span></button>
             <button class="btn" onclick="exportJson()"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="export_json">导出 JSON</span></button>
           </div>
@@ -447,15 +452,15 @@ const I18N = {
     app_title:'Strava Panel', nav_dash:'仪表板', nav_data:'骑行数据', nav_rides:'最近骑行', nav_settings:'设置',
     dash_title:'服务状态', console_title:'日志控制台', refresh:'刷新', download:'下载', current:'当前', log_src_system:'系统日志', log_src_strava:'Strava API', log_src_agent:'Agent 调用',
     console_hint:'日志按日期归档，可查看历史日期。当前日志仅保留当天，历史自动归档到 data/logs/ 目录。',
-    sync_btn:'立即同步', token_btn:'创建 token',
+    sync_btn:'立即同步', sync_full:'全量重同步', sync_full_confirm:'全量重同步会重新拉取全部历史活动(较慢,用于回填心率/功率等字段),确定继续?', token_btn:'创建 token',
     stat_group_strava:'Strava API', stat_group_db:'本地数据库', stat_group_agent:'Agent 外部调用',
     stat_configured:'凭据', stat_token:'授权', stat_activities:'缓存活动', stat_sync:'最后同步', stat_port:'端口', stat_version:'版本', stat_connected:'已连接', stat_not_configured:'未配置', stat_error:'异常',
     stat_athlete:'Athlete ID', stat_dbsize:'DB 大小', stat_dbpath:'DB 路径', stat_apitoken:'API token', stat_calls:'调用次数', stat_lastcall:'最后调用',
     stat_configured_ok:'已配置', stat_configured_no:'未配置', stat_token_ok:'正常', stat_token_no:'失效', stat_apitoken_ok:'已生成', stat_apitoken_no:'未生成',
     rg_7d:'近7天', rg_1m:'近1月', rg_3m:'近3月', rg_6m:'近6月', rg_ytd:'本年度', rg_12m:'近12月', rg_all:'所有',
-    stats_rides:'骑行次数', stats_dist:'总距离', stats_dur:'总时长', stats_elev:'总爬升',
+    stats_rides:'骑行次数', stats_dist:'总距离', stats_dur:'总时长', stats_elev:'总爬升', stats_hr:'平均心率', stats_pw:'平均功率',
     panel_monthly:'每月骑行距离 (km)', panel_daily:'每日骑行距离 (km)', panel_weekly:'每周骑行距离 (km)', panel_yearly:'每年骑行距离 (km)', panel_recent:'最近骑行',
-    col_date:'日期', col_name:'活动', col_dist:'距离', col_dur:'时长', col_speed:'均速', col_elev:'爬升',
+    col_date:'日期', col_name:'活动', col_dist:'距离', col_dur:'时长', col_speed:'均速', col_elev:'爬升', col_hr:'心率', col_pw:'功率',
     prev_page:'‹ 上一页', next_page:'下一页 ›', empty:'暂无数据',
     sub_cred:'凭据', sub_api:'API', sub_data:'数据',
     setup_title:'配置 Strava 凭据', setup_hint:'在 <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a> 查看 Client ID / Client Secret。Refresh Token 需通过 OAuth 授权获取。',
@@ -478,15 +483,15 @@ const I18N = {
     app_title:'Strava Panel', nav_dash:'Dashboard', nav_data:'Rides', nav_rides:'Recent Rides', nav_settings:'Settings',
     dash_title:'Service Status', console_title:'Log Console', refresh:'Refresh', download:'Download', current:'Current', log_src_system:'System', log_src_strava:'Strava API', log_src_agent:'Agent Calls',
     console_hint:'Logs archived by date. Current file keeps today only; history moves to data/logs/.',
-    sync_btn:'Sync Now', token_btn:'Create Token',
+    sync_btn:'Sync Now', sync_full:'Full Resync', sync_full_confirm:'Full resync re-fetches all history (slower; backfills heart-rate/power fields). Continue?', token_btn:'Create Token',
     stat_group_strava:'Strava API', stat_group_db:'Local Database', stat_group_agent:'Agent Calls',
     stat_configured:'Credentials', stat_token:'Auth', stat_activities:'Cached Acts', stat_sync:'Last Sync', stat_port:'Port', stat_version:'Version', stat_connected:'Connected', stat_not_configured:'Not Configured', stat_error:'Error',
     stat_athlete:'Athlete ID', stat_dbsize:'DB Size', stat_dbpath:'DB Path', stat_apitoken:'API token', stat_calls:'Call Count', stat_lastcall:'Last Call',
     stat_configured_ok:'Configured', stat_configured_no:'Not Configured', stat_token_ok:'OK', stat_token_no:'Invalid', stat_apitoken_ok:'Generated', stat_apitoken_no:'Not Generated',
     rg_7d:'7D', rg_1m:'1M', rg_3m:'3M', rg_6m:'6M', rg_ytd:'YTD', rg_12m:'12M', rg_all:'All',
-    stats_rides:'Rides', stats_dist:'Distance', stats_dur:'Duration', stats_elev:'Elevation',
+    stats_rides:'Rides', stats_dist:'Distance', stats_dur:'Duration', stats_elev:'Elevation', stats_hr:'Avg HR', stats_pw:'Avg Power',
     panel_monthly:'Monthly Distance (km)', panel_daily:'Daily Distance (km)', panel_weekly:'Weekly Distance (km)', panel_yearly:'Yearly Distance (km)', panel_recent:'Recent Rides',
-    col_date:'Date', col_name:'Activity', col_dist:'Distance', col_dur:'Duration', col_speed:'Avg Spd', col_elev:'Elevation',
+    col_date:'Date', col_name:'Activity', col_dist:'Distance', col_dur:'Duration', col_speed:'Avg Spd', col_elev:'Elevation', col_hr:'HR', col_pw:'Power',
     prev_page:'‹ Prev', next_page:'Next ›', empty:'No data',
     sub_cred:'Credentials', sub_api:'API', sub_data:'Data',
     setup_title:'Configure Strava Credentials', setup_hint:'View Client ID / Client Secret at <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a>. Refresh Token obtained via OAuth.',
@@ -839,6 +844,12 @@ async function loadData(){
       setDelta('dDist', s.total_distance_km, p ? p.total_distance_km : null);
       setDelta('dDur', s.total_duration_h, p ? p.total_duration_h : null);
       setDelta('dElev', s.total_elevation_m, p ? p.total_elevation_m : null);
+      const hrOk = s.avg_heartrate !== null && s.avg_heartrate !== undefined;
+      const pwOk = s.avg_watts !== null && s.avg_watts !== undefined;
+      document.getElementById('cardHr').style.display = hrOk ? '' : 'none';
+      document.getElementById('cardPw').style.display = pwOk ? '' : 'none';
+      if(hrOk) document.getElementById('cHr').textContent = Math.round(s.avg_heartrate);
+      if(pwOk) document.getElementById('cPw').textContent = Math.round(s.avg_watts);
       // 按时间范围选择图表粒度（对齐官方：7D/1M→日, 3M/6M→周, YTD/12M→月, 所有→年）
       let series = [], prevSeries = [], key = '', title = t('panel_monthly');
       if(range === '7d' || range === '1m'){ series = s.daily||[]; key = 'day'; title = t('panel_daily'); }
@@ -1053,8 +1064,10 @@ function renderActivities(){
     const h = ((a.moving_time||0)/3600).toFixed(1);
     const spd = ((a.average_speed||0)*3.6).toFixed(1);
     const el = Math.round(a.total_elevation_gain||0);
-    return `<tr><td>${date}</td><td>${escapeHtml(a.name||'')}</td><td>${km} km</td><td>${h} h</td><td>${spd} km/h</td><td>${el} m</td></tr>`;
-  }).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--text-3)">${t('empty')}</td></tr>`;
+    const hr = a.average_heartrate ? Math.round(a.average_heartrate)+' bpm' : '—';
+    const pw = a.average_watts ? Math.round(a.average_watts)+' W' : '—';
+    return `<tr><td>${date}</td><td>${escapeHtml(a.name||'')}</td><td>${km} km</td><td>${h} h</td><td>${spd} km/h</td><td>${el} m</td><td>${hr}</td><td>${pw}</td></tr>`;
+  }).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--text-3)">${t('empty')}</td></tr>`;
   const pager = document.getElementById('pager');
   if(pages>1){
     pager.style.display='flex';
@@ -1066,7 +1079,9 @@ function renderActivities(){
 function changePage(d){ page+=d; renderActivities(); }
 
 // ===== Sync =====
-async function syncNow(){
+async function syncNow(mode){
+  mode = mode === 'full' ? 'full' : 'incremental';
+  if(mode === 'full' && !confirm(t('sync_full_confirm'))) return;
   const el = document.getElementById('dashMsg') || document.getElementById('dataMsg');
   if(el){ el.style.display='block'; el.textContent = t('syncing') + '…'; }
   // 轮询同步进度
@@ -1077,7 +1092,7 @@ async function syncNow(){
     }catch(e){}
   }, 1000);
   try{
-    const d = await apiPost('/api/sync');
+    const d = await apiPost('/api/sync?mode=' + mode);
     clearInterval(timer);
     if(d.ok){
       const msg = t('sync_done') + ` (${d.new} new / ${d.activities} total)`;

@@ -427,26 +427,39 @@ function getActivitiesPage(token, page = 1, perPage = 100, after = null) {
 // 同步进度（供前端轮询 /api/sync/progress）
 const SYNC_PROGRESS = { running: false, page: 0, fetched: 0, message: '', done: false, error: null };
 
-async function syncFromStrava(token, limitPages = 20) {
-  /** 全量/增量同步 Strava→SQLite。返回统计。同步期间更新 SYNC_PROGRESS 供前端轮询进度。 */
+async function syncFromStrava(token, limitPages = 20, mode = 'incremental') {
+  /** 同步 Strava→SQLite。
+   *  mode='incremental'(默认): 用 after=已知最新活动时间戳只拉新活动,拉到重叠即停;
+   *  mode='full': 全量翻页重拉(用于回填历史字段/修正),upsert 覆盖。
+   *  返回统计。同步期间更新 SYNC_PROGRESS 供前端轮询进度。 */
   SYNC_PROGRESS.running = true;
   SYNC_PROGRESS.error = null;
-  SYNC_PROGRESS.message = '开始同步';
+  SYNC_PROGRESS.message = mode === 'full' ? '开始全量同步' : '开始增量同步';
   const allActs = [];
   let page = 1;
+  let skipped = 0;
   try {
+    // 增量:以本地最新活动时间为 after 水位(留 1 天重叠,覆盖 Strava 落库延迟)
+    let after = null;
+    if (mode === 'incremental') {
+      const latest = db.db.prepare("SELECT MAX(start_date) t FROM activities").get().t;
+      if (latest) {
+        const ts = Date.parse(latest) / 1000 - 86400;
+        if (Number.isFinite(ts)) after = Math.floor(ts);
+      }
+    }
     while (page <= limitPages) {
-      const acts = await getActivitiesPage(token, page, 100);
+      const acts = await getActivitiesPage(token, page, 100, after);
       SYNC_PROGRESS.page = page;
       if (!acts || acts.length === 0) break;
       allActs.push(...acts);
       SYNC_PROGRESS.fetched = allActs.length;
       SYNC_PROGRESS.message = `已拉取第 ${page} 页 · ${allActs.length} 条`;
-      log('strava', `同步进度: 第 ${page} 页, 累计 ${allActs.length} 条`);
-      // 增量：若已到已知的最新活动，跳过后续页（避免重复拉取全历史）
-      if (page === 1) {
-        db.getMeta('last_sync');
-        // last_sync 是时间戳，无法直接对比活动日期；简单起见全量拉取 limit_pages
+      log('strava', `同步进度(${mode}): 第 ${page} 页, 累计 ${allActs.length} 条`);
+      // 增量:本页全部早于等于水位时间 → 已触及已知区间,停止翻页
+      if (after) {
+        const newest = acts[0] && acts[0].start_date ? Date.parse(acts[0].start_date) / 1000 : 0;
+        if (newest <= after) { skipped = 1; break; }
       }
       page += 1;
       if (page > 1 && acts.length < 100) break;
@@ -455,8 +468,8 @@ async function syncFromStrava(token, limitPages = 20) {
     const added = db.upsertActivities(allActs);
     SYNC_PROGRESS.done = true;
     SYNC_PROGRESS.message = `完成 · 拉取 ${allActs.length} 条, 新增 ${added} 条`;
-    log('system', `同步完成: 拉取 ${allActs.length} 条, 新增 ${added} 条`);
-    return { activities: allActs.length, new: added, page: page - 1 };
+    log('system', `同步完成(${mode}): 拉取 ${allActs.length} 条, 新增 ${added} 条`);
+    return { activities: allActs.length, new: added, page: page - 1, mode };
   } catch (e) {
     SYNC_PROGRESS.error = String(e.message || e);
     SYNC_PROGRESS.message = `失败: ${e.message || e}`;
@@ -960,7 +973,8 @@ async function handleGet(req, res, rawPath, qs) {
     const tok = await requireStravaToken(res);
     if (!tok) return;
     try {
-      const result = await syncSerial(() => syncFromStrava(tok));
+      const mode = qs.mode === 'full' ? 'full' : 'incremental';
+      const result = await syncSerial(() => syncFromStrava(tok, 20, mode));
       sendJson(res, { ok: true, ...result });
     } catch (e) {
       sendJson(res, { error: String(e.message || e) }, 500);
@@ -1135,7 +1149,8 @@ async function handlePost(req, res, rawPath, qs) {
     const [tok, err] = await getAccessToken();
     if (!tok) { sendJson(res, { error: err || '未配置' }, 400); return; }
     try {
-      const result = await syncSerial(() => syncFromStrava(tok));
+      const mode = qs.mode === 'full' ? 'full' : 'incremental';
+      const result = await syncSerial(() => syncFromStrava(tok, 20, mode));
       sendJson(res, { ok: true, ...result });
     } catch (e) {
       sendJson(res, { error: String(e.message || e) }, 500);

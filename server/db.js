@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS meta(
 );
 CREATE INDEX IF NOT EXISTS idx_start_date ON activities(start_date);`;
 
+// 心率/功率扩展列:老库(PRAGMA 检测缺列)自动 ALTER 升级,新库建表后同样补齐。
+const EXTRA_COLS = [['average_heartrate', 'REAL'], ['max_heartrate', 'REAL'],
+                    ['average_watts', 'REAL'], ['kilojoules', 'REAL']];
+
 const pad2 = (n) => String(n).padStart(2, '0');
 const fmtDate = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 
@@ -203,6 +207,11 @@ export class StravaDB {
     // 确保 schema 存在 (幂等; 兼容 db 文件被删/重建)
     this.db = new DatabaseSync(this.dbPath);
     this.db.exec(SCHEMA_SQL);
+    // 心率/功率列自动迁移:老库缺列则 ALTER 补齐(幂等)
+    const existing = new Set(this.db.prepare('PRAGMA table_info(activities)').all().map(c => c.name));
+    for (const [col, type] of EXTRA_COLS) {
+      if (!existing.has(col)) this.db.exec(`ALTER TABLE activities ADD COLUMN ${col} ${type}`);
+    }
   }
 
   // ---- write ----
@@ -212,8 +221,9 @@ export class StravaDB {
     const sel = this.db.prepare('SELECT id FROM activities WHERE id=?');
     const ins = this.db.prepare(`INSERT OR REPLACE INTO activities
         (id,name,type,distance,moving_time,total_elevation_gain,
-         start_date,start_date_local,elapsed_time,average_speed,max_speed)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?)`);
+         start_date,start_date_local,elapsed_time,average_speed,max_speed,
+         average_heartrate,max_heartrate,average_watts,kilojoules)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
     for (const a of activities) {
       const rid = a && a.id;
       if (!rid) continue;
@@ -221,7 +231,9 @@ export class StravaDB {
       ins.run(rid, a.name ?? null, a.type ?? null, a.distance ?? null,
         a.moving_time ?? null, a.total_elevation_gain ?? null,
         a.start_date ?? null, a.start_date_local ?? null,
-        a.elapsed_time ?? null, a.average_speed ?? null, a.max_speed ?? null);
+        a.elapsed_time ?? null, a.average_speed ?? null, a.max_speed ?? null,
+        a.average_heartrate ?? null, a.max_heartrate ?? null,
+        a.average_watts ?? null, a.kilojoules ?? null);
     }
     this.setMeta('last_sync', localIsoNow());
     return added;
@@ -262,7 +274,13 @@ export class StravaDB {
     let q = `SELECT COUNT(*) total_rides,
                     SUM(distance) total_distance,
                     SUM(moving_time) total_moving_time,
-                    SUM(total_elevation_gain) total_elevation
+                    SUM(total_elevation_gain) total_elevation,
+                    AVG(average_heartrate) avg_hr,
+                    MAX(max_heartrate) max_hr,
+                    AVG(average_watts) avg_watts,
+                    SUM(kilojoules) total_kj,
+                    SUM(CASE WHEN average_heartrate IS NOT NULL THEN 1 ELSE 0 END) hr_count,
+                    SUM(CASE WHEN average_watts IS NOT NULL THEN 1 ELSE 0 END) pw_count
              FROM activities WHERE type='Ride'`;
     const params = [];
     if (startDate) { q += ' AND start_date >= ?'; params.push(startDate); }
@@ -279,6 +297,13 @@ export class StravaDB {
       total_duration_h: pyf(pyRound(dur, 1)),
       total_elevation_m: r.total_elevation === null ? 0 : pyf(pyRound(elev, 0)),
       avg_distance_km: n ? pyf(pyRound(dist / n, 1)) : 0,
+      // 心率/功率:无数据时输出 null(前端据此隐藏卡片),有数据取整
+      avg_heartrate: r.hr_count ? pyRound(r.avg_hr, 0) : null,
+      max_heartrate: r.hr_count ? pyRound(r.max_hr, 0) : null,
+      avg_watts: r.pw_count ? pyRound(r.avg_watts, 0) : null,
+      total_kilojoules: r.pw_count ? pyRound(r.total_kj || 0, 0) : null,
+      hr_count: r.hr_count || 0,
+      power_count: r.pw_count || 0,
     };
   }
 
