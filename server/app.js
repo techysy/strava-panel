@@ -1025,6 +1025,7 @@ async function handleGet(req, res, rawPath, qs) {
       redirect_uri: cfg.redirect_uri || '',
       configured: hasCredentials(),
       has_token: Boolean(cfg.refresh_token || ''),
+      athlete_id: cfg.athlete_id || '',
     });
     return;
   }

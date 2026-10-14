@@ -98,7 +98,12 @@ html[data-theme="dark"] .seg-btn.on{background:var(--active);box-shadow:none}
 .nav button.active .ic{color:var(--accent)}
 html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var(--border-subtle)}
 .view{display:none}
-.view.active{display:block}
+.view.active{display:flex;flex-direction:column;min-height:calc(100vh - 212px)}
+#tab-data .panel:last-child,#tab-rides .panel,#tab-dash .panel:last-child{flex:1;display:flex;flex-direction:column}
+#weeklyChart{flex:1;min-height:220px}
+#tab-dash .log-view{flex:1;max-height:none}
+#tab-dash .stat-cards .stat-group{display:flex;flex-direction:column}
+#tab-dash .stat-cards .stat-aggr{flex:1}
 
 /* buttons */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:8px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text-2);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;line-height:1.3;white-space:nowrap;box-shadow:var(--shadow-sm)}
@@ -118,6 +123,11 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .stat-group{background:var(--surface-2);border:1px solid var(--border-subtle);border-radius:14px;padding:16px}
 .stat-group-title{font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:12px;display:flex;align-items:center;gap:7px}
 .stat-group-title .ic{width:15px;height:15px;color:var(--text-3)}
+.stat-group-title .sg-badge{margin-left:auto;display:inline-flex;align-items:center;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--tertiary);color:var(--text-3);white-space:nowrap}
+.stat-group-title .sg-badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:6px;flex-shrink:0;animation:pulse 1.8s ease-out infinite}
+.stat-group-title .sg-badge:empty::before{display:none}
+.stat-group-title .sg-badge.ok{background:var(--ok-soft);color:var(--ok)}
+.stat-group-title .sg-badge.warn{background:var(--warn-soft);color:var(--warn)}
 .stat-grid{display:flex;flex-direction:column;gap:0}
 .stat-aggr{background:var(--surface);border:1px solid var(--border-subtle);border-radius:12px;padding:4px 13px}
 .stat-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-subtle)}
@@ -162,6 +172,8 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 /* 日期范围分段控件 */
 .seg{display:flex;gap:3px;padding:4px;border-radius:12px;background:var(--tertiary);margin-bottom:12px;overflow-x:auto;max-width:100%}
 .seg button{padding:7px 12px;border:0;border-radius:9px;background:transparent;color:var(--text-3);cursor:pointer;font-size:13px;font-weight:600;flex:1 1 0;min-width:56px;text-align:center;white-space:nowrap;transition:all .15s}
+.seg.seg-sm{margin-bottom:0;flex:0 0 auto}
+.seg.seg-sm button{min-width:0;flex:0 0 auto;padding:7px 14px}
 .seg button:hover{color:var(--text)}
 .seg button.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
 html[data-theme="dark"] .seg button.active{background:var(--active);box-shadow:none}
@@ -194,10 +206,19 @@ label{display:block;font-size:13px;font-weight:600;color:var(--text-2);margin:14
 input,textarea{width:100%;padding:10px 13px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text);font-size:14px;outline:none;transition:border-color .15s,box-shadow .15s,background .15s}
 input:focus,textarea:focus{border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.14)}
 input::placeholder{color:var(--text-3);opacity:.8}
+.pw-wrap{position:relative}
+.pw-wrap input{padding-right:40px}
+.pw-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:0;border-radius:7px;background:transparent;color:var(--text-3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.pw-eye:hover{background:var(--hover);color:var(--text)}
+.conn-row{display:flex;align-items:center;gap:8px;margin-top:12px;padding:9px 12px;border-radius:10px;background:var(--ok-soft);color:var(--ok);font-size:12.5px;font-weight:600}
+.conn-row.warn{background:var(--warn-soft);color:var(--warn)}
+.conn-dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0;animation:pulse 1.8s ease-out infinite}
+.conn-meta{margin-left:auto;font-weight:500;color:var(--text-3);font-size:11.5px;overflow-wrap:anywhere;text-align:right}
 textarea{min-height:120px;resize:vertical}
 .msg{font-size:13px;margin-top:10px;color:var(--accent);min-height:18px}
 .hint{font-size:12.5px;color:var(--text-3);margin-top:8px;line-height:1.65}
 .hint a{color:var(--accent);word-break:break-all}
+.form-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--border-subtle)}
 .api-doc{background:var(--tertiary);border:1px solid var(--border-subtle);border-radius:12px;padding:16px;font-size:12.5px;line-height:1.75;max-height:70vh;overflow-y:auto;white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--text-2)}
 
 /* settings subtabs */
@@ -325,15 +346,15 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         <h2><svg class="ic" aria-hidden="true"><use href="#i-server"/></svg><span data-i18n="dash_title">服务状态</span></h2>
         <div class="stat-cards">
           <div class="stat-group">
-            <div class="stat-group-title"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg><span data-i18n="stat_group_strava">Strava API</span></div>
+            <div class="stat-group-title"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg><span data-i18n="stat_group_strava">Strava API</span><span class="sg-badge" id="sgStrava"></span></div>
             <div class="stat-grid" id="statStrava"></div>
           </div>
           <div class="stat-group">
-            <div class="stat-group-title"><svg class="ic" aria-hidden="true"><use href="#i-database"/></svg><span data-i18n="stat_group_db">本地数据库</span></div>
+            <div class="stat-group-title"><svg class="ic" aria-hidden="true"><use href="#i-database"/></svg><span data-i18n="stat_group_db">本地数据库</span><span class="sg-badge" id="sgDb"></span></div>
             <div class="stat-grid" id="statDb"></div>
           </div>
           <div class="stat-group">
-            <div class="stat-group-title"><svg class="ic" aria-hidden="true"><use href="#i-cpu"/></svg><span data-i18n="stat_group_agent">Agent 外部调用</span></div>
+            <div class="stat-group-title"><svg class="ic" aria-hidden="true"><use href="#i-cpu"/></svg><span data-i18n="stat_group_agent">Agent 外部调用</span><span class="sg-badge" id="sgAgent"></span></div>
             <div class="stat-grid" id="statAgent"></div>
           </div>
         </div>
@@ -347,11 +368,11 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
       <div class="panel">
         <h2><svg class="ic" aria-hidden="true"><use href="#i-file"/></svg><span data-i18n="console_title">日志控制台</span></h2>
         <div class="log-controls">
-          <select id="logSource" onchange="loadLogDates()">
-            <option value="system" data-i18n="log_src_system">系统日志</option>
-            <option value="strava" data-i18n="log_src_strava">Strava API</option>
-            <option value="agent" data-i18n="log_src_agent">Agent 调用</option>
-          </select>
+          <div class="seg seg-sm" id="logSrcSeg" style="margin-bottom:0">
+            <button class="active" data-src="system" onclick="setLogSource('system')" data-i18n="log_src_system">系统日志</button>
+            <button data-src="strava" onclick="setLogSource('strava')" data-i18n="log_src_strava">Strava API</button>
+            <button data-src="agent" onclick="setLogSource('agent')" data-i18n="log_src_agent">Agent 调用</button>
+          </div>
           <select id="logDate" onchange="loadLogs()"><option value="" data-i18n="current">当前</option></select>
           <button class="btn" onclick="loadLogs()"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span data-i18n="refresh">刷新</span></button>
           <button class="btn" onclick="downloadLog()"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="download">下载</span></button>
@@ -411,11 +432,15 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         <div class="panel">
           <h2><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg><span data-i18n="setup_title">配置 Strava 凭据</span></h2>
           <p class="hint" style="margin-bottom:8px" data-i18n="setup_hint">在 <a href="https://www.strava.com/settings/api" target="_blank" style="color:var(--accent)">Strava My API Application</a> 查看 Client ID / Client Secret，并添加回调地址 <code id="callbackHint" style="background:var(--tertiary);padding:2px 6px;border-radius:6px">/oauth/callback</code>。Refresh Token 通过 OAuth 授权自动获取。</p>
-          <label data-i18n="setup_clientId">Client ID</label><input id="client_id" placeholder="Client ID">
-          <label data-i18n="setup_clientSecret">Client Secret</label><input id="client_secret" placeholder="Client Secret">
+          <label data-i18n="setup_clientId">Client ID</label><input id="client_id" placeholder="Client ID" autocomplete="off">
+          <label data-i18n="setup_clientSecret">Client Secret</label>
+          <div class="pw-wrap"><input id="client_secret" type="password" placeholder="Client Secret" autocomplete="off"><button type="button" class="pw-eye" onclick="togglePw('client_secret',this)" title="show/hide"><svg class="ic" aria-hidden="true"><use href="#i-eye"/></svg></button></div>
           <label data-i18n="setup_redirectUri">回调地址 (redirect_uri)</label><input id="redirect_uri" placeholder="http://localhost:20227/oauth/callback">
+          <div class="conn-row" id="connRow" style="display:none">
+            <span class="conn-dot" id="connDot"></span><span id="connText"></span><span class="conn-meta" id="connMeta"></span>
+          </div>
           <div class="msg" id="setupMsg"></div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div class="form-actions">
             <button class="btn primary" onclick="connectStrava()"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg><span data-i18n="setup_connect">连接 Strava</span></button>
             <button class="btn" onclick="saveConfig()" id="saveBtn" data-i18n="setup_save">保存凭据</button>
           </div>
@@ -486,6 +511,8 @@ const I18N = {
     load_log:'加载中…', no_log:'(暂无日志)', log_fmt:'{src} 日志 · {disp} · 共 {total} 行',
     menu_workspace:'工作区', menu_appearance:'外观', menu_language:'语言', menu_about:'关于', theme_system:'跟随系统', theme_light:'亮色', theme_dark:'暗色',
     hm_refresh:'刷新状态', hm_apidoc:'API 文档', hm_github:'GitHub', ctip_rides:'次',
+    sg_ok:'正常', sg_attention:'需关注', sg_ready:'就绪', sg_empty:'空', sg_pending:'未生成',
+    conn_ok:'Strava 已连接', conn_noToken:'凭据已配置,尚未授权',
     delta_vs:'较上期', delta_flat:'持平', delta_new:'新增', cmp_label:'对比上期', cmp_this:'本期', cmp_prev:'上期',
   },
   en: {
@@ -518,6 +545,8 @@ const I18N = {
     load_log:'Loading…', no_log:'(no log)', log_fmt:'{src} log · {disp} · {total} lines',
     menu_workspace:'Workspace', menu_appearance:'Appearance', menu_language:'Language', menu_about:'About', theme_system:'System', theme_light:'Light', theme_dark:'Dark',
     hm_refresh:'Refresh Status', hm_apidoc:'API Docs', hm_github:'GitHub', ctip_rides:'rides',
+    sg_ok:'OK', sg_attention:'Attention', sg_ready:'Ready', sg_empty:'Empty', sg_pending:'Not generated',
+    conn_ok:'Strava connected', conn_noToken:'Credentials saved, not authorized yet',
     delta_vs:'vs last', delta_flat:'flat', delta_new:'new', cmp_label:'Compare', cmp_this:'This', cmp_prev:'Prev',
   }
 };
@@ -662,15 +691,27 @@ async function loadCredConfig(){
       if(el && val && !el.value.trim()) el.value = val;  // 仅空时回填
     };
     set('client_id', d.client_id);
-    set('client_secret', d.client_secret);
     set('redirect_uri', d.redirect_uri);
     if(d.redirect_uri) autoFillHint(d.redirect_uri);
-    // 若已配置，提示已保存；授权完成后也显示已连接
-    const msg = document.getElementById('setupMsg');
-    if(msg && !msg.textContent.trim() && d.configured){
-      msg.textContent = d.has_token ? t('setup_ok') : t('setup_configured_hint');
+    // secret 不回填明文:打码占位,保持原值不动(用户不改则后端保留)
+    const sec = document.getElementById('client_secret');
+    if(sec && !sec.value.trim() && d.client_secret){ sec.value = d.client_secret; }
+    // 连接状态行:配置/授权/athlete 一眼可见
+    const row = document.getElementById('connRow');
+    if(row && d.configured){
+      const ok = !!d.has_token;
+      row.style.display = 'flex';
+      row.className = 'conn-row' + (ok ? '' : ' warn');
+      document.getElementById('connText').textContent = ok ? t('conn_ok') : t('conn_noToken');
+      document.getElementById('connMeta').textContent = d.athlete_id ? ('Athlete ' + d.athlete_id) : '';
     }
   }catch(e){}
+}
+function togglePw(id, btn){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.type = el.type === 'password' ? 'text' : 'password';
+  btn.classList.toggle('show', el.type === 'text');
 }
 function autoFillHint(shown){
   const hint = document.getElementById('callbackHint');
@@ -761,6 +802,11 @@ async function loadInfo(){
     const st = s.strava || {};
     const db = s.db || {};
     const ag = s.agent || {};
+    // 组摘要徽章:一眼看出哪组需要关注
+    const sg = (id, ok, okTxt, noTxt) => { const el = document.getElementById(id); if(el){ el.textContent = ok ? okTxt : noTxt; el.className = 'sg-badge ' + (ok ? 'ok' : 'warn'); } };
+    sg('sgStrava', !!(st.configured && st.has_token), t('sg_ok'), t('sg_attention'));
+    sg('sgDb', (db.activities||0) > 0, t('sg_ready'), t('sg_empty'));
+    sg('sgAgent', !!ag.api_token, t('sg_ready'), t('sg_pending'));
     // Strava API（一张聚合卡片）
     grids.strava.innerHTML = aggr([
       {k:t('stat_configured'), v:badge(st.configured, t('stat_configured_ok'), t('stat_configured_no'))},
@@ -960,7 +1006,7 @@ function renderMonthly(months, key, prev){
   const data = months.slice(-31);
   const n = data.length;
   const w = Math.max(320, host.clientWidth || 560);
-  const h = 300, padL = 34, padR = 6, padT = 14, padB = 28;
+  const h = Math.max(300, host.clientHeight || 300), padL = 34, padR = 6, padT = 14, padB = 28;
   const iw = w - padL - padR, ih = h - padT - padB;
   const MF = METRIC_FIELD[chartMetric] || 'dist_km';
   const MDEC = chartMetric === 'count' ? 0 : 1;
@@ -1165,9 +1211,13 @@ async function syncNow(mode){
 }
 
 // ===== Logs =====
-function curLogSource(){
-  return document.getElementById('logSource').value || 'system';
+let logSourceVal = 'system';
+function setLogSource(src){
+  logSourceVal = src;
+  document.querySelectorAll('#logSrcSeg button').forEach(b=>b.classList.toggle('active', b.dataset.src===src));
+  loadLogDates();
 }
+function curLogSource(){ return logSourceVal; }
 function logSrcLabel(src){
   return {system:t('log_src_system'), strava:t('log_src_strava'), agent:t('log_src_agent')}[src] || src;
 }
