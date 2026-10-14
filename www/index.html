@@ -37,15 +37,15 @@ html[data-theme="dark"]{
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:14px;line-height:1.5;min-height:100vh;-webkit-font-smoothing:antialiased;transition:background .25s,color .25s}
 button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
 ::selection{background:rgba(var(--accent-rgb),.22)}
-.wrap{max-width:1160px;margin:0 auto;padding:20px 24px 48px}
+.wrap{max-width:1160px;margin:0 auto;padding:14px 24px 40px}
 .num{font-variant-numeric:tabular-nums}
 /* 行内线性图标（Lucide 风格，stroke=currentColor） */
 .ic{width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 
 /* header */
-.head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 2px 20px}
+.head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:2px 2px 12px}
 .brand{display:flex;align-items:center;gap:12px;min-width:0}
-.logo{width:40px;height:40px;flex-shrink:0;display:block;border-radius:11px;overflow:hidden;box-shadow:0 6px 16px -6px rgba(var(--accent-rgb),.55)}
+.logo{width:36px;height:36px;flex-shrink:0;display:block;border-radius:11px;overflow:hidden;box-shadow:0 6px 16px -6px rgba(var(--accent-rgb),.55)}
 .logo svg{width:100%;height:100%;display:block}
 .title{font-size:17px;font-weight:750;letter-spacing:-.4px;line-height:1.2}
 .ver{color:var(--text-3);font-size:11.5px;line-height:1.45;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
@@ -84,7 +84,7 @@ html[data-theme="dark"] .seg-btn.on{background:var(--active);box-shadow:none}
 .hmenu-ver a:hover{color:var(--text)}
 
 /* 顶部标签页（<768px 时横向滚动，不用汉堡菜单） */
-.nav{display:flex;gap:4px;padding:4px;margin-bottom:18px;background:var(--tertiary);border-radius:13px;width:fit-content;max-width:100%;overflow-x:auto}
+.nav{display:flex;gap:4px;padding:4px;margin-bottom:12px;background:var(--tertiary);border-radius:13px;width:fit-content;max-width:100%;overflow-x:auto}
 .nav button{display:inline-flex;align-items:center;gap:7px;border:none;background:transparent;color:var(--text-2);font-size:13.5px;font-weight:600;padding:8px 16px;border-radius:10px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,box-shadow .15s}
 .nav button .ic{color:var(--text-3)}
 .nav button:hover{color:var(--text)}
@@ -105,8 +105,8 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .btn.primary:hover{background:var(--accent-2);color:#fff;border-color:transparent}
 
 /* panels & stat cards */
-.panel{background:var(--surface);border:1px solid var(--border-subtle);border-radius:var(--radius);padding:20px 22px;margin-bottom:16px;box-shadow:var(--shadow-sm)}
-.panel h2{font-size:15px;font-weight:700;letter-spacing:-.2px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.panel{background:var(--surface);border:1px solid var(--border-subtle);border-radius:var(--radius);padding:16px 18px;margin-bottom:12px;box-shadow:var(--shadow-sm)}
+.panel h2{font-size:14px;font-weight:700;letter-spacing:-.2px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
 .panel h2 .ic{width:16px;height:16px;color:var(--accent)}
 .stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
 .stat-group{background:var(--surface-2);border:1px solid var(--border-subtle);border-radius:14px;padding:16px}
@@ -124,17 +124,22 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .dot-on{background:var(--ok)}.dot-off{background:var(--err)}
 
 /* metrics cards */
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:16px}
-.card{background:var(--surface);border:1px solid var(--border-subtle);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow-sm);transition:transform .15s,box-shadow .15s}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:12px}
+.card{background:var(--surface);border:1px solid var(--border-subtle);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-sm);transition:transform .15s,box-shadow .15s}
 .card:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
-.card .cic{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;background:rgba(var(--accent-rgb),.1);color:var(--accent);margin-bottom:12px}
-.card .cic svg{width:18px;height:18px}
-.card .label{font-size:13px;color:var(--text-3);margin-bottom:5px}
-.card .value{font-size:28px;font-weight:750;letter-spacing:-.5px;line-height:1.15;font-variant-numeric:tabular-nums}
+.card .cic{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:rgba(var(--accent-rgb),.1);color:var(--accent);margin-bottom:8px}
+.card .cic svg{width:16px;height:16px}
+.card .label{font-size:12.5px;color:var(--text-3);margin-bottom:2px}
+.card .value{font-size:24px;font-weight:750;letter-spacing:-.5px;line-height:1.2;font-variant-numeric:tabular-nums}
 .card .unit{font-size:13.5px;color:var(--text-3);font-weight:500;margin-left:3px;letter-spacing:0}
 
+/* 图表容器 + hover tooltip */
+.chart-wrap{position:relative}
+.ctip{position:absolute;transform:translateX(-50%);z-index:5;background:var(--text);color:var(--surface);font-size:11.5px;font-weight:600;padding:5px 9px;border-radius:8px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s;font-variant-numeric:tabular-nums;box-shadow:var(--shadow)}
+.cbar{transition:opacity .12s}
+
 /* 日期范围分段控件 */
-.seg{display:flex;gap:3px;padding:4px;border-radius:12px;background:var(--tertiary);margin-bottom:16px;overflow-x:auto;max-width:100%}
+.seg{display:flex;gap:3px;padding:4px;border-radius:12px;background:var(--tertiary);margin-bottom:12px;overflow-x:auto;max-width:100%}
 .seg button{padding:7px 12px;border:0;border-radius:9px;background:transparent;color:var(--text-3);cursor:pointer;font-size:13px;font-weight:600;flex:1 1 0;min-width:56px;text-align:center;white-space:nowrap;transition:all .15s}
 .seg button:hover{color:var(--text)}
 .seg button.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
@@ -445,7 +450,7 @@ const I18N = {
     token_creating:'正在生成新 token…', token_done:'✓ 新 token (立即生效):', token_fail:'创建失败:',
     load_log:'加载中…', no_log:'(暂无日志)', log_fmt:'{src} 日志 · {disp} · 共 {total} 行',
     menu_workspace:'工作区', menu_appearance:'外观', menu_about:'关于', theme_system:'跟随系统', theme_light:'亮色', theme_dark:'暗色',
-    hm_refresh:'刷新状态', hm_apidoc:'API 文档', hm_github:'GitHub',
+    hm_refresh:'刷新状态', hm_apidoc:'API 文档', hm_github:'GitHub', ctip_rides:'次',
   },
   en: {
     app_title:'Strava Panel', nav_dash:'Dashboard', nav_data:'Rides', nav_rides:'Recent Rides', nav_settings:'Settings',
@@ -475,7 +480,7 @@ const I18N = {
     token_creating:'Generating new token…', token_done:'✓ New token (effective now):', token_fail:'Failed:',
     load_log:'Loading…', no_log:'(no log)', log_fmt:'{src} log · {disp} · {total} lines',
     menu_workspace:'Workspace', menu_appearance:'Appearance', menu_about:'About', theme_system:'System', theme_light:'Light', theme_dark:'Dark',
-    hm_refresh:'Refresh Status', hm_apidoc:'API Docs', hm_github:'GitHub',
+    hm_refresh:'Refresh Status', hm_apidoc:'API Docs', hm_github:'GitHub', ctip_rides:'rides',
   }
 };
 let currentLang = localStorage.getItem('sv_lang') || 'zh';
@@ -798,108 +803,106 @@ function chartColors(){
     muted:   v('--text-3', '#999999'),
     border:  v('--border-subtle', '#e5e5e5'),
     surface: v('--surface', '#ffffff'),
-    surface2:v('--surface-2', '#fafafa'),
+    text:    v('--text', '#16161a'),
   };
 }
+// 现代柱状图：按容器实测宽度 1:1 渲染（不再用 viewBox 拉伸放大字体/线条），
+// 顶部圆角柱 + 品牌渐变 + hover tooltip；高度固定紧凑，首屏装得下整页。
 function renderMonthly(months, key){
-  // 面积折线图（参考官方 Strava app，纯 SVG，零依赖）。key=day|month|year 决定 X 轴标签
   key = key || 'month';
   lastChart = { series: months, key };
-  const el = document.getElementById('weeklyChart');
+  const host = document.getElementById('weeklyChart');
   const C = chartColors();
-  if(!months || !months.length){ el.innerHTML = `<div style="color:${C.muted};font-size:13px">${t('empty')}</div>`; return; }
-  const data = months.slice(-31);           // 最近 N 个点（天/周/月/年）
-  const w = 560, h = 220, padL = 40, padR = 14, padT = 24, padB = 28;
+  if(!months || !months.length){ host.innerHTML = `<div style="color:${C.muted};font-size:13px">${t('empty')}</div>`; return; }
+  const data = months.slice(-31);
+  const n = data.length;
+  const w = Math.max(320, host.clientWidth || 560);
+  const h = 188, padL = 34, padR = 6, padT = 10, padB = 22;
   const iw = w - padL - padR, ih = h - padT - padB;
-  // 纵轴最大值 = 数据最大值 ×1.2(顶部留白 ~20%)，最高点不贴图顶(对齐官方 Strava)。
-  // 若最大值过小(<10)则凑到 10 的约数，避免刻度难看。
   const rawMax = Math.max(...data.map(m=>m.dist_km), 0);
-  let max = rawMax * 1.2;
+  let max = rawMax * 1.15;
   if(max <= 0) max = 10;
   else if(max < 10) max = Math.ceil(max);
-  else max = Math.ceil(max / 10) * 10;       // 凑整到 10，让顶部再留白、刻度干净
-  const stepX = data.length > 1 ? iw/(data.length-1) : 0;
+  else max = Math.ceil(max / 10) * 10;
   // 标签格式化: 日→MM-DD, 周→W36, 月→YYYY/MM, 年→YYYY
   const fmtLabel = (raw) => {
     const s = String(raw||'');
     if(key === 'day'){ const p=s.split('-'); return p.length>=3 ? `${p[1]}-${p[2]}` : s; }
-    if(key === 'week'){
-      // 输入形如 2026-W36；给个友好的 "MM/DD" 起始日期不易，直接用 W36 简短展示
-      const m = s.match(/(\d{4})-W(\d+)/);
-      return m ? `W${m[2]}` : s;
-    }
+    if(key === 'week'){ const m = s.match(/(\d{4})-W(\d+)/); return m ? `W${m[2]}` : s; }
     if(key === 'year') return s;
     return s.replace('-','/');
   };
-  const pts = data.map((m,i)=>{
-    const x = padL + i*stepX;
-    const y = padT + ih - (m.dist_km/max)*ih;
-    return {x,y,label:fmtLabel(m[key]), dist:m.dist_km, count:m.count};
-  });
+  const slot = iw / n;
+  const barW = Math.max(4, Math.min(30, slot * 0.62));
   const baseY = padT + ih;
-  // --- X 轴标签 + 数值标签（含边缘防遮挡/去重叠） ---
-  // 点太多时(每日可达31个)全部画标签会重叠遮挡；按 ~6 个均匀抽样，且首尾始终保留。
-  const maxX = w - padR;                       // 右边界(避让最右点标签不被裁掉)
-  const showEvery = data.length > 8 ? Math.ceil(data.length / 6) : 1;
-  const xLabels = [], valLabels = [];
-  for(let i = 0; i < pts.length; i++){
-    const p = pts[i];
-    const isEdge = (i === 0 || i === pts.length - 1);
-    if(i % showEvery === 0 || isEdge){
-      const cx = Math.min(Math.max(p.x, padL + 14), maxX - 14);   // 首尾标签向内收，避免贴边裁切
-      xLabels.push(`<text x="${cx.toFixed(1)}" y="${h-6}" text-anchor="middle" font-size="10" fill="${C.muted}">${p.label}</text>`);
+  const bars = [], xLabels = [];
+  const showEvery = n > 10 ? Math.ceil(n / 7) : 1;
+  for(let i = 0; i < n; i++){
+    const m = data[i];
+    const cx = padL + slot*i + slot/2;
+    const l = fmtLabel(m[key]);
+    if(i % showEvery === 0 || i === n-1){
+      const anchor = i === 0 ? 'start' : (i === n-1 ? 'end' : 'middle');
+      const lx = i === 0 ? padL : (i === n-1 ? w - padR : cx);
+      xLabels.push(`<text x="${lx.toFixed(1)}" y="${h-5}" text-anchor="${anchor}" font-size="10" fill="${C.muted}">${l}</text>`);
     }
-    // 数值标签：仅在有骑行的点(>0)上标数字，0 值天不显示文字(避免一排 0)。点太密时抽稀。保留1位小数。
-    if(p.dist > 0 && (data.length <= 12 || isEdge || i % 2 === 0)){
-      const vy = Math.max(p.y - 9, padT + 6);  // 顶部点标签下移，避免超出图表上沿被裁
-      valLabels.push(`<text x="${Math.min(Math.max(p.x, 12), maxX - 12)}" y="${vy.toFixed(1)}" text-anchor="middle" font-size="9.5" fill="${C.muted}">${p.dist.toFixed(1)}</text>`);
+    if(m.dist_km > 0){
+      const bh = Math.max(3, (m.dist_km/max)*ih);
+      const y = baseY - bh;
+      const r = Math.min(4, barW/2, bh);
+      const x0 = (cx-barW/2).toFixed(1), x1 = (cx+barW/2).toFixed(1);
+      bars.push(`<path class="cbar" data-i="${i}" d="M${x0},${baseY} L${x0},${(y+r).toFixed(1)} Q${x0},${y.toFixed(1)} ${(cx-barW/2+r).toFixed(1)},${y.toFixed(1)} L${(cx+barW/2-r).toFixed(1)},${y.toFixed(1)} Q${x1},${y.toFixed(1)} ${x1},${(y+r).toFixed(1)} L${x1},${baseY} Z" fill="url(#barGrad)"/>`);
+    } else {
+      // 零值留 2px 底座保持节奏
+      bars.push(`<rect class="cbar" data-i="${i}" x="${(cx-barW/2).toFixed(1)}" y="${baseY-2}" width="${barW.toFixed(1)}" height="2" rx="1" fill="${C.border}"/>`);
     }
   }
-  // --- 平滑曲线（Catmull-Rom → 三次贝塞尔），对齐官方 Strava 的圆润折线 ---
-  function smoothD(){
-    const n = pts.length;
-    if(n < 2) return '';
-    if(n < 3) return `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)} L${pts[1].x.toFixed(1)},${pts[1].y.toFixed(1)}`;
-    let d = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
-    for(let i = 0; i < n - 1; i++){
-      const p0 = pts[i - 1] || pts[i];
-      const p1 = pts[i];
-      const p2 = pts[i + 1];
-      const p3 = pts[i + 2] || p2;
-      const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
-      const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
-      d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
-    }
-    return d;
-  }
-  const line = smoothD();
-  // 面积填充：平滑曲线 + 折回底部闭合（面积用折线逼近更稳，此处复用平滑曲线回落）
-  const baseLast = pts[pts.length-1];
-  const area = line + ` L${baseLast.x.toFixed(1)},${baseY} L${pts[0].x.toFixed(1)},${baseY} Z`;
-  // Y 轴刻度（4 档：0, 1/4, 1/2, 3/4, 满量程，取整）
-  const yticks = [0,0.25,0.5,0.75,1].map(f=>{ const v=f*max; return {y:padT+ih-f*ih, txt:Math.round(v)}; });
+  // Y 轴：3 档刻度（0 / 半程 / 满量程）
   let grid = '';
-  yticks.forEach(t=>{
-    grid += `<line x1="${padL}" y1="${t.y}" x2="${w-padR}" y2="${t.y}" stroke="${C.border}" stroke-width="1"/>`;
-    grid += `<text x="${padL-6}" y="${t.y+3}" text-anchor="end" font-size="10" fill="${C.muted}">${t.txt}km</text>`;
+  [0, 0.5, 1].forEach(f=>{
+    const gy = (padT + ih - f*ih).toFixed(1);
+    grid += `<line x1="${padL}" y1="${gy}" x2="${w-padR}" y2="${gy}" stroke="${C.border}" stroke-width="1"/>`;
+    if(f > 0) grid += `<text x="${padL-6}" y="${gy}" text-anchor="end" font-size="9.5" fill="${C.muted}">${Math.round(f*max)}</text>`;
   });
-  // 渐变填充定义
-  const gid = 'areaGrad';
-  el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" width="100%" style="display:block;background:${C.surface2};border-radius:10px" role="img" aria-label="distance chart">
-    <defs>
-      <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="${C.brand}" stop-opacity="0.35"/>
-        <stop offset="100%" stop-color="${C.brand}" stop-opacity="0.03"/>
-      </linearGradient>
-    </defs>
-    ${grid}
-    <path d="${area}" fill="url(#${gid})" stroke="none"/>
-    <path d="${line}" fill="none" stroke="${C.brand}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
-    ${pts.map((p,i)=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${i===pts.length-1?4:2.6}" fill="${C.brand}" stroke="${C.surface}" stroke-width="1" vector-effect="non-scaling-stroke"/>`).join('')}
-    ${xLabels.join('')}
-    ${valLabels.join('')}
-  </svg>`;
+  // 透明命中区（整列高度），hover 出 tooltip
+  const hits = [];
+  for(let i = 0; i < n; i++){
+    hits.push(`<rect class="chit" data-i="${i}" x="${(padL+slot*i).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${ih}" fill="transparent"/>`);
+  }
+  host.innerHTML = `<div class="chart-wrap"><svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block" role="img" aria-label="distance chart">
+    <defs><linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${C.brand}"/><stop offset="100%" stop-color="${C.brand}" stop-opacity=".55"/>
+    </linearGradient></defs>
+    ${grid}${bars.join('')}${xLabels.join('')}${hits.join('')}
+  </svg><div class="ctip" id="chartTip"></div></div>`;
+  // hover 交互：高亮当前柱 + tooltip
+  const tip = host.querySelector('#chartTip');
+  const barEls = host.querySelectorAll('.cbar');
+  host.querySelectorAll('.chit').forEach(hit=>{
+    hit.addEventListener('mouseenter', ()=>{
+      const i = +hit.dataset.i, m = data[i];
+      barEls.forEach(b=>b.style.opacity = (+b.dataset.i === i ? '1' : '.35'));
+      tip.textContent = `${fmtLabel(m[key])} · ${(+m.dist_km).toFixed(1)} km · ${m.count} ${t('ctip_rides')}`;
+      tip.style.opacity = '1';
+      const cx = padL + slot*i + slot/2;
+      tip.style.left = Math.min(Math.max(cx, 70), w - 70) + 'px';
+      tip.style.top = (padT + 2) + 'px';
+    });
+    hit.addEventListener('mouseleave', ()=>{
+      barEls.forEach(b=>b.style.opacity = '1');
+      tip.style.opacity = '0';
+    });
+  });
 }
+// 容器尺寸变化时按新宽度重绘（150ms 防抖），保证 1:1 渲染不拉伸
+let chartResizeTimer = null;
+window.addEventListener('resize', ()=>{
+  clearTimeout(chartResizeTimer);
+  chartResizeTimer = setTimeout(()=>{
+    if(lastChart && document.getElementById('tab-data').classList.contains('active')) renderMonthly(lastChart.series, lastChart.key);
+  }, 150);
+});
+
 let allActivities = [];
 let page = 1;
 const PAGE_SIZE = 10;
