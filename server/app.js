@@ -859,8 +859,24 @@ async function callLlm(cfg, messages, timeoutMs = 90000) {
     body: JSON.stringify({ model: cfg.model, messages, temperature: 0.7 }),
   }, timeoutMs);
   if (!resp.ok) {
-    const body = (await resp.text().catch(() => '')).slice(0, 300);
-    const err = new Error(`LLM HTTP ${resp.status}: ${body || resp.statusText}`);
+    const body = (await resp.text().catch(() => '')).slice(0, 500);
+    let friendly = '';
+    try {
+      const j = JSON.parse(body);
+      const msg = j.error?.message || j.message || j.error?.msg || '';
+      if (msg) friendly = String(msg).slice(0, 200);
+    } catch { /* 非 JSON 错误体 */ }
+    const statusMap = {
+      401: 'API Key 无效或已过期',
+      403: '无权限访问该模型',
+      404: '模型不存在或不可用',
+      429: '请求过于频繁,请稍后再试',
+      500: '网关内部错误',
+      502: '网关不可用',
+      503: '服务暂时不可用',
+    };
+    const hint = statusMap[resp.status] || `HTTP ${resp.status}`;
+    const err = new Error(friendly ? `${hint}: ${friendly}` : (hint + (resp.statusText ? ` (${resp.statusText})` : '')));
     err.llm = true;
     throw err;
   }

@@ -1986,6 +1986,20 @@ function modelShort(id){
 // 点页面其他位置收起弹层
 document.addEventListener('click', (e)=>{ if(!e.target.closest('.pop-anchor')) document.querySelectorAll('.pop-anchor .pop-list').forEach(p=>p.classList.remove('show')); });
 
+// 错误消息截断:去掉 JSON 包裹/转义,限长 120 字,避免 429 等原始 JSON 糊满屏幕
+function shortErr(err){
+  let s = String(err || '');
+  // 剥掉 JSON 外壳: {"type":"error","error":{"type":"...","message":"..."}} → 提取 message
+  try{
+    const j = JSON.parse(s);
+    if(j.error && j.error.message) s = String(j.error.message);
+    else if(j.message) s = String(j.message);
+  }catch{ /* 非 JSON,原文 */ }
+  s = s.replace(/\\n/g,' ').replace(/\\"/g,'"').trim();
+  if(s.length > 120) s = s.slice(0, 120) + '…';
+  return s || t('coach_fail');
+}
+
 async function coachAsk(text){
   if(coachLoading) return;
   text = String(text||'').trim();
@@ -2010,15 +2024,15 @@ async function coachAsk(text){
       box.scrollTop = box.scrollHeight;
     } else {
       think.classList.remove('thinking');
-      think.querySelector('.msg-body').innerHTML = '<span style="color:var(--err)">'+escapeHtml(t('coach_fail') + ' ' + (d.error||''))+'</span>';
-      if(msgEl) msgEl.textContent = t('coach_fail') + ' ' + (d.error||'');
-      toast(t('coach_fail') + ' ' + (d.error||''), false);
+      think.querySelector('.msg-body').innerHTML = '<span style="color:var(--err)">'+escapeHtml(t('coach_fail') + ' ' + shortErr(d.error))+'</span>';
+      if(msgEl) msgEl.textContent = t('coach_fail') + ' ' + shortErr(d.error);
+      toast(t('coach_fail') + ' ' + shortErr(d.error), false);
     }
   }catch(e){
     think.classList.remove('thinking');
-    think.querySelector('.msg-body').innerHTML = '<span style="color:var(--err)">'+escapeHtml(t('coach_fail') + ' ' + e.message)+'</span>';
-    if(msgEl) msgEl.textContent = t('coach_fail') + ' ' + e.message;
-    toast(t('coach_fail') + ' ' + e.message, false);
+    think.querySelector('.msg-body').innerHTML = '<span style="color:var(--err)">'+escapeHtml(t('coach_fail') + ' ' + shortErr(e.message))+'</span>';
+    if(msgEl) msgEl.textContent = t('coach_fail') + ' ' + shortErr(e.message);
+    toast(t('coach_fail') + ' ' + shortErr(e.message), false);
   }
   if(sendBtn) sendBtn.disabled = false;
   coachLoading = false;
