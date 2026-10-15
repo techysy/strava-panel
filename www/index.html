@@ -2203,10 +2203,8 @@ function updDownload(url, name){
     window.stravaUpdater.download(url, name).then(s => { updState = s; renderUpdateModal(s, ()=>{}); }).catch(e => { updState = { phase:'error', error: e.message }; renderUpdateModal(updState, ()=>{}); });
     return;
   }
-  // Web: 浏览器直接下载
-  const a = document.createElement('a');
-  a.href = url; a.download = name || '';
-  document.body.appendChild(a); a.click(); a.remove();
+  // Web/fnOS: 打开 GitHub Releases 页面让用户选择下载(不直接触发下载)
+  window.open(`https://github.com/${UPD_REPO}/releases`, '_blank');
   updState = { phase: 'downloaded' };
   renderUpdateModal(updState, ()=>{});
 }
