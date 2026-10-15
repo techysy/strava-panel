@@ -6,6 +6,16 @@
 
 ---
 
+## v2.2.1 (2026-10-15)
+
+> 修复:**桌面端安装/关闭失败**、**资产平台别名命名**、**CI 优化**。
+
+- 🔧 **修复桌面端安装/关闭失败**:asar 打包导致 `ELECTRON_RUN_AS_NODE=1` 子进程路径解析异常(服务端起不来→前端显示原生兜底页);改 `asar: false`(对齐 CreditDaddy),修复窗口关闭/退出逻辑(win 存在性检查 + killProcTree 超时兜底 + 移除 Win11 已删除的 wmic 兜底)。
+- 🏷️ **资产命名加平台别名**:fpk `strava-fnos-{ver}.fpk` / `strava-fnos-{ver}-iframe.fpk`;Win `StravaPanel-win-Setup-{ver}.exe` / `StravaPanel-win-Portable-{ver}.exe`;Mac `StravaPanel-mac-Setup-{ver}-{arch}.dmg`(zip 跟随)。
+- ⚙️ **CI 优化**:所有 workflow 加 `concurrency` 组防重复触发;CHANGELOG 提取改用独立 Python 脚本 `scripts/extract-changelog.py`(替代 awk,避免转义/编码问题);Release Notes 表格同步新命名。
+
+---
+
 ## v2.2.0 (2026-10-15)
 
 > 功能增强:**自动同步**、**模型卡片库**、**踏频采集**、**表格排序**、**时间感知训练计划**、**会话管理**。

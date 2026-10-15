@@ -194,12 +194,8 @@ async function startServer() {
 
 function killProcTree(pid) {
     if (process.platform === 'win32') {
-        // 被拒绝(权限)时 WMI 兜底
         const r = spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true });
         if (r.error) throw r.error;
-        if (r.status !== 0) {
-            spawnSync('wmic', ['process', 'where', `processid=${pid}`, 'delete'], { windowsHide: true });
-        }
         return;
     }
     try { process.kill(pid, 'SIGTERM'); } catch { /* 进程已退出 */ }
@@ -349,7 +345,7 @@ function createWindow() {
         }
     });
     win.on('close', (e) => {
-        if (!quitting) {          // 点关闭 = 最小化到托盘
+        if (!quitting && win && !win.isDestroyed()) {          // 点关闭 = 最小化到托盘
             e.preventDefault();
             win.hide();
         }
@@ -401,7 +397,11 @@ function rebuildMenu() {
         { type: 'separator' },
         {
             label: '退出',
-            click: () => { quitting = true; app.quit(); },
+            click: async () => {
+                quitting = true;
+                try { await stopServer(); } catch { }
+                app.quit();
+            },
         },
     ]);
     tray.setContextMenu(menu);
@@ -437,9 +437,18 @@ if (!gotLock) {
 
     app.on('before-quit', () => { quitting = true; });
 
-    app.on('will-quit', () => {
+    app.on('will-quit', (e) => {
         if (nodeProc) {
-            try { killProcTree(nodeProc.pid); } catch { try { nodeProc.kill(); } catch { } }
+            e.preventDefault();
+            const forceExit = setTimeout(() => { try { process.exit(0); } catch { } }, 3000);
+            if (forceExit.unref) forceExit.unref();
+            (async () => {
+                try { killProcTree(nodeProc.pid); } catch { try { nodeProc.kill(); } catch { } }
+                const t = setTimeout(() => { try { process.exit(0); } catch { } }, 2000);
+                if (t.unref) t.unref();
+                nodeProc.once('exit', () => { clearTimeout(forceExit); app.quit(); });
+                setTimeout(() => { clearTimeout(forceExit); app.quit(); }, 2500).unref?.();
+            })();
         }
     });
 

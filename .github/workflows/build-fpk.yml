@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-fpk:
     strategy:
@@ -84,7 +88,7 @@ jobs:
           [ -n "$VERSION" ] || { echo "ERROR: could not extract version from manifest"; exit 1; }
           SUFFIX=""
           if [ "${{ matrix.variant }}" = "iframe" ]; then SUFFIX="-iframe"; fi
-          OUT="strava-${VERSION}${SUFFIX}.fpk"
+          OUT="strava-fnos-${VERSION}${SUFFIX}.fpk"
           mv strava.fpk "${OUT}"
           sha256sum "${OUT}"
           ls -lh "${OUT}"

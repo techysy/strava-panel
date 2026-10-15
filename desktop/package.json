@@ -1,7 +1,7 @@
 {
   "name": "strava-panel-desktop",
   "productName": "StravaPanel",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "Strava 骑行数据面板 桌面托盘版 — Electron 托盘壳 + Node.js sidecar",
   "main": "main.js",
   "author": "techysy",
@@ -22,6 +22,7 @@
   "build": {
     "appId": "com.techysy.strava-panel",
     "productName": "StravaPanel",
+    "asar": false,
     "directories": {
       "output": "dist",
       "buildResources": "."
@@ -53,7 +54,8 @@
           ]
         }
       ],
-      "icon": "icon.ico"
+      "icon": "icon.ico",
+      "allowElevation": true
     },
     "mac": {
       "target": [
@@ -76,7 +78,7 @@
       "category": "public.app-category.healthcare-fitness"
     },
     "dmg": {
-      "artifactName": "StravaPanel-Mac-Setup-${version}-${arch}.${ext}"
+      "artifactName": "StravaPanel-mac-Setup-${version}-${arch}.${ext}"
     },
     "linux": {
       "target": [
@@ -91,10 +93,11 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "StravaPanel"
+      "shortcutName": "StravaPanel",
+      "artifactName": "StravaPanel-win-Setup-${version}.${ext}"
     },
     "portable": {
-      "artifactName": "StravaPanel-Portable-${version}.exe"
+      "artifactName": "StravaPanel-win-Portable-${version}.${ext}"
     },
     "publish": [
       {

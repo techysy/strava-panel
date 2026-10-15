@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   create-release:
     runs-on: ubuntu-latest
@@ -22,7 +26,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           # CHANGELOG.md 版本段落格式:`## vX.Y.Z (日期)`(不是 `## [X.Y.Z]`)
-          NOTES=$(awk "/^## v?\\[?${VERSION}/{found=1; next} found && /^## /{exit} found{print}" CHANGELOG.md)
+          NOTES=$(python3 scripts/extract-changelog.py "${VERSION}")
           if [ -z "$NOTES" ]; then
             NOTES="Strava Panel ${GITHUB_REF_NAME}: Strava 骑行数据面板 — 凭据管理、Token 自动刷新、骑行统计可视化。"
           fi
@@ -38,10 +42,10 @@ jobs:
             echo
             echo "| 渠道 | 说明 |"
             echo "| --- | --- |"
-            echo "| fnOS / NAS | \`strava-${VERSION}-x86.fpk\` / \`strava-${VERSION}-arm.fpk\`(新标签页)、\`strava-${VERSION}-x86-iframe.fpk\` / \`strava-${VERSION}-arm-iframe.fpk\`(桌面窗口),在飞牛应用中心手动安装 |"
+            echo "| fnOS / NAS | \`strava-fnos-${VERSION}.fpk\`(网页版,新标签页)、\`strava-fnos-${VERSION}-iframe.fpk\`(窗口版,飞牛桌面窗口),在飞牛应用中心手动安装 |"
             echo "| Docker | \`docker pull ghcr.io/techysy/strava-panel:${VERSION}\`(amd64/arm64) |"
-            echo "| Windows | \`StravaPanel Setup ${VERSION}.exe\`(NSIS,应用内自动更新)/ \`StravaPanel ${VERSION}.exe\`(Portable 便携版) |"
-            echo "| macOS | \`StravaPanel-${VERSION}-arm64.dmg\`(Apple 芯片)/ \`StravaPanel-${VERSION}-x64.dmg\`(Intel),zip 同为对应架构,未公证,首次右键打开 |"
+            echo "| Windows | \`StravaPanel-win-Setup ${VERSION}.exe\`(NSIS,应用内自动更新)/ \`StravaPanel-win-Portable ${VERSION}.exe\`(便携版) |"
+            echo "| macOS | \`StravaPanel-mac-Setup-${VERSION}-arm64.dmg\`(Apple 芯片)/ \`StravaPanel-mac-Setup-${VERSION}-x64.dmg\`(Intel),zip 同为对应架构,未公证,首次右键打开 |"
             echo "| npm CLI | \`npm i -g @techysy/strava-panel@${VERSION}\`(\`sp\` 命令) |"
             echo
             echo "校验和见 SHA256SUMS-fpk.txt / SHA256SUMS-windows.txt / SHA256SUMS-macos.txt。"
