@@ -510,6 +510,29 @@ export class StravaDB {
       .map(([k, v]) => ({ year: k, ...bucketOut(v) }));
   }
 
+  // ---- 功率曲线 (最佳功率-时长曲线) ----
+  // 对每个时长档位,从所有满足 moving_time >= 该时长 且 average_watts > 0 的活动中取 MAX。
+  // 这与 Strava/TrainingPeaks 的 "Power Curve" 语义一致: 你在某时长内能维持的最大功率。
+  // 返回 { durations: [秒...], watts: [W...] } (只含有数据的档位,跳过无数据的)。
+  powerCurve(startDate = null, endDate = null) {
+    const DURATIONS = [5, 15, 30, 60, 120, 180, 300, 600, 900, 1200, 1800, 2700, 3600, 5400, 7200, 10800, 14400];
+    let q = `SELECT moving_time, average_watts FROM activities
+             WHERE average_watts IS NOT NULL AND average_watts > 0 AND moving_time IS NOT NULL AND moving_time > 0`;
+    const params = [];
+    if (startDate) { q += ' AND start_date >= ?'; params.push(startDate); }
+    if (endDate) { q += ' AND start_date <= ?'; params.push(endDate + 'T23:59:59'); }
+    const rows = this.db.prepare(q).all(...params);
+    const durations = [], watts = [];
+    for (const d of DURATIONS) {
+      let maxW = 0;
+      for (const r of rows) {
+        if (r.moving_time >= d && r.average_watts > maxW) maxW = r.average_watts;
+      }
+      if (maxW > 0) { durations.push(d); watts.push(Math.round(maxW)); }
+    }
+    return { durations, watts };
+  }
+
   // ---- 训练建议记忆 (coach_memory / coach_sessions, 会话化) ----
   ensureSession(sid) {
     /** 返回可用会话 id:sid 有效则原样返回,否则新建一个会话。 */

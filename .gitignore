@@ -33,3 +33,5 @@ fnos-packaging/app/server/
 fnos-packaging/app/www/
 fnos-packaging/*.fpk
 .v2c/
+*.db
+*.db-journal

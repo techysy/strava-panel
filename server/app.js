@@ -1139,6 +1139,22 @@ async function handleGet(req, res, rawPath, qs) {
     }
     return;
   }
+  if (rawPath === '/api/powercurve') {
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    try {
+      await ensureLocalData();
+      const recent = db.powerCurve(qs.start || null, qs.end || null);
+      // 对比区间: 近6月 vs 全部
+      const now = new Date();
+      const dAgo = (days) => { const d = new Date(now); d.setDate(d.getDate() - days); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+      const all = db.powerCurve(null, null);
+      const recent6m = db.powerCurve(dAgo(182), null);
+      sendJson(res, { recent, all, recent6m, unit: 'W' });
+    } catch (e) {
+      sendJson(res, { error: String(e.message || e) }, 500);
+    }
+    return;
+  }
   if (rawPath === '/api/activities') {
     if (!requireApiToken(req, res, qs, rawPath)) return;
     try {
