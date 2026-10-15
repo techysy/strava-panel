@@ -13,7 +13,7 @@
  *  - 开发版: 系统 node(需 >=22.13,缺失时在托盘对话框提示安装)
  *  - 数据目录注入 SP_DATA_DIR = app.getPath('userData')
  */
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell, dialog, ipcMain } = require('electron');
 const { spawn, spawnSync } = require('child_process');
 const http = require('http');
 const fs = require('fs');
@@ -275,19 +275,62 @@ async function checkForUpdatesInteractive() {
     }
     if (updateState.checking) { notify('检查更新', '正在检查中,请稍候…'); return; }
     updateState.checking = true;
+    pushUpdateUi({ phase: 'checking' });
     notify('检查更新', '正在检查新版本…');
     try {
         const r = await autoUpdater.checkForUpdates();
         const v = r && r.updateInfo && r.updateInfo.version;
         if (!v || !isNewerVersion(v, app.getVersion())) {
+            pushUpdateUi({ phase: 'latest', version: app.getVersion() });
             notify('已是最新版本', `当前版本 v${app.getVersion()}`);
+        } else {
+            pushUpdateUi({ phase: 'available', version: v });
         }
         // 有新版本时 update-available 事件已气泡通知并触发后台下载
     } catch (err) {
+        pushUpdateUi({ phase: 'error', error: String((err && err.message) || err) });
         notify('检查更新失败', String((err && err.message) || err));
     } finally {
         updateState.checking = false;
     }
+}
+
+// ── 面板内更新弹窗状态机 ──
+// 面板 preload.js 暴露 window.stravaUpdater, 通过 IPC 与主进程通信
+let updateUi = { phase: 'idle' };   // idle | checking | latest | available | downloading | downloaded | error
+function pushUpdateUi(patch) {
+    updateUi = { ...updateUi, ...patch };
+    try { if (win && !win.isDestroyed()) win.webContents.send('update:state', updateUi); } catch {}
+    return updateUi;
+}
+function updateUiState() {
+    return { ...updateUi, current: app.getVersion(), supported: updateSupported() };
+}
+
+// IPC handlers(面板内更新弹窗调用)
+ipcMain.handle('update-state', () => updateUiState());
+ipcMain.handle('update-check', async () => { await checkForUpdatesInteractive(); return updateUiState(); });
+ipcMain.handle('update-install', async () => {
+    if (updateUi.phase === 'downloaded' && autoUpdater) {
+        quitting = true;
+        autoUpdater.quitAndInstall();
+    }
+    return updateUiState();
+});
+ipcMain.handle('update-open-releases', () => {
+    try { shell.openExternal('https://github.com/techysy/strava-panel/releases'); } catch {}
+});
+
+// 下载进度推送
+function setupUpdateProgressPush() {
+    if (!autoUpdater) return;
+    autoUpdater.on('download-progress', (p) => {
+        pushUpdateUi({ phase: 'downloading', pct: p.percent || 0, bytesPerSecond: p.bytesPerSecond, total: p.total, transferred: p.transferred });
+    });
+    autoUpdater.on('update-downloaded', (info) => {
+        pushUpdateUi({ phase: 'downloaded', version: info.version });
+        promptInstallUpdate(info);
+    });
 }
 
 async function promptInstallUpdate(info) {
@@ -328,6 +371,7 @@ function createWindow() {
         backgroundColor: '#1a1a1a',
         show: false,
         webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
             nodeIntegration: false,
             sandbox: true,
@@ -433,6 +477,7 @@ if (!gotLock) {
         createTray();
         await startServer();          // 启动即拉起服务
         setupAutoUpdate();            // 服务就绪后延迟检查更新
+        setupUpdateProgressPush();    // 面板内更新弹窗进度推送
     });
 
     app.on('before-quit', () => { quitting = true; });
