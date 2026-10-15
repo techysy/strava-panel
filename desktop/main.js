@@ -284,9 +284,10 @@ async function checkForUpdatesInteractive() {
             pushUpdateUi({ phase: 'latest', version: app.getVersion() });
             notify('已是最新版本', `当前版本 v${app.getVersion()}`);
         } else {
-            pushUpdateUi({ phase: 'available', version: v });
+            // autoDownload=true, 检查完成后下载已自动开始, 直接推送 downloading 状态
+            pushUpdateUi({ phase: 'downloading', version: v, pct: 0 });
+            notify('发现新版本', `v${v} 正在后台下载…`);
         }
-        // 有新版本时 update-available 事件已气泡通知并触发后台下载
     } catch (err) {
         pushUpdateUi({ phase: 'error', error: String((err && err.message) || err) });
         notify('检查更新失败', String((err && err.message) || err));
