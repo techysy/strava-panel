@@ -250,7 +250,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 #tab-coach .llm-warn,#tab-coach .chat-toolbar,#tab-coach .chat-input,#tab-coach #coachMsg{flex-shrink:0}
 .chat-box{display:flex;flex-direction:column;flex:1;min-height:0}
 .chat-msgs{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px 2px;min-height:120px}
-.chat-msg{max-width:78%;padding:10px 14px;border-radius:14px;font-size:13.5px;line-height:1.65;word-break:break-word;white-space:normal}
+.chat-msg{max-width:78%;padding:10px 14px;border-radius:14px;font-size:13.5px;line-height:1.65;word-break:break-word;white-space:normal;max-height:320px;overflow-y:auto}
 .chat-msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px;text-shadow:0 1px 2px rgba(0,0,0,.18)}
 .chat-msg.assistant{align-self:flex-start;background:var(--surface-2);border:1px solid var(--border-subtle);color:var(--text);border-bottom-left-radius:4px}
 .chat-msg.assistant p{margin:0 0 8px}.chat-msg.assistant p:last-child{margin-bottom:0}
@@ -289,6 +289,10 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 .pop-list{position:absolute;left:0;top:calc(100% + 8px);z-index:60;min-width:240px;max-width:340px;max-height:340px;overflow-y:auto;background:var(--surface);border:1px solid var(--border-subtle);border-radius:14px;padding:6px;box-shadow:var(--shadow);display:none}
 .pop-list.show{display:block}
 .pop-list.right{left:auto;right:0}
+.ctx-menu{position:fixed;z-index:100;min-width:160px;background:var(--surface);border:1px solid var(--border-subtle);border-radius:12px;padding:5px;box-shadow:var(--shadow);display:none}
+.ctx-menu.show{display:block}
+.ctx-item{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border:0;border-radius:8px;background:transparent;color:var(--text-2);font-size:12.5px;font-weight:600;cursor:pointer;text-align:left;font-family:inherit}
+.ctx-item:hover{background:var(--hover);color:var(--text)}
 .pop-item{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border:0;border-radius:9px;background:transparent;color:var(--text-2);font-size:12.5px;font-weight:600;cursor:pointer;text-align:left;font-family:inherit}
 .pop-item:hover{background:var(--hover);color:var(--text)}
 .pop-item.on{background:var(--ok-soft);color:var(--viz)}
@@ -606,6 +610,10 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 
     <!-- 训练建议 -->
     <div class="view" id="tab-coach">
+      <div class="seg" id="coachViewSeg" style="margin-bottom:12px">
+        <button id="cvChat" class="active" onclick="setCoachView('chat')" data-i18n="cv_chat">对话</button>
+        <button id="cvCal" onclick="setCoachView('cal')" data-i18n="cv_cal">训练日历</button>
+      </div>
       <div class="panel">
         <h2><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span data-i18n="coach_title">AI 训练建议</span></h2>
         <div class="cal-view" id="calView" style="display:none">
@@ -638,7 +646,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
           </div>
           <button class="btn" onclick="clearCoach()" id="clearBtn" title=""><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button>
         </div>
-        <div class="chat-box">
+        <div class="chat-box" id="chatArea">
           <div class="chat-msgs" id="chatMsgs"><div class="chat-empty" data-i18n="coach_empty">向 AI 教练提问训练规划,它会读取你的骑行数据(距离/时长/心率/功率)并结合历史对话给出建议。对话记忆保存在本地数据库。</div></div>
           <div class="chat-input">
             <textarea id="chatText" rows="1" data-i18n-ph="coach_ph" placeholder="例:下周想提升耐力,帮我安排训练" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCoach();}"></textarea>
@@ -774,6 +782,8 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
     <div class="modal-actions" id="updActions"></div>
   </div>
 </div>
+<!-- 消息右键导出菜单 -->
+<div id="msgCtxMenu" class="ctx-menu"></div>
 
 <script>
 // ===== i18n =====
@@ -795,6 +805,7 @@ const I18N = {
     prev_page:'‹ 上一页', next_page:'下一页 ›', empty:'暂无数据',
     nav_power:'功率曲线', power_title:'最佳功率曲线', power_hint:'横轴为持续时间，纵轴为该时长内可维持的最大平均功率。数据来源于本地活动记录。',
     pw_all:'全部', pw_recent6m:'近6月', pw_ftp_est:'估算 FTP', pw_best_5s:'5秒最佳', pw_best_1min:'1分钟最佳', pw_best_5min:'5分钟最佳', pw_best_20min:'20分钟最佳', pw_ftp_hint:'20分钟最佳 × 0.95',
+    ctx_exportTxt:'导出文本', ctx_exportImg:'导出图片', ctx_copy:'复制内容',
     sub_cred:'凭据', sub_api:'API', sub_data:'数据',
     setup_title:'配置 Strava 凭据', setup_hint:'在 <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a> 查看 Client ID / Client Secret。Refresh Token 需通过 OAuth 授权获取。',
     setup_clientId:'Client ID', setup_clientSecret:'Client Secret', setup_refreshToken:'Refresh Token', setup_redirectUri:'回调地址 (redirect_uri)', setup_save:'保存凭据', setup_connect:'连接 Strava', setup_connectHint:'「连接 Strava」会在独立窗口打开 Strava 授权页，授权后自动回填并保存 refresh_token。',
@@ -820,6 +831,7 @@ const I18N = {
     coach_thinking:'教练思考中…', coach_fail:'请求失败:', coach_cleared:'记忆已清空',
     coach_clear_confirm:'将清空当前会话的全部对话记忆,此操作不可撤销。', coach_suggest_prompt:'请根据我最近的骑行数据,给出本周训练建议(含强度、时长、恢复安排)。',
     coach_sessions:'会话', coach_new:'新会话', coach_newSess:'新会话', coach_pickModel:'选择模型', coach_untitled:'(无标题)', coach_noSessions:'暂无历史会话',
+    cv_chat:'对话', cv_cal:'训练日历',
     model_defaultGroup:'默认', model_fetching:'拉取模型列表中…', model_fetchOk:'已拉取', model_fetchFail:'拉取失败:', model_fetchEmpty:'网关未返回模型列表',
     modal_ok:'确定', modal_cancel:'取消',
     sub_model:'模型', model_title:'模型设置 (LLM)', model_hint:'接入 OpenAI 兼容 API(本地网关如 Ollama / LM Studio / vLLM,或云端),用于「训练建议」页签的 AI 教练。密钥仅存本地 strava.conf(权限 600)。',
@@ -865,6 +877,7 @@ const I18N = {
     prev_page:'‹ Prev', next_page:'Next ›', empty:'No data',
     nav_power:'Power Curve', power_title:'Best Power Curve', power_hint:'X-axis: duration; Y-axis: best average power sustained for that duration. Data from local activities.',
     pw_all:'All', pw_recent6m:'6 Months', pw_ftp_est:'Est. FTP', pw_best_5s:'5s Best', pw_best_1min:'1min Best', pw_best_5min:'5min Best', pw_best_20min:'20min Best', pw_ftp_hint:'20min best × 0.95',
+    ctx_exportTxt:'Export Text', ctx_exportImg:'Export Image', ctx_copy:'Copy',
     sub_cred:'Credentials', sub_api:'API', sub_data:'Data',
     setup_title:'Configure Strava Credentials', setup_hint:'View Client ID / Client Secret at <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a>. Refresh Token obtained via OAuth.',
     setup_clientId:'Client ID', setup_clientSecret:'Client Secret', setup_refreshToken:'Refresh Token', setup_redirectUri:'Redirect URI', setup_save:'Save Credentials', setup_connect:'Connect Strava', setup_connectHint:'Connect Strava opens an authorization window; refresh_token is saved automatically after approval.',
@@ -890,6 +903,7 @@ const I18N = {
     coach_thinking:'Coach is thinking…', coach_fail:'Request failed:', coach_cleared:'Memory cleared',
     coach_clear_confirm:'This clears the current session conversation memory and cannot be undone.', coach_suggest_prompt:'Based on my recent rides, give me a training plan for this week (intensity, duration, recovery).',
     coach_sessions:'Sessions', coach_new:'New', coach_newSess:'New', coach_pickModel:'Pick model', coach_untitled:'(untitled)', coach_noSessions:'No past sessions',
+    cv_chat:'Chat', cv_cal:'Training Calendar',
     model_defaultGroup:'default', model_fetching:'Fetching models…', model_fetchOk:'Fetched', model_fetchFail:'Fetch failed:', model_fetchEmpty:'Gateway returned no models',
     modal_ok:'OK', modal_cancel:'Cancel',
     sub_model:'Model', model_title:'Model Settings (LLM)', model_hint:'Connect an OpenAI-compatible API (local gateways like Ollama / LM Studio / vLLM, or cloud) for the AI coach. The key is stored only in local strava.conf (mode 600).',
@@ -1035,6 +1049,23 @@ function switchNav(nav){
   if(nav==='coach'){ loadCoach(); }
   if(nav==='settings'){ loadCredConfig(); }  // cred 是默认子tab，直接进入时也回填凭据
   if(nav==='api'||nav==='settings'){ /* handled by subtab */ }
+}
+// 教练页视图切换: 对话 / 训练日历
+let coachCurView = 'chat';
+function setCoachView(v){
+  coachCurView = v;
+  document.querySelectorAll('#coachViewSeg button').forEach(b => b.classList.remove('active'));
+  document.getElementById(v === 'cal' ? 'cvCal' : 'cvChat').classList.add('active');
+  const calView = document.getElementById('calView');
+  const chatArea = document.getElementById('chatArea');
+  if(v === 'cal'){
+    if(calView) calView.style.display = 'flex';
+    if(chatArea) chatArea.style.display = 'none';
+    loadCal();
+  } else {
+    if(calView) calView.style.display = 'none';
+    if(chatArea) chatArea.style.display = 'flex';
+  }
 }
 function switchSubTab(name){
   document.querySelectorAll('.subtab').forEach(el=>el.classList.remove('active'));
@@ -2264,6 +2295,11 @@ function chatMsgNode(role, content, iso){
   if(role === 'assistant') body.innerHTML = mdLite(content);
   else body.innerHTML = escapeHtml(content).replace(/\n/g,'<br>');
   div.appendChild(head); div.appendChild(body);
+  // 右键导出菜单
+  div.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    showMsgCtxMenu(e.clientX, e.clientY, role, content, iso);
+  });
   return div;
 }
 function renderChat(messages){
@@ -2282,6 +2318,68 @@ function thinkingNode(){
   div.innerHTML = '<div class="who"><span class="msg-avatar"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg></span>' +
     escapeHtml(t('coach_ai')) + '</div><div class="msg-body"><span class="dots"><i></i><i></i><i></i></span></div>';
   return div;
+}
+// ===== 消息右键导出菜单 =====
+function showMsgCtxMenu(x, y, role, content, iso){
+  const menu = document.getElementById('msgCtxMenu');
+  const time = msgTime(iso);
+  const label = role === 'assistant' ? t('coach_ai') : t('coach_you');
+  menu.innerHTML = `<button class="ctx-item" onclick="ctxCopy(${role === 'assistant' ? 1 : 0}, ${JSON.stringify(content).slice(0, 5000)})"><svg class="ic" aria-hidden="true"><use href="#i-clipboard"/></svg>${t('ctx_copy')}</button>`+
+    `<button class="ctx-item" onclick="ctxExportTxt(${role === 'assistant' ? 1 : 0}, ${JSON.stringify(content).slice(0, 5000)}, ${JSON.stringify(label)}, ${JSON.stringify(time)})"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>${t('ctx_exportTxt')}</button>`+
+    `<button class="ctx-item" onclick="ctxExportImg(${role === 'assistant' ? 1 : 0}, ${JSON.stringify(content).slice(0, 5000)}, ${JSON.stringify(label)}, ${JSON.stringify(time)})"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>${t('ctx_exportImg')}</button>`;
+  menu.style.left = Math.min(x, window.innerWidth - 180) + 'px';
+  menu.style.top = Math.min(y, window.innerHeight - 130) + 'px';
+  menu.classList.add('show');
+  // 点击外部关闭
+  const close = () => { menu.classList.remove('show'); document.removeEventListener('click', close); };
+  setTimeout(() => document.addEventListener('click', close), 0);
+}
+function ctxCopy(role, content){
+  navigator.clipboard.writeText(content).then(() => toast(t('api_copied'), true)).catch(()=>{});
+}
+function ctxExportTxt(role, content, label, time){
+  const txt = '--- ' + label + ' | ' + time + ' ---\n\n' + content + '\n';
+  const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'strava-coach-' + Date.now() + '.txt';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function ctxExportImg(role, content, label, time){
+  // 用 canvas 绘制消息为图片
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const pad = 30, lineH = 24, fontSize = 14;
+  const lines = content.split('\n');
+  const maxLines = Math.min(lines.length, 50);
+  canvas.width = 600;
+  canvas.height = pad * 2 + maxLines * lineH + 40;
+  // 背景
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  ctx.fillStyle = isDark ? '#1a1a2e' : '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // 头部
+  ctx.fillStyle = isDark ? '#2dd4bf' : '#fc4c02';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillText(label + ' | ' + time, pad, pad + 14);
+  ctx.strokeStyle = isDark ? '#333' : '#e5e5e5';
+  ctx.beginPath(); ctx.moveTo(pad, pad + 28); ctx.lineTo(canvas.width - pad, pad + 28); ctx.stroke();
+  // 内容
+  ctx.fillStyle = isDark ? '#e5e5e5' : '#333';
+  ctx.font = fontSize + 'px sans-serif';
+  for(let i = 0; i < maxLines; i++){
+    const line = lines[i].slice(0, 70);
+    ctx.fillText(line, pad, pad + 28 + i * lineH + 18);
+  }
+  // 下载
+  canvas.toBlob(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'strava-coach-' + Date.now() + '.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  });
 }
 function sessLabel(sess){
   if(!sess || !sess.title) return t('coach_untitled');
@@ -2316,6 +2414,7 @@ async function loadCoach(){
     renderSessions();
     renderChat(d.messages);
     renderModelPick();
+    setCoachView(coachCurView);
     loadCal();
   }catch(e){}
 }
@@ -2323,12 +2422,14 @@ async function switchSession(id){
   document.querySelectorAll('.pop-anchor .pop-list').forEach(p=>p.classList.remove('show'));
   coachSessionId = Number(id);
   await loadCoach();
+  await loadCal();
 }
 function newCoachSession(){
   document.querySelectorAll('.pop-anchor .pop-list').forEach(p=>p.classList.remove('show'));
   coachSessionId = null;
   renderSessions();
   renderChat([]);
+  loadCal();
 }
 function toggleCoachPop(id, ev){
   if(ev) ev.stopPropagation();
@@ -2481,13 +2582,16 @@ function calNav(dir){
   calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + dir, 1);
   renderCal();
 }
-function calCellClick(iso){
+async function calCellClick(iso){
   const existing = calPlans.find(p => p.date === iso);
   if(existing){
-    // 已有计划 → 标记完成/取消
-    apiPut('/api/coach/plans', { id: existing.id, content: existing.content, status: existing.status === 'done' ? 'planned' : 'done' });
-    existing.status = existing.status === 'done' ? 'planned' : 'done';
-    renderCal();
+    // 已有计划 → 标记完成/取消(等 API 返回再更新本地状态)
+    const newStatus = existing.status === 'done' ? 'planned' : 'done';
+    try {
+      const d = await apiPut('/api/coach/plans', { id: existing.id, content: existing.content, status: newStatus });
+      calPlans = d.plans || calPlans;
+      renderCal();
+    } catch(e){}
     return;
   }
   appConfirm(t('cal_addPlan'), iso + ' — ' + t('cal_planPrompt'), false).then(ok => {
