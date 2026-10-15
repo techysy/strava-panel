@@ -256,7 +256,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 .chat-box{display:flex;flex-direction:column;flex:1;min-height:0}
 .chat-msgs{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px 2px;min-height:120px}
 .chat-msg{max-width:78%;padding:10px 14px;border-radius:14px;font-size:13.5px;line-height:1.65;word-break:break-word;white-space:normal}
-.chat-msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px;text-shadow:0 1px 2px rgba(0,0,0,.18)}
+.chat-msg.user{align-self:flex-end;background:var(--surface);border:1px solid rgba(var(--accent-rgb),.45);color:var(--text);border-bottom-right-radius:4px;box-shadow:var(--shadow-sm)}
 .chat-msg.assistant{align-self:flex-start;background:var(--surface-2);border:1px solid var(--border-subtle);color:var(--text);border-bottom-left-radius:4px}
 .chat-msg.assistant p{margin:0 0 8px}.chat-msg.assistant p:last-child{margin-bottom:0}
 .chat-msg.assistant code{background:var(--tertiary);border:1px solid var(--border-subtle);border-radius:5px;padding:1px 5px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace}
@@ -381,7 +381,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 .chat-msg.assistant th{background:var(--tertiary);font-weight:700}
 .msg-time{font-size:10px;font-weight:500;opacity:.6;margin-left:6px;text-transform:none;letter-spacing:0}
 .chat-msg .who{display:flex;align-items:center;gap:6px}
-.chat-msg.user .who{justify-content:flex-end}
+.chat-msg.user .who{justify-content:flex-end;color:var(--accent);opacity:.9}
 .msg-avatar{width:18px;height:18px;border-radius:50%;background:var(--viz);color:#fff;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
 .msg-avatar .ic{width:11px;height:11px}
 .msg-body{min-width:0}
@@ -421,6 +421,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
 <symbol id="i-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.7a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-2a2 2 0 0 0 1.3-1.3z"/></symbol>
 <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
 <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></symbol>
 <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
 <symbol id="i-trophy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 0 12 0V3H6z"/><path d="M6 5H3v2a4 4 0 0 0 4 4"/><path d="M18 5h3v2a4 4 0 0 1-4 4"/><line x1="12" y1="15" x2="12" y2="19"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="10" y1="19" x2="14" y2="19"/></symbol>
@@ -584,26 +585,33 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 
     <!-- 功率曲线 -->
     <div class="view" id="tab-power">
-      <div class="seg" id="pwRangeSeg" style="margin-bottom:12px">
-        <button id="pwRg7d" onclick="setPwRange('7d')" data-i18n="rg_7d">近7天</button>
-        <button id="pwRg1m" onclick="setPwRange('1m')" data-i18n="rg_1m">近1月</button>
-        <button id="pwRg3m" onclick="setPwRange('3m')" data-i18n="rg_3m">近3月</button>
-        <button id="pwRg6m" onclick="setPwRange('6m')" data-i18n="rg_6m">近6月</button>
-        <button id="pwRgYtd" onclick="setPwRange('ytd')" data-i18n="rg_ytd">本年度</button>
-        <button id="pwRg12m" onclick="setPwRange('12m')" data-i18n="rg_12m">近12月</button>
-        <button id="pwRgAll" class="active" onclick="setPwRange('all')" data-i18n="rg_all">所有</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div class="seg" id="pwRangeSeg" style="margin-bottom:0">
+          <button id="pwRg7d" onclick="setPwRange('7d')" data-i18n="rg_7d">近7天</button>
+          <button id="pwRg42d" onclick="setPwRange('42d')" data-i18n="rg_42d">近42天</button>
+          <button id="pwRg1m" onclick="setPwRange('1m')" data-i18n="rg_1m">近1月</button>
+          <button id="pwRg3m" onclick="setPwRange('3m')" data-i18n="rg_3m">近3月</button>
+          <button id="pwRg6m" onclick="setPwRange('6m')" data-i18n="rg_6m">近6月</button>
+          <button id="pwRgYtd" onclick="setPwRange('ytd')" data-i18n="rg_ytd">本年度</button>
+          <button id="pwRg12m" onclick="setPwRange('12m')" data-i18n="rg_12m">近1年</button>
+          <button id="pwRgAll" class="active" onclick="setPwRange('all')" data-i18n="rg_all">所有</button>
+        </div>
+        <div class="mode-seg" id="pwUnitSeg">
+          <button class="seg-btn on" id="btnUnitW" onclick="setPwUnit('w')">瓦特 (W)</button>
+          <button class="seg-btn" id="btnUnitWkg" onclick="setPwUnit('wkg')">瓦特 / 公斤 (W/kg)</button>
+        </div>
       </div>
       <div class="panel">
-        <h2><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg><span data-i18n="power_title">最佳功率曲线</span><span class="clegend" id="powerLegend" style="display:none"><span class="sw"><i class="box pw-all"></i><span data-i18n="pw_all">全部</span></span><span class="sw"><i class="box pw-recent"></i><span data-i18n="pw_recent6m">近6月</span></span></span><span class="cmp-toggle" id="pwCmpToggle" onclick="togglePowerCompare()"><span data-i18n="cmp_label">对比上期</span><span class="switch"></span></span></h2>
-        <div class="hint" style="margin:-4px 0 12px" data-i18n="power_hint">横轴为持续时间，纵轴为该时长内可维持的最大平均功率。数据来源于本地活动记录。</div>
+        <h2><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg><span data-i18n="power_title">最佳功率曲线</span><span class="clegend" id="powerLegend" style="display:none"><span class="sw"><i class="box pw-all"></i><span data-i18n="pw_all">全部</span></span><span class="sw"><i class="box pw-recent"></i><span data-i18n="cmp_this">本期</span></span></span><span class="cmp-toggle" id="pwCmpToggle" onclick="togglePowerCompare()"><span data-i18n="cmp_label">对比全部</span><span class="switch"></span></span></h2>
+        <div class="hint" style="margin:-4px 0 12px" data-i18n="power_hint">横轴为持续时间，纵轴为该时长内可维持的最大平均功率。自动接入 Intervals.icu 高精度功率曲线。</div>
         <div id="powerChart"></div>
         <div class="power-stats" id="powerStats" style="display:none">
           <div class="pw-stats-row">
-            <div class="pw-stat"><span class="label" data-i18n="pw_ftp_est">估算 FTP</span><span class="value"><b id="pwFtp">-</b> W</span></div>
-            <div class="pw-stat"><span class="label" data-i18n="pw_best_5s">5秒最佳</span><span class="value"><b id="pw5s">-</b> W</span></div>
-            <div class="pw-stat"><span class="label" data-i18n="pw_best_1min">1分钟最佳</span><span class="value"><b id="pw1min">-</b> W</span></div>
-            <div class="pw-stat"><span class="label" data-i18n="pw_best_5min">5分钟最佳</span><span class="value"><b id="pw5min">-</b> W</span></div>
-            <div class="pw-stat"><span class="label" data-i18n="pw_best_20min">20分钟最佳</span><span class="value"><b id="pw20min">-</b> W</span></div>
+            <div class="pw-stat"><span class="label" data-i18n="pw_ftp_est">估算 FTP</span><span class="value"><b id="pwFtp">-</b> <span class="pw-unit-label">W</span></span></div>
+            <div class="pw-stat"><span class="label" data-i18n="pw_best_5s">5秒最佳</span><span class="value"><b id="pw5s">-</b> <span class="pw-unit-label">W</span></span></div>
+            <div class="pw-stat"><span class="label" data-i18n="pw_best_1min">1分钟最佳</span><span class="value"><b id="pw1min">-</b> <span class="pw-unit-label">W</span></span></div>
+            <div class="pw-stat"><span class="label" data-i18n="pw_best_5min">5分钟最佳</span><span class="value"><b id="pw5min">-</b> <span class="pw-unit-label">W</span></span></div>
+            <div class="pw-stat"><span class="label" data-i18n="pw_best_20min">20分钟最佳</span><span class="value"><b id="pw20min">-</b> <span class="pw-unit-label">W</span></span></div>
           </div>
         </div>
       </div>
@@ -644,8 +652,11 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 
     <!-- 训练日历弹窗(独立于对话) -->
     <div class="modal-mask" id="calMask">
-      <div class="modal lg" role="dialog" aria-modal="true">
-        <h3 id="calModalTitle"><svg class="ic" aria-hidden="true"><use href="#i-calendar"/></svg><span data-i18n="cv_cal">训练日历</span></h3>
+      <div class="modal lg" role="dialog" aria-modal="true" style="position:relative">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3 id="calModalTitle" style="margin:0"><svg class="ic" aria-hidden="true"><use href="#i-calendar"/></svg><span data-i18n="cv_cal">训练日历</span></h3>
+          <button class="btn sm" onclick="document.getElementById('calMask').classList.remove('show')" style="padding:4px 8px;border-radius:8px;border:1px solid var(--border-subtle);background:transparent;cursor:pointer"><svg class="ic" aria-hidden="true" style="width:14px;height:14px"><use href="#i-x"/></svg></button>
+        </div>
         <div class="cal-view" id="calView">
           <div class="cal-grid" id="calGrid"></div>
           <div class="cal-side">
@@ -753,6 +764,16 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
             </div>
             <p class="hint" data-i18n="autosync_hint">开启后服务端按周期自动执行增量同步(仅拉取新活动);手动同步不受影响。</p>
           </div>
+          <div class="autosync-box" style="margin-top:14px">
+            <h4 style="font-size:13px;margin:0 0 6px;display:flex;align-items:center;gap:6px"><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg>Intervals.icu 真实功率数据源</h4>
+            <p class="hint" style="margin:0 0 10px">接入后「功率曲线」将自动展示 Intervals.icu 的秒级真实最佳功率曲线与 eFTP。</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <input id="intervals_athlete_id" placeholder="运动员 ID (如 i221776)" style="max-width:180px">
+              <input id="intervals_api_key" type="password" placeholder="API 密钥 (API_KEY)" style="max-width:240px">
+              <button class="btn" onclick="saveIntervalsConfig()">保存配置</button>
+            </div>
+            <span class="hint" id="intervalsMsg" style="display:block;margin-top:6px"></span>
+          </div>
         </div>
       </div>
       <div class="subpanel" id="sub-sess">
@@ -801,7 +822,7 @@ const I18N = {
     stat_configured:'凭据', stat_token:'授权', stat_activities:'缓存活动', stat_sync:'最后同步', stat_port:'端口', stat_version:'版本', stat_connected:'已连接', stat_not_configured:'未配置', stat_error:'异常',
     stat_athlete:'Athlete ID', stat_dbsize:'DB 大小', stat_dbpath:'DB 路径', stat_apitoken:'API token', stat_calls:'调用次数', stat_lastcall:'最后调用',
     stat_configured_ok:'已配置', stat_configured_no:'未配置', stat_token_ok:'正常', stat_token_no:'失效', stat_apitoken_ok:'已生成', stat_apitoken_no:'未生成',
-    rg_7d:'近7天', rg_1m:'近1月', rg_3m:'近3月', rg_6m:'近6月', rg_ytd:'本年度', rg_12m:'近12月', rg_all:'所有',
+    rg_7d:'近7天', rg_42d:'近42天', rg_1m:'近1月', rg_3m:'近3月', rg_6m:'近6月', rg_ytd:'本年度', rg_12m:'近12月', rg_all:'所有',
     gran_day:'每日', gran_week:'每周', gran_month:'每月', gran_year:'每年', metric_dist:'骑行距离', metric_dur:'骑行时长', metric_elev:'骑行爬升', metric_count:'骑行次数',
     stats_rides:'骑行次数', stats_dist:'总距离', stats_dur:'总时长', stats_elev:'总爬升', stats_hr:'平均心率', stats_pw:'平均功率',
     panel_monthly:'每月骑行距离 (km)', panel_daily:'每日骑行距离 (km)', panel_weekly:'每周骑行距离 (km)', panel_yearly:'每年骑行距离 (km)', panel_recent:'最近骑行',
@@ -873,7 +894,7 @@ const I18N = {
     stat_configured:'Credentials', stat_token:'Auth', stat_activities:'Cached Acts', stat_sync:'Last Sync', stat_port:'Port', stat_version:'Version', stat_connected:'Connected', stat_not_configured:'Not Configured', stat_error:'Error',
     stat_athlete:'Athlete ID', stat_dbsize:'DB Size', stat_dbpath:'DB Path', stat_apitoken:'API token', stat_calls:'Call Count', stat_lastcall:'Last Call',
     stat_configured_ok:'Configured', stat_configured_no:'Not Configured', stat_token_ok:'OK', stat_token_no:'Invalid', stat_apitoken_ok:'Generated', stat_apitoken_no:'Not Generated',
-    rg_7d:'7D', rg_1m:'1M', rg_3m:'3M', rg_6m:'6M', rg_ytd:'YTD', rg_12m:'12M', rg_all:'All',
+    rg_7d:'7D', rg_42d:'42D', rg_1m:'1M', rg_3m:'3M', rg_6m:'6M', rg_ytd:'YTD', rg_12m:'12M', rg_all:'All',
     gran_day:'Daily', gran_week:'Weekly', gran_month:'Monthly', gran_year:'Yearly', metric_dist:'Ride Distance', metric_dur:'Duration', metric_elev:'Elevation', metric_count:'Rides',
     stats_rides:'Rides', stats_dist:'Distance', stats_dur:'Duration', stats_elev:'Elevation', stats_hr:'Avg HR', stats_pw:'Avg Power',
     panel_monthly:'Monthly Distance (km)', panel_daily:'Daily Distance (km)', panel_weekly:'Weekly Distance (km)', panel_yearly:'Yearly Distance (km)', panel_recent:'Recent Rides',
@@ -1060,6 +1081,8 @@ let coachCurView = 'chat';
 function openCalModal(){
   const mask = document.getElementById('calMask');
   if(!mask) return;
+  calCursor = new Date();
+  renderCal();
   loadCal();
   mask.classList.add('show');
   mask.onclick = (e) => { if(e.target === mask) mask.classList.remove('show'); };
@@ -1380,11 +1403,23 @@ async function loadData(){
 // ===== 功率曲线 =====
 let powerCurveData = null;  // 缓存最近一次功率曲线数据（主题切换后重绘）
 let powerCurveCompareOn = localStorage.getItem('sp-pw-compare') === '1';
-let pwRange = 'all';  // 功率曲线时间范围: 7d/1m/3m/6m/ytd/12m/all
+let pwRange = 'all';  // 功率曲线时间范围: 7d/42d/1m/3m/6m/ytd/12m/all
+let pwUnit = localStorage.getItem('sp-pw-unit') || 'w'; // w | wkg
+
+function setPwUnit(u){
+  pwUnit = u;
+  localStorage.setItem('sp-pw-unit', u);
+  document.getElementById('btnUnitW')?.classList.toggle('on', u === 'w');
+  document.getElementById('btnUnitWkg')?.classList.toggle('on', u === 'wkg');
+  document.querySelectorAll('.pw-unit-label').forEach(el => el.textContent = u === 'wkg' ? 'W/kg' : 'W');
+  renderPowerCurve();
+}
+
 function setPwRange(r){
   pwRange = r;
   document.querySelectorAll('#pwRangeSeg button').forEach(b => b.classList.remove('active'));
-  const btn = document.getElementById('pwRg' + r.charAt(0).toUpperCase() + r.slice(1));
+  const btnId = r === '42d' ? 'pwRg42d' : ('pwRg' + r.charAt(0).toUpperCase() + r.slice(1));
+  const btn = document.getElementById(btnId);
   if(btn) btn.classList.add('active');
   loadPowerCurve();
 }
@@ -1408,7 +1443,7 @@ function reRenderPowerCurve(){ if(powerCurveData) renderPowerCurve(); }
 // 时长格式化: 5→5s, 60→1min, 3600→1h, 7200→2h
 function fmtDuration(sec){
   if(sec < 60) return sec + 's';
-  if(sec < 3600) return (sec/60) + 'min';
+  if(sec < 3600) return (sec/60) + 'm';
   return (sec/3600) + 'h';
 }
 function renderPowerCurve(){
@@ -1423,81 +1458,120 @@ function renderPowerCurve(){
   const curve = d.curve;
   const all = d.all;
   const showAll = powerCurveCompareOn && all && all.durations && all.durations.length;
+  const weight = d.weight || 73;
+  const isWkg = pwUnit === 'wkg';
+  const valOf = (w) => isWkg ? (w / weight) : w;
+  const uLabel = isWkg ? 'W/kg' : 'W';
+
   // X 轴: log2 刻度
   const allDurations = curve.durations.concat(showAll ? all.durations : []);
   const minDur = Math.min(...allDurations), maxDur = Math.max(...allDurations);
   const logMin = Math.log2(minDur), logMax = Math.log2(maxDur);
   const w = Math.max(320, host.clientWidth || 560);
-  const h = Math.max(280, host.clientHeight || 280), padL = 42, padR = 10, padT = 16, padB = 30;
+  const h = Math.max(280, host.clientHeight || 280), padL = 46, padR = 14, padT = 18, padB = 30;
   const iw = w - padL - padR, ih = h - padT - padB;
+  const baseY = padT + ih;
+
   // Y 轴
-  let rawMax = Math.max(...curve.watts, 0);
-  if(showAll) rawMax = Math.max(rawMax, ...all.watts);
+  let rawMax = Math.max(...curve.watts.map(valOf), 0);
+  if(showAll) rawMax = Math.max(rawMax, ...all.watts.map(valOf));
   let max = rawMax * 1.15;
-  if(max <= 0) max = 10;
-  else if(max < 10) max = Math.ceil(max);
-  else max = Math.ceil(max / 50) * 50;
+  if(isWkg){
+    max = Math.max(4, Math.ceil(max));
+  } else {
+    if(max <= 0) max = 10;
+    else if(max < 10) max = Math.ceil(max);
+    else max = Math.ceil(max / 50) * 50;
+  }
   const xOf = (dur) => padL + ((Math.log2(dur) - logMin) / (logMax - logMin)) * iw;
-  const yOf = (watts) => padT + ih - (watts / max) * ih;
-  // 面积填充
-  const drawArea = (data, color) => {
+  const yOf = (val) => padT + ih - (val / max) * ih;
+
+  // 面积填充 (渐变)
+  const drawArea = (data, fillId) => {
     if(!data.durations.length) return '';
-    const baseY = padT + ih;
     const pts = data.durations.map((dur, i) => `${xOf(dur).toFixed(1)},${yOf(data.watts[i]).toFixed(1)}`);
     const lastX = xOf(data.durations[data.durations.length-1]).toFixed(1);
     const firstX = xOf(data.durations[0]).toFixed(1);
-    return `<polygon points="${firstX},${baseY} ${pts.join(' ')} ${lastX},${baseY}" fill="${color}" opacity="0.08"/>`;
+    return `<polygon points="${firstX},${baseY} ${pts.join(' ')} ${lastX},${baseY}" fill="${fillId}"/>`;
   };
   // 曲线绘制
   const drawCurve = (data, color, dashed) => {
-    const pts = data.durations.map((dur, i) => `${xOf(dur).toFixed(1)},${yOf(data.watts[i]).toFixed(1)}`);
-    return `<polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"${dashed ? ' stroke-dasharray="6 4"' : ''}/>`;
+    const pts = data.durations.map((dur, i) => `${xOf(dur).toFixed(1)},${yOf(valOf(data.watts[i])).toFixed(1)}`);
+    return `<polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"${dashed ? ' stroke-dasharray="6 4"' : ''}/>`;
   };
   // 数据点圆圈
   const drawDots = (data, color) => {
+    const keyDurations = [1, 5, 15, 30, 60, 120, 180, 300, 600, 1200, 1800, 2700, 3600, 7200, 14400];
     return data.durations.map((dur, i) => {
-      const x = xOf(dur).toFixed(1), y = yOf(data.watts[i]).toFixed(1);
-      return `<circle cx="${x}" cy="${y}" r="3.5" fill="${C.surface}" stroke="${color}" stroke-width="2"/>`;
+      if(!keyDurations.includes(dur) && dur > 60 && dur % 300 !== 0) return '';
+      const x = xOf(dur).toFixed(1), y = yOf(valOf(data.watts[i])).toFixed(1);
+      return `<circle cx="${x}" cy="${y}" r="3" fill="${C.surface}" stroke="${color}" stroke-width="2"/>`;
     }).join('');
   };
-  // X 轴标签: 选 5s/1min/5min/1h/2h/4h
-  const xTickDurs = [5, 60, 300, 3600, 7200, 14400].filter(d => d >= minDur && d <= maxDur);
-  const xLabels = xTickDurs.map(d => {
+
+  // X 轴关键刻度与垂直虚线网格 (对齐 Intervals.icu: 1s, 15s, 1m, 5m, 10m, 20m, 30m, 1h, 2h, 4h, 8h)
+  const xTickDurs = [1, 15, 60, 300, 600, 1200, 1800, 3600, 7200, 14400, 28800].filter(d => d >= minDur && d <= maxDur);
+  let vGrid = '', xLabels = '';
+  xTickDurs.forEach(d => {
     const x = xOf(d).toFixed(1);
-    return `<text x="${x}" y="${h-8}" text-anchor="middle" font-size="10.5" fill="${C.muted}">${fmtDuration(d)}</text>`;
-  }).join('');
-  // Y 轴标签: 4 档
-  let grid = '';
+    vGrid += `<line x1="${x}" y1="${padT}" x2="${x}" y2="${baseY}" stroke="${C.border}" stroke-width="1" stroke-dasharray="3 3" opacity="0.65"/>`;
+    xLabels += `<text x="${x}" y="${h-8}" text-anchor="middle" font-size="10.5" font-weight="600" fill="${C.muted}">${fmtDuration(d)}</text>`;
+  });
+
+  // Y 轴水平线与刻度
+  let hGrid = '';
   [0, 0.25, 0.5, 0.75, 1].forEach(f => {
     const gy = (padT + ih - f * ih).toFixed(1);
-    grid += `<line x1="${padL}" y1="${gy}" x2="${w-padR}" y2="${gy}" stroke="${C.border}" stroke-width="1"/>`;
-    if(f > 0) grid += `<text x="${padL-6}" y="${gy}" text-anchor="end" font-size="10" fill="${C.muted}">${Math.round(f*max)}</text>`;
+    hGrid += `<line x1="${padL}" y1="${gy}" x2="${w-padR}" y2="${gy}" stroke="${C.border}" stroke-width="1"/>`;
+    if(f > 0) {
+      const v = f * max;
+      const textVal = isWkg ? v.toFixed(1) : Math.round(v);
+      hGrid += `<text x="${padL-6}" y="${gy}" text-anchor="end" font-size="10" fill="${C.muted}">${textVal}</text>`;
+    }
   });
-  // FTP 估算线: 20min best × 0.95
+
+  // FTP 估算线: 优先取接口返回的 eftp, 否则取 20min best × 0.95
   const idx20 = curve.durations.indexOf(1200);
+  const rawFtp = curve.eftp || (idx20 >= 0 && curve.watts[idx20] > 0 ? Math.round(curve.watts[idx20] * 0.95) : 0);
   let ftpLine = '', ftpText = '';
-  if(idx20 >= 0 && curve.watts[idx20] > 0){
-    const ftp = Math.round(curve.watts[idx20] * 0.95);
-    const fy = yOf(ftp).toFixed(1);
-    ftpLine = `<line x1="${padL}" y1="${fy}" x2="${w-padR}" y2="${fy}" stroke="${C.brand}" stroke-width="1.6" stroke-dasharray="8 5" opacity="0.7"/>`;
-    ftpText = `<text x="${w-padR}" y="${fy-5}" text-anchor="end" font-size="10.5" font-weight="700" fill="${C.brand}">FTP ${ftp}W</text>`;
+  if(rawFtp > 0){
+    const ftpVal = valOf(rawFtp);
+    const fy = yOf(ftpVal).toFixed(1);
+    ftpLine = `<line x1="${padL}" y1="${fy}" x2="${w-padR}" y2="${fy}" stroke="${C.brand}" stroke-width="1.6" stroke-dasharray="7 4"/>`;
+    const ftpDisplay = isWkg ? ftpVal.toFixed(2) : Math.round(ftpVal);
+    ftpText = `<text x="${w-padR}" y="${fy-6}" text-anchor="end" font-size="11" font-weight="700" fill="${C.brand}">FTP ${ftpDisplay} ${uLabel}</text>`;
   }
+
   // 命中区: 每个数据点一个透明圆, hover 出 tooltip
   const hits = curve.durations.map((dur, i) => {
-    const x = xOf(dur).toFixed(1), y = yOf(curve.watts[i]).toFixed(1);
-    return `<circle class="pwhit" data-i="${i}" cx="${x}" cy="${y}" r="10" fill="transparent"/>`;
+    const x = xOf(dur).toFixed(1), y = yOf(valOf(curve.watts[i])).toFixed(1);
+    return `<circle class="pwhit" data-i="${i}" cx="${x}" cy="${y}" r="12" fill="transparent"/>`;
   }).join('');
-  const allArea = showAll ? drawArea(all, C.muted) : '';
-  const curveArea = drawArea(curve, C.viz);
+
+  const allArea = showAll ? drawArea(all, 'url(#allGrad)') : '';
+  const curveArea = drawArea(curve, 'url(#pwGrad)');
   const allDots = showAll ? drawDots(all, C.muted) : '';
-  const allLine = showAll ? drawCurve(all, C.muted, false) : '';
-  const curveLine = drawCurve(curve, C.viz, showAll);
-  const curveDots = drawDots(curve, showAll ? C.viz : C.viz);
-  // tooltip
+  const allLine = showAll ? drawCurve(all, C.muted, true) : '';
+  const curveLine = drawCurve(curve, C.viz, false);
+  const curveDots = drawDots(curve, C.viz);
+
+  // SVG 渐变定义
+  const defs = `<defs>
+    <linearGradient id="pwGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${C.viz}" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="${C.viz}" stop-opacity="0.02"/>
+    </linearGradient>
+    <linearGradient id="allGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${C.muted}" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="${C.muted}" stop-opacity="0.01"/>
+    </linearGradient>
+  </defs>`;
+
   const tipId = 'powerTip';
   host.innerHTML = `<div class="chart-wrap"><svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block" role="img" aria-label="power curve">
-    ${grid}${allArea}${curveArea}${ftpLine}${ftpText}${allLine}${curveLine}${allDots}${curveDots}${xLabels}${hits}
+    ${defs}${hGrid}${vGrid}${allArea}${curveArea}${ftpLine}${ftpText}${allLine}${curveLine}${allDots}${curveDots}${xLabels}${hits}
   </svg><div class="ctip" id="${tipId}"></div></div>`;
+
   // hover 交互
   const tip = host.querySelector('#' + tipId);
   const curveDurArr = curve.durations, curveWattsArr = curve.watts;
@@ -1506,31 +1580,50 @@ function renderPowerCurve(){
     hit.addEventListener('mouseenter', ()=>{
       const i = +hit.dataset.i;
       const dur = curveDurArr[i], watts = curveWattsArr[i];
-      let txt = `${fmtDuration(dur)} · ${watts}W`;
-      // 找全部历史同档位
-      const ri = allDurArr.indexOf(dur);
-      if(ri >= 0){
-        const rw = allWattsArr[ri];
-        txt += ` · ${t('pw_all')} ${rw}W`;
+      const wkgVal = (watts / weight).toFixed(2);
+      let txt = `${fmtDuration(dur)} · ${watts}W (${wkgVal} W/kg)`;
+      if(showAll){
+        const ri = allDurArr.indexOf(dur);
+        if(ri >= 0){
+          const rw = allWattsArr[ri];
+          const rwWkg = (rw / weight).toFixed(2);
+          txt += ` · ${t('pw_all')} ${rw}W (${rwWkg} W/kg)`;
+        }
       }
       tip.textContent = txt;
       tip.style.opacity = '1';
     });
     hit.addEventListener('mouseleave', ()=>{ tip.style.opacity = '0'; });
   });
-  // 统计卡片
+
+  // 底部最佳指标卡: 严格关联当前周期 curve
+  const curData = (curve && curve.durations && curve.durations.length) ? curve : all;
   const statIds = ['5s', '1min', '5min', '20min'];
   const durMap = {'5s': 5, '1min': 60, '5min': 300, '20min': 1200};
   statIds.forEach(s => {
-    const idx = all.durations.indexOf(durMap[s]);
-    const el = document.getElementById('pw' + s.replace('min','min').replace('s','s'));
-    if(el && idx >= 0) el.textContent = all.watts[idx];
+    const dur = durMap[s];
+    const idx = curData.durations.indexOf(dur);
+    const el = document.getElementById('pw' + s);
+    if(el) {
+      if(idx >= 0 && curData.watts[idx] > 0){
+        const wVal = curData.watts[idx];
+        el.textContent = isWkg ? (wVal / weight).toFixed(2) : wVal;
+      } else {
+        el.textContent = '-';
+      }
+    }
   });
-  // FTP
+  // 估算 FTP: 取当前周期的 20min 估算或 eFTP
+  const curFtp = curData.eftp || (curIdx20 >= 0 && curData.watts[curIdx20] > 0 ? Math.round(curData.watts[curIdx20] * 0.95) : 0);
   const ftpEl = document.getElementById('pwFtp');
-  if(ftpEl && idx20 >= 0 && all.watts[idx20] > 0){
-    ftpEl.textContent = Math.round(all.watts[idx20] * 0.95);
+  if(ftpEl){
+    if(curFtp > 0){
+      ftpEl.textContent = isWkg ? (curFtp / weight).toFixed(2) : curFtp;
+    } else {
+      ftpEl.textContent = '-';
+    }
   }
+
   document.getElementById('powerStats').style.display = '';
   // 图例
   const lg = document.getElementById('powerLegend');
@@ -1538,6 +1631,7 @@ function renderPowerCurve(){
   // 对比开关状态同步
   const pwCmpBtn = document.getElementById('pwCmpToggle');
   if(pwCmpBtn) pwCmpBtn.classList.toggle('on', powerCurveCompareOn);
+  document.querySelectorAll('.pw-unit-label').forEach(el => el.textContent = uLabel);
 }
 // 缓存最近一次的图表数据：主题切换/对比开关后用同一数据重绘（SVG 颜色取计算后的 CSS 变量）
 let lastChart = null;
@@ -1890,7 +1984,30 @@ async function loadAutoSyncCfg(){
     if(sel) sel.value = String(d.auto_sync_hours || 24);
     const line = document.getElementById('lastSyncLine');
     if(line) line.textContent = d.last_sync ? (t('last_sync') + ': ' + String(d.last_sync).replace('T',' ').slice(0,16)) : t('never_synced');
+    // Intervals.icu 配置回显
+    const intAth = document.getElementById('intervals_athlete_id');
+    const intKey = document.getElementById('intervals_api_key');
+    if(intAth && d.intervals_athlete_id && !intAth.value.trim()) intAth.value = d.intervals_athlete_id;
+    if(intKey && d.intervals_api_key && !intKey.value.trim()) intKey.value = d.intervals_api_key;
   }catch(e){}
+}
+async function saveIntervalsConfig(){
+  const athlete_id = (document.getElementById('intervals_athlete_id')?.value || '').trim();
+  const api_key = (document.getElementById('intervals_api_key')?.value || '').trim();
+  const msgEl = document.getElementById('intervalsMsg');
+  if(msgEl) msgEl.textContent = '保存中…';
+  try{
+    const d = await apiPost('/api/config', { intervals_athlete_id: athlete_id, intervals_api_key: api_key });
+    if(d.ok){
+      if(msgEl) msgEl.textContent = 'Intervals.icu 配置已保存';
+      toast('Intervals.icu 配置已保存', true);
+      loadPowerCurve(); // 重新加载曲线
+    } else {
+      if(msgEl) msgEl.textContent = '保存失败: ' + (d.error||'');
+    }
+  }catch(e){
+    if(msgEl) msgEl.textContent = '保存失败: ' + e.message;
+  }
 }
 function renderAutoSyncPill(){
   const pill = document.getElementById('autoSyncPill');
@@ -2535,10 +2652,12 @@ let calPlans = [];
 function isoDate(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 async function loadCal(){
   try{
-    const d = await apiGet('/api/coach/plans', 'session_id=' + (coachSessionId||0));
+    const d = await apiGet('/api/coach/plans');
     calPlans = d.plans || [];
     renderCal();
-  }catch(e){}
+  }catch(e){
+    renderCal();
+  }
 }
 function renderCal(){
   const grid = document.getElementById('calGrid');
@@ -2580,31 +2699,31 @@ function calNav(dir){
 async function calCellClick(iso){
   const existing = calPlans.find(p => p.date === iso);
   if(existing){
-    // 已有计划 → 标记完成/取消(等 API 返回再更新本地状态)
+    // 已有计划 → 切换完成/未完成状态
     const newStatus = existing.status === 'done' ? 'planned' : 'done';
     try {
       const d = await apiPut('/api/coach/plans', { id: existing.id, content: existing.content, status: newStatus });
-      calPlans = d.plans || calPlans;
+      calPlans = (d && d.plans) || calPlans;
       renderCal();
     } catch(e){}
     return;
   }
-  appConfirm(t('cal_addPlan'), iso + ' — ' + t('cal_planPrompt'), false).then(ok => {
-    if(!ok) return;
-    const content = prompt(t('cal_planPrompt'));
-    if(!content || !content.trim()) return;
-    apiPost('/api/coach/plans', { session_id: coachSessionId || 0, date: iso, content: content.trim() }).then(d => {
-      calPlans = d.plans || [];
-      renderCal();
-    });
-  });
+  const content = prompt(iso + ' — ' + t('cal_planPrompt'));
+  if(!content || !content.trim()) return;
+  try {
+    const d = await apiPost('/api/coach/plans', { session_id: coachSessionId || 0, date: iso, content: content.trim() });
+    calPlans = (d && d.plans) || [];
+    renderCal();
+  } catch(e){}
 }
 async function calAddPlan(){
-  const content = prompt(t('cal_planPrompt'));
+  const content = prompt(isoDate(new Date()) + ' — ' + t('cal_planPrompt'));
   if(!content || !content.trim()) return;
-  const d = await apiPost('/api/coach/plans', { session_id: coachSessionId || 0, date: isoDate(new Date()), content: content.trim() });
-  calPlans = d.plans || [];
-  renderCal();
+  try {
+    const d = await apiPost('/api/coach/plans', { session_id: coachSessionId || 0, date: isoDate(new Date()), content: content.trim() });
+    calPlans = (d && d.plans) || [];
+    renderCal();
+  } catch(e){}
 }
 async function calDeletePlan(id){
   if(!await appConfirm(t('cal_delete'), t('cal_deleteConfirm'), true)) return;

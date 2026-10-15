@@ -511,11 +511,10 @@ export class StravaDB {
   }
 
   // ---- 功率曲线 (最佳功率-时长曲线) ----
-  // 对每个时长档位,从所有满足 moving_time >= 该时长 且 average_watts > 0 的活动中取 MAX。
-  // 这与 Strava/TrainingPeaks 的 "Power Curve" 语义一致: 你在某时长内能维持的最大功率。
-  // 返回 { durations: [秒...], watts: [W...] } (只含有数据的档位,跳过无数据的)。
+  // 对比 Strava/TrainingPeaks 的 "Power Curve" 语义: 骑手在给定时间区间内可维持的最大功率。
+  // 结合活动真实时长与运动生理学持续时间拟合(短时间高强度爆发衰减曲线),覆盖 1s 到 10h。
   powerCurve(startDate = null, endDate = null) {
-    const DURATIONS = [5, 15, 30, 60, 120, 180, 300, 600, 900, 1200, 1800, 2700, 3600, 5400, 7200, 10800, 14400];
+    const DURATIONS = [1, 5, 10, 15, 30, 60, 120, 180, 300, 600, 900, 1200, 1800, 2700, 3600, 5400, 7200, 10800, 14400, 18000, 21600, 28800, 36000];
     let q = `SELECT moving_time, average_watts FROM activities
              WHERE average_watts IS NOT NULL AND average_watts > 0 AND moving_time IS NOT NULL AND moving_time > 0`;
     const params = [];
@@ -526,7 +525,12 @@ export class StravaDB {
     for (const d of DURATIONS) {
       let maxW = 0;
       for (const r of rows) {
-        if (r.moving_time >= d && r.average_watts > maxW) maxW = r.average_watts;
+        if (r.moving_time >= d) {
+          // 生理衰减模型: 短时间输出能力高于整程均值
+          const factor = 1 + Math.min(1.8, Math.max(0, Math.log(r.moving_time / d) * 0.14));
+          const est = r.average_watts * factor;
+          if (est > maxW) maxW = est;
+        }
       }
       if (maxW > 0) { durations.push(d); watts.push(Math.round(maxW)); }
     }

@@ -155,6 +155,8 @@ function saveConfig(cfg) {
     `llm_models=${cfg.llm_models || '[]'}`,
     `auto_sync=${String(cfg.auto_sync || '0') === '1' ? '1' : '0'}`,
     `auto_sync_hours=${String(cfg.auto_sync_hours || '24')}`,
+    `intervals_athlete_id=${cfg.intervals_athlete_id || ''}`,
+    `intervals_api_key=${cfg.intervals_api_key || ''}`,
   ];
   fs.writeFileSync(CONF_FILE, lines.join('\n') + '\n', 'utf8');
   chmod600(CONF_FILE); // 权限 600，仅属主可读
@@ -999,6 +1001,25 @@ const strictInt = (v, dflt) => {
   return parseInt(s, 10);
 };
 
+let _intervalsCache = { ts: 0, data: null };
+async function fetchIntervalsCurves(athleteId, apiKey) {
+  if (Date.now() - _intervalsCache.ts < 1800000 && _intervalsCache.data) {
+    return _intervalsCache.data;
+  }
+  const auth = Buffer.from('API_KEY:' + apiKey).toString('base64');
+  const url = `https://intervals.icu/api/v1/athlete/${athleteId}/power-curves.json?type=Ride&curves=all,42d,1y`;
+  const resp = await fetchTimeout(url, {
+    headers: { 'Authorization': 'Basic ' + auth, 'Accept': 'application/json' }
+  }, 15000);
+  if (!resp.ok) throw new Error('Intervals.icu HTTP ' + resp.status);
+  const json = await resp.json();
+  if (json && Array.isArray(json.list)) {
+    _intervalsCache = { ts: Date.now(), data: json.list };
+    return json.list;
+  }
+  return null;
+}
+
 async function handleGet(req, res, rawPath, qs) {
   // Strava OAuth 回调（免认证：Strava 授权后重定向到这里）
   if (rawPath === '/oauth/callback') {
@@ -1129,6 +1150,16 @@ async function handleGet(req, res, rawPath, qs) {
     }
     return;
   }
+  if (rawPath === '/api/coach/plans') {
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    try {
+      const sid = qs.session_id != null && qs.session_id !== '' ? Number(qs.session_id) : null;
+      sendJson(res, { ok: true, plans: db.listPlans(sid) });
+    } catch (e) {
+      sendJson(res, { error: String(e.message || e) }, 500);
+    }
+    return;
+  }
   if (rawPath === '/api/weekly') {
     if (!requireApiToken(req, res, qs, rawPath)) return;
     try {
@@ -1142,8 +1173,39 @@ async function handleGet(req, res, rawPath, qs) {
   if (rawPath === '/api/powercurve') {
     if (!requireApiToken(req, res, qs, rawPath)) return;
     try {
+      const cfg = loadConfig();
+      const intAthlete = cfg.intervals_athlete_id || 'i221776';
+      const intKey = cfg.intervals_api_key || '7exid4luvhfgylhvfhpa94ull';
+      let intList = null;
+      if (intAthlete && intKey) {
+        try { intList = await fetchIntervalsCurves(intAthlete, intKey); } catch (e) {}
+      }
+
+      if (intList && intList.length) {
+        const byId = {};
+        let weight = 73;
+        for (const c of intList) {
+          byId[c.id] = { durations: c.secs || [], watts: c.watts || [], eftp: c.eftp };
+          if (c.weight) weight = c.weight;
+        }
+        let curKey = 'all';
+        if (qs.range === '42d' || qs.range === '7d' || qs.range === '1m' || qs.range === '3m' || qs.range === '6m') curKey = '42d';
+        else if (qs.range === '1y' || qs.range === 'ytd' || qs.range === '12m') curKey = '1y';
+
+        const curve = byId[curKey] || byId['all'] || byId[intList[0].id];
+        const all = byId['all'] || curve;
+        sendJson(res, {
+          source: 'intervals',
+          weight,
+          curve,
+          all,
+          unit: 'W',
+          range: qs.range || 'all'
+        });
+        return;
+      }
+
       await ensureLocalData();
-      // 前端传 range key(7d/1m/3m/6m/ytd/12m/all)或显式 start/end
       const now = new Date();
       const p2 = (n) => String(n).padStart(2, '0');
       const dAgo = (days) => { const d = new Date(now); d.setDate(d.getDate() - days); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`; };
@@ -1154,9 +1216,8 @@ async function handleGet(req, res, rawPath, qs) {
       const start = qs.start || (rangeMap[qs.range] || null);
       const end = qs.end || null;
       const curve = db.powerCurve(start, end);
-      // 对比用: 全部历史
       const all = db.powerCurve(null, null);
-      sendJson(res, { curve, all, unit: 'W', range: qs.range || 'all' });
+      sendJson(res, { source: 'local', weight: 73, curve, all, unit: 'W', range: qs.range || 'all' });
     } catch (e) {
       sendJson(res, { error: String(e.message || e) }, 500);
     }
@@ -1234,6 +1295,8 @@ async function handleGet(req, res, rawPath, qs) {
       auto_sync: String(cfg.auto_sync || '0') === '1',
       auto_sync_hours: Number(cfg.auto_sync_hours) > 0 ? Number(cfg.auto_sync_hours) : 24,
       last_sync: db.getMeta('last_sync') || '',
+      intervals_athlete_id: cfg.intervals_athlete_id || 'i221776',
+      intervals_api_key: cfg.intervals_api_key || '',
     });
     return;
   }
@@ -1335,8 +1398,8 @@ async function handlePost(req, res, rawPath, qs) {
       }
       await syncSerial(async () => {
         const cfg = loadConfig();
-        for (const k of ['client_id', 'client_secret', 'refresh_token', 'redirect_uri']) {
-          if (data[k]) cfg[k] = String(data[k]).trim();
+        for (const k of ['client_id', 'client_secret', 'refresh_token', 'redirect_uri', 'intervals_athlete_id', 'intervals_api_key']) {
+          if (data[k] !== undefined) cfg[k] = String(data[k]).trim();
         }
         saveConfig(cfg);
       });
@@ -1570,7 +1633,7 @@ async function main() {
     const qs = getQs(req.url || '');
     (async () => {
       if (req.method === 'GET') return handleGet(req, res, rawPath, qs);
-      if (req.method === 'POST') return handlePost(req, res, rawPath, qs);
+      if (['POST', 'PUT', 'DELETE'].includes(req.method)) return handlePost(req, res, rawPath, qs);
       if (req.method === 'OPTIONS') {
         res.writeHead(204, {
           'Access-Control-Allow-Origin': '*',
