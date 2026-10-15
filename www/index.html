@@ -135,6 +135,10 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .stat-row:last-child{border-bottom:none}
 .stat-row .k{font-size:13px;color:var(--text-3);flex-shrink:0}
 .stat-row .v{font-size:13.5px;font-weight:600;text-align:right;word-break:break-all;font-variant-numeric:tabular-nums}
+.pw-stats-row{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}
+.pw-stat{flex:1;min-width:100px;display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--border-subtle);border-radius:12px;background:var(--surface)}
+.pw-stat .label{font-size:11.5px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px}
+.pw-stat .value{font-size:20px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
 .stat-row .v.path{font-size:11.5px;font-weight:500;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62%}
 .stat-badge{display:inline-flex;align-items:center;font-size:12px;padding:4px 10px;border-radius:999px;font-weight:600}
 .stat-badge .sdot{width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:6px;flex-shrink:0}
@@ -476,13 +480,8 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
           </div>
           <div class="hmenu-group">
             <div class="hmenu-title" data-i18n="menu_workspace">工作区</div>
-            <div class="hmenu-sub" data-i18n="ws_sync">同步</div>
             <button class="hmenu-item" onclick="closeHmenu();syncNow()"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span class="mi-txt" data-i18n="sync_btn">立即同步</span></button>
             <button class="hmenu-item" onclick="closeHmenu();syncNow('full')"><svg class="ic" aria-hidden="true"><use href="#i-database"/></svg><span class="mi-txt" data-i18n="sync_full">全量重同步</span></button>
-            <div class="hmenu-sub" data-i18n="ws_export">导出</div>
-            <button class="hmenu-item" onclick="exportCsv()"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span class="mi-txt" data-i18n="export_csv">导出 CSV</span></button>
-            <button class="hmenu-item" onclick="exportJson()"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span class="mi-txt" data-i18n="export_json">导出 JSON</span></button>
-            <div class="hmenu-sub" data-i18n="ws_system">系统</div>
             <button class="hmenu-item" onclick="closeHmenu();refreshStatus()"><svg class="ic" aria-hidden="true"><use href="#i-server"/></svg><span class="mi-txt" data-i18n="hm_refresh">刷新状态</span></button>
             <button class="hmenu-item" onclick="closeHmenu();openUpdateModal()"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span class="mi-txt" data-i18n="hm_update">检查更新</span></button>
           </div>
@@ -599,12 +598,12 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         <div class="hint" style="margin:-4px 0 12px" data-i18n="power_hint">横轴为持续时间，纵轴为该时长内可维持的最大平均功率。数据来源于本地活动记录。</div>
         <div id="powerChart"></div>
         <div class="power-stats" id="powerStats" style="display:none">
-          <div class="stat-grid" style="margin-top:12px">
-            <div class="card"><div class="label" data-i18n="pw_ftp_est">估算 FTP</div><div class="value"><span id="pwFtp">-</span><span class="unit">W</span></div></div>
-            <div class="card"><div class="label" data-i18n="pw_best_5s">5秒最佳</div><div class="value"><span id="pw5s">-</span><span class="unit">W</span></div></div>
-            <div class="card"><div class="label" data-i18n="pw_best_1min">1分钟最佳</div><div class="value"><span id="pw1min">-</span><span class="unit">W</span></div></div>
-            <div class="card"><div class="label" data-i18n="pw_best_5min">5分钟最佳</div><div class="value"><span id="pw5min">-</span><span class="unit">W</span></div></div>
-            <div class="card"><div class="label" data-i18n="pw_best_20min">20分钟最佳</div><div class="value"><span id="pw20min">-</span><span class="unit">W</span></div></div>
+          <div class="pw-stats-row">
+            <div class="pw-stat"><span class="label" data-i18n="pw_ftp_est">估算 FTP</span><span class="value"><b id="pwFtp">-</b> W</span></div>
+            <div class="pw-stat"><span class="label" data-i18n="pw_best_5s">5秒最佳</span><span class="value"><b id="pw5s">-</b> W</span></div>
+            <div class="pw-stat"><span class="label" data-i18n="pw_best_1min">1分钟最佳</span><span class="value"><b id="pw1min">-</b> W</span></div>
+            <div class="pw-stat"><span class="label" data-i18n="pw_best_5min">5分钟最佳</span><span class="value"><b id="pw5min">-</b> W</span></div>
+            <div class="pw-stat"><span class="label" data-i18n="pw_best_20min">20分钟最佳</span><span class="value"><b id="pw20min">-</b> W</span></div>
           </div>
         </div>
       </div>
@@ -824,7 +823,7 @@ const I18N = {
     syncing:'同步中…', sync_done:'同步完成', sync_fail:'同步失败',
     token_creating:'正在生成新 token…', token_done:'新 token (立即生效)：', token_fail:'创建失败:',
     load_log:'加载中…', no_log:'(暂无日志)', log_fmt:'{src} 日志 · {disp} · 共 {total} 行',
-    menu_workspace:'工作区', ws_sync:'同步', ws_export:'导出', ws_system:'系统', menu_appearance:'外观', menu_language:'语言', menu_about:'关于', theme_system:'跟随系统', theme_light:'亮色', theme_dark:'暗色',
+    menu_workspace:'工作区', menu_appearance:'外观', menu_language:'语言', menu_about:'关于', theme_system:'跟随系统', theme_light:'亮色', theme_dark:'暗色',
     hm_refresh:'刷新状态', hm_update:'检查更新', hm_apidoc:'API 文档', hm_github:'GitHub', ctip_rides:'次',
     upd_checking:'正在检查更新…', upd_latest:'已是最新版本（当前 v{ver}）', upd_available:'发现新版本 v{ver}',
     upd_download:'下载更新', upd_downloading:'下载中… {pct}%', upd_downloaded:'下载完成，点击安装', upd_install:'安装并重启',
@@ -896,7 +895,7 @@ const I18N = {
     syncing:'Syncing…', sync_done:'Sync Complete', sync_fail:'Sync Failed',
     token_creating:'Generating new token…', token_done:'New token (effective now):', token_fail:'Failed:',
     load_log:'Loading…', no_log:'(no log)', log_fmt:'{src} log · {disp} · {total} lines',
-    menu_workspace:'Workspace', ws_sync:'Sync', ws_export:'Export', ws_system:'System', menu_appearance:'Appearance', menu_language:'Language', menu_about:'About', theme_system:'System', theme_light:'Light', theme_dark:'Dark',
+    menu_workspace:'Workspace', menu_appearance:'Appearance', menu_language:'Language', menu_about:'About', theme_system:'System', theme_light:'Light', theme_dark:'Dark',
     hm_refresh:'Refresh Status', hm_update:'Check for Updates', hm_apidoc:'API Docs', hm_github:'GitHub', ctip_rides:'rides',
     upd_checking:'Checking for updates…', upd_latest:'Up to date (v{ver})', upd_available:'New version v{ver} available',
     upd_download:'Download Update', upd_downloading:'Downloading… {pct}%', upd_downloaded:'Download complete, click to install', upd_install:'Install & Restart',
@@ -1535,7 +1534,7 @@ function renderPowerCurve(){
   document.getElementById('powerStats').style.display = '';
   // 图例
   const lg = document.getElementById('powerLegend');
-  if(lg) lg.style.display = showRecent ? 'inline-flex' : 'none';
+  if(lg) lg.style.display = showAll ? 'inline-flex' : 'none';
   // 对比开关状态同步
   const pwCmpBtn = document.getElementById('pwCmpToggle');
   if(pwCmpBtn) pwCmpBtn.classList.toggle('on', powerCurveCompareOn);
