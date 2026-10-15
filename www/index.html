@@ -165,7 +165,11 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .sw-pill.on{color:var(--viz);border-color:var(--viz)}
 .sw-pill.on .switch{background:var(--viz)}
 .sw-pill.on .switch::after{left:13px}
-.panel h2 .cmp-toggle{margin-left:auto}
+.panel h2 .cmp-toggle{margin-left:auto;display:inline-flex;align-items:center;gap:8px;padding:4px 10px 4px 12px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--text-2);font-size:12px;font-weight:600;cursor:pointer;user-select:none;transition:all .15s;white-space:nowrap}
+.panel h2 .cmp-toggle:hover{border-color:var(--border-strong);color:var(--text)}
+.panel h2 .cmp-toggle.on{color:var(--viz);border-color:var(--viz)}
+.panel h2 .cmp-toggle.on .switch{background:var(--viz)}
+.panel h2 .cmp-toggle.on .switch::after{left:13px}
 .clegend{display:inline-flex;align-items:center;gap:12px;margin-left:14px;font-size:11.5px;font-weight:600;color:var(--text-3)}
 .clegend .sw{display:inline-flex;align-items:center;gap:5px}
 .clegend .box{width:10px;height:10px;border-radius:3px;background:var(--viz);display:inline-block}
@@ -243,7 +247,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 .chat-box{display:flex;flex-direction:column;flex:1;min-height:0}
 .chat-msgs{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px 2px;min-height:120px}
 .chat-msg{max-width:78%;padding:10px 14px;border-radius:14px;font-size:13.5px;line-height:1.65;word-break:break-word;white-space:normal}
-.chat-msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.chat-msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px;text-shadow:0 1px 2px rgba(0,0,0,.18)}
 .chat-msg.assistant{align-self:flex-start;background:var(--surface-2);border:1px solid var(--border-subtle);color:var(--text);border-bottom-left-radius:4px}
 .chat-msg.assistant p{margin:0 0 8px}.chat-msg.assistant p:last-child{margin-bottom:0}
 .chat-msg.assistant code{background:var(--tertiary);border:1px solid var(--border-subtle);border-radius:5px;padding:1px 5px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace}
@@ -540,6 +544,10 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
             <div class="pop-list" id="sessPop"></div>
           </div>
           <button class="btn" onclick="newCoachSession()"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span data-i18n="coach_new">新会话</span></button>
+          <div class="pop-anchor">
+            <button class="btn" onclick="toggleCoachPop('modelPop',event)" id="modelPickBtn"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span class="pi-title" id="curModelLabel" data-i18n="coach_pickModel">选择模型</span></button>
+            <div class="pop-list right" id="modelPop"></div>
+          </div>
           <span class="spacer"></span>
           <div class="pop-anchor">
             <button class="btn" onclick="toggleCoachPop('planPop',event)" id="suggestBtn"><svg class="ic" aria-hidden="true"><use href="#i-trend"/></svg><span data-i18n="coach_plan">生成计划</span><svg class="ic" aria-hidden="true" style="width:11px;height:11px"><use href="#i-chev"/></svg></button>
@@ -1769,6 +1777,9 @@ let coachLoading = false;
 let coachSessionId = null;      // null = 尚未落库的新会话
 let coachSessions = [];
 let coachModels = [];           // 网关拉取的模型缓存(仅设置页添加流程用)
+let coachModelLib = [];         // 模型库(教练弹层数据源,来自设置→模型)
+let savedModelId = '';          // 已保存的默认模型 id
+let coachModelPick = '';        // 会话级模型覆盖('' = 用已保存配置)
 
 // 应用内确认模态(替代原生 confirm,Promise 化)
 function appConfirm(title, body, danger){
@@ -1892,10 +1903,13 @@ function renderSessions(){
   if(label) label.textContent = coachSessionId ? ('#'+coachSessionId) : t('coach_newSess');
   if(!pop) return;
   const list = coachSessions || [];
-  if(!list.length){ pop.innerHTML = '<div class="pop-empty">'+escapeHtml(t('coach_noSessions'))+'</div>'; return; }
-  pop.innerHTML = list.map(s =>
+  // 有消息的会话排前,空壳排后;显示模型标记
+  const sorted = list.slice().sort((a,b) => (b.msg_count||0) - (a.msg_count||0));
+  if(!sorted.length){ pop.innerHTML = '<div class="pop-empty">'+escapeHtml(t('coach_noSessions'))+'</div>'; return; }
+  pop.innerHTML = sorted.map(s =>
     '<button class="pop-item'+(s.id===coachSessionId?' on':'')+'" onclick="switchSession('+s.id+')">'+
     '<span class="pi-title">'+escapeHtml(sessLabel(s))+'</span>'+
+    (s.model?'<span class="pi-meta" style="color:var(--viz);max-width:80px;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(modelShort(s.model))+'</span>':'')+
     '<span class="pi-meta">'+(s.msg_count||0)+'</span></button>').join('');
 }
 async function loadCoach(){
@@ -1906,9 +1920,12 @@ async function loadCoach(){
     const warn = document.getElementById('llmWarn');
     if(warn) warn.style.display = (d.llm && d.llm.configured) ? 'none' : 'flex';
     coachSessions = d.sessions || [];
+    coachModelLib = (d.llm && Array.isArray(d.llm.models)) ? d.llm.models : [];
+    savedModelId = (d.llm && d.llm.model) || '';
     if(coachSessionId == null && d.session_id != null) coachSessionId = d.session_id;
     renderSessions();
     renderChat(d.messages);
+    renderModelPick();
   }catch(e){}
 }
 async function switchSession(id){
@@ -1930,7 +1947,33 @@ function toggleCoachPop(id, ev){
   if(!was){
     pop.classList.add('show');
     if(id === 'planPop') renderPlanPop();
+    if(id === 'modelPop') renderCoachModelPop();
   }
+}
+function renderCoachModelPop(){
+  const pop = document.getElementById('modelPop');
+  if(!pop) return;
+  const lib = coachModelLib || [];
+  const cur = coachModelPick || savedModelId || '';
+  let html = '<button class="pop-item'+(!cur?' on':'')+'" onclick="pickCoachModel(this)" data-id="">'+
+    '<span class="pi-title">'+escapeHtml(t('coach_model_default'))+'</span></button>';
+  if(lib.length){
+    html += '<div class="pop-group">'+escapeHtml(t('model_library'))+' '+lib.length+'</div>'+
+      lib.map(m => '<button class="pop-item'+(cur===m.id?' on':'')+'" onclick="pickCoachModel(this)" data-id="'+escapeHtml(m.id)+'" title="'+escapeHtml(m.id)+'">'+
+      '<span class="pi-title">'+escapeHtml(m.short || modelShort(m.id))+'</span>'+
+      (m.context?'<span class="pi-meta">'+Math.round(m.context/1000)+'k</span>':'')+'</button>').join('');
+  }
+  pop.innerHTML = html;
+}
+function pickCoachModel(btn){
+  coachModelPick = btn.dataset.id || '';
+  document.querySelectorAll('.pop-anchor .pop-list').forEach(p=>p.classList.remove('show'));
+  const label = document.getElementById('curModelLabel');
+  if(label) label.textContent = coachModelPick ? modelShort(coachModelPick) : t('coach_pickModel');
+}
+function renderModelPick(){
+  const label = document.getElementById('curModelLabel');
+  if(label) label.textContent = coachModelPick ? modelShort(coachModelPick) : (savedModelId ? t('coach_model_default')+' · '+modelShort(savedModelId) : t('coach_pickModel'));
 }
 function modelProvider(id){
   const i = id.indexOf('/');
@@ -1959,7 +2002,7 @@ async function coachAsk(text){
   box.appendChild(think);
   box.scrollTop = box.scrollHeight;
   try{
-    const d = await apiPost('/api/coach/chat', { message: text, lang: currentLang, session_id: coachSessionId });
+    const d = await apiPost('/api/coach/chat', { message: text, lang: currentLang, session_id: coachSessionId, model: coachModelPick });
     if(d.ok){
       if(d.session_id != null) coachSessionId = d.session_id;
       if(d.sessions) { coachSessions = d.sessions; renderSessions(); }
