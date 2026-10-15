@@ -152,6 +152,9 @@ function saveConfig(cfg) {
     `llm_base_url=${cfg.llm_base_url || ''}`,
     `llm_api_key=${cfg.llm_api_key || ''}`,
     `llm_model=${cfg.llm_model || ''}`,
+    `llm_models=${cfg.llm_models || '[]'}`,
+    `auto_sync=${String(cfg.auto_sync || '0') === '1' ? '1' : '0'}`,
+    `auto_sync_hours=${String(cfg.auto_sync_hours || '24')}`,
   ];
   fs.writeFileSync(CONF_FILE, lines.join('\n') + '\n', 'utf8');
   chmod600(CONF_FILE); // 权限 600，仅属主可读
@@ -763,6 +766,23 @@ function llmConfig() {
   return { baseUrl, apiKey, model, configured: Boolean(baseUrl && model) };
 }
 
+function modelShort(id) {
+  /** 去掉网关模型 id 的供应商前缀(cbai/gpt-6 → gpt-6),对齐 imgmark 显示。
+   *  规则与前端 modelShort 一致:剥到第一个 '/'(openrouter/anthropic/claude → anthropic/claude)。
+   *  真实 id 仍用于 API 调用,short 只是展示字段。 */
+  const s = String(id || '');
+  const i = s.indexOf('/');
+  return i >= 0 && i < s.length - 1 ? s.slice(i + 1) : s;
+}
+
+function parseLlmModels(cfg) {
+  /** 模型库(strava.conf llm_models JSON): [{id, short, context, alias}] */
+  try {
+    const arr = JSON.parse(String(cfg.llm_models || '[]'));
+    return Array.isArray(arr) ? arr.filter((m) => m && m.id) : [];
+  } catch { return []; }
+}
+
 // PyFloat 解包:REAL 列(distance/moving_time/total_elevation_gain/聚合 dist_km 等)
 // 在 db.js 里被包装成 PyFloat 对象(为与 Python 版字节级对齐),拼文本/算术前须还原为 number。
 const num = (v) => (v instanceof PyFloat ? v.v : (v == null ? 0 : Number(v) || 0));
@@ -777,7 +797,8 @@ function buildTrainingDigest() {
     const st = db.stats(dAgo(days), f(now));
     return `${days}天: ${st.total_rides}次 / ${num(st.total_distance_km).toFixed(1)}km / ${num(st.total_duration_h).toFixed(1)}h / 爬升${Math.round(num(st.total_elevation_m))}m`
       + (st.avg_heartrate != null ? ` / 均心率${num(st.avg_heartrate)}bpm` : '')
-      + (st.avg_watts != null ? ` / 均功率${num(st.avg_watts)}W` : '');
+      + (st.avg_watts != null ? ` / 均功率${num(st.avg_watts)}W` : '')
+      + (st.avg_cadence != null ? ` / 均踏频${num(st.avg_cadence)}rpm` : '');
   };
   const acts = db.getActivities('Ride', 15).map((a) => {
     const km = (num(a.distance) / 1000).toFixed(1);
@@ -785,7 +806,8 @@ function buildTrainingDigest() {
     const el = Math.round(num(a.total_elevation_gain));
     const hr = a.average_heartrate != null ? Math.round(num(a.average_heartrate)) + 'bpm' : '-';
     const pw = a.average_watts != null ? Math.round(num(a.average_watts)) + 'W' : '-';
-    return `${String(a.start_date_local || a.start_date || '').slice(0, 10)} ${(a.name || '').slice(0, 30)} ${km}km/${h}h/爬${el}m/HR${hr}/PW${pw}`;
+    const cad = a.average_cadence != null ? Math.round(num(a.average_cadence)) + 'rpm' : '-';
+    return `${String(a.start_date_local || a.start_date || '').slice(0, 10)} ${(a.name || '').slice(0, 30)} ${km}km/${h}h/爬${el}m/HR${hr}/PW${pw}/CAD${cad}`;
   });
   const weekly = db.weekly(dAgo(56), f(now)).map((w) => `${w.week}:${num(w.dist_km).toFixed(1)}km(${w.count}次)`).join(' ');
   return [
@@ -796,15 +818,35 @@ function buildTrainingDigest() {
   ].join('\n');
 }
 
-const COACH_SYSTEM = (digest, lang) => [
-  '你是 Strava Panel 内置的骑行教练。以下是该骑手从本地数据库汇总的训练数据:',
-  '',
-  digest,
-  '',
-  '规则: 基于上述真实数据回答,不要编造数据;数据不足时明确说明并给出需要补充的信息。',
-  '给出具体的、可执行的训练建议(强度用心率/功率/体感描述)。回答保持简洁,用 markdown 轻量排版。',
-  lang === 'zh' ? '始终使用简体中文回答。' : 'Always answer in English.',
-].join('\n');
+const COACH_SYSTEM = (digest, lang, now = new Date()) => {
+  /** 注入当前时间:计划类回答(周/月/赛前)必须以今天为唯一起点,不安排已过去的日期。 */
+  const p2 = (n) => String(n).padStart(2, '0');
+  const dowCN = ['日', '一', '二', '三', '四', '五', '六'][now.getDay()];
+  const dowEN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][now.getDay()];
+  const isoWeek = (() => { const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())); const day = d.getUTCDay() || 7; d.setUTCDate(d.getUTCDate() + 4 - day); const y0 = new Date(Date.UTC(d.getUTCFullYear(), 0, 1)); return 1 + Math.floor(((d - y0) / 86400000 - 6) / 7); })();
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const daysLeftInMonth = monthEnd.getDate() - now.getDate();
+  const yearEnd = new Date(now.getFullYear(), 11, 31);
+  const daysLeftInYear = Math.round((yearEnd - now) / 86400000);
+  const dateLine = lang === 'en'
+    ? `【CURRENT TIME】${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())} (${dowEN}), ISO week ${isoWeek}. Remaining: ${daysLeftInMonth} days this month, ${daysLeftInYear} days this year.`
+    : `【当前时间】${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())} 周${dowCN},第 ${isoWeek} 周。剩余:本月 ${daysLeftInMonth} 天,本年 ${daysLeftInYear} 天。`;
+  const timeRule = lang === 'en'
+    ? 'When making any TIME-BOUND plan (weekly / monthly / race prep), treat today as the ONLY start date: NEVER schedule sessions on past dates. A weekly plan covers today→Sunday only; a monthly plan covers today→month end; a race plan counts back from race day but starts no earlier than today. State concrete dates.'
+    : '制定任何时间相关计划(周/月/赛前)时,以今天为唯一起点,绝不安排已过去的日期:周计划只覆盖今天→本周日,月计划只覆盖今天→月末,赛前计划从今天起排到比赛日。给出具体日期。';
+  return [
+    '你是 Strava Panel 内置的骑行教练。以下是该骑手从本地数据库汇总的训练数据:',
+    '',
+    digest,
+    '',
+    dateLine,
+    '',
+    '规则: 基于上述真实数据回答,不要编造数据;数据不足时明确说明并给出需要补充的信息。',
+    timeRule,
+    '给出具体的、可执行的训练建议(强度用心率/功率/踏频/体感描述)。回答保持简洁,用 markdown 轻量排版(可用标题、表格、列表)。',
+    lang === 'zh' ? '始终使用简体中文回答。' : 'Always answer in English.',
+  ].join('\n');
+};
 
 async function callLlm(cfg, messages, timeoutMs = 90000) {
   /** OpenAI 兼容 /chat/completions 调用。返回 assistant 文本。 */
@@ -1028,12 +1070,13 @@ async function handleGet(req, res, rawPath, qs) {
     if (!requireApiToken(req, res, qs, rawPath)) return;
     try {
       const sid = qs.session_id != null && qs.session_id !== '' ? Number(qs.session_id) : null;
+      const cfg = loadConfig();
       sendJson(res, {
         session_id: sid,
         messages: db.getMemory(60, sid),
         sessions: db.listSessions(),
         count: db.countMemory(),
-        llm: (() => { const c = llmConfig(); return { configured: c.configured, base_url: c.baseUrl, model: c.model, has_key: Boolean(c.apiKey) }; })(),
+        llm: (() => { const c = llmConfig(); return { configured: c.configured, base_url: c.baseUrl, model: c.model, has_key: Boolean(c.apiKey), models: parseLlmModels(cfg) }; })(),
       });
     } catch (e) {
       sendJson(res, { error: String(e.message || e) }, 500);
@@ -1059,8 +1102,8 @@ async function handleGet(req, res, rawPath, qs) {
       const j = await resp.json();
       const raw = Array.isArray(j) ? j : (j.data || j.models || []);
       const models = raw.map((m) => (typeof m === 'string'
-        ? { id: m }
-        : { id: String(m.id || m.name || m.model || ''), created: m.created || null, context: m.context_length || m.max_context_tokens || null }))
+        ? { id: m, short: modelShort(m) }
+        : { id: String(m.id || m.name || m.model || ''), short: modelShort(String(m.id || m.name || m.model || '')), created: m.created || null, context: m.context_length || m.max_context_tokens || null }))
         .filter((m) => m.id);
       // 按 id 排序,并给当前配置模型打标记
       models.sort((a, b) => a.id.localeCompare(b.id));
@@ -1149,6 +1192,9 @@ async function handleGet(req, res, rawPath, qs) {
       configured: hasCredentials(),
       has_token: Boolean(cfg.refresh_token || ''),
       athlete_id: cfg.athlete_id || '',
+      auto_sync: String(cfg.auto_sync || '0') === '1',
+      auto_sync_hours: Number(cfg.auto_sync_hours) > 0 ? Number(cfg.auto_sync_hours) : 24,
+      last_sync: db.getMeta('last_sync') || '',
     });
     return;
   }
@@ -1280,10 +1326,21 @@ async function handlePost(req, res, rawPath, qs) {
         if (data.llm_api_key && data.llm_api_key !== '__KEEP__') {
           cfg.llm_api_key = data.llm_api_key === '__CLEAR__' ? '' : String(data.llm_api_key).trim();
         }
+        // 模型库(卡片):[{id,short,context,alias}] 整体覆盖保存
+        if ('llm_models' in data) {
+          const arr = Array.isArray(data.llm_models) ? data.llm_models : [];
+          const norm = arr.filter((m) => m && m.id).slice(0, 50).map((m) => ({
+            id: String(m.id).trim(),
+            short: String(m.short || modelShort(m.id)).trim(),
+            context: Number(m.context) || null,
+            alias: String(m.alias || '').trim().slice(0, 40),
+          }));
+          cfg.llm_models = JSON.stringify(norm);
+        }
         saveConfig(cfg);
       });
       const c = llmConfig();
-      sendJson(res, { ok: true, configured: c.configured, base_url: c.baseUrl, model: c.model, has_key: Boolean(c.apiKey) });
+      sendJson(res, { ok: true, configured: c.configured, base_url: c.baseUrl, model: c.model, has_key: Boolean(c.apiKey), models: parseLlmModels(loadConfig()) });
     } catch (e) {
       sendJson(res, { error: String(e.message || e) }, 500);
     }
@@ -1314,11 +1371,14 @@ async function handlePost(req, res, rawPath, qs) {
       const lang = data.lang === 'en' ? 'en' : 'zh';
       db.addMemory('user', msg, sid);
       const history = db.getMemory(40, sid);
+      // 模型优先级:请求显式 model > 会话级 model(设置页配置) > 已保存默认配置
+      const sessRow = db.db.prepare('SELECT model FROM coach_sessions WHERE id=?').get(sid);
+      const modelId = String(data.model || '').trim() || (sessRow && sessRow.model ? sessRow.model : '');
       // 组消息:系统提示(含训练摘要) + 历史对话(去掉刚写入又重复的最后一条由 history 天然包含)
       const messages = [{ role: 'system', content: COACH_SYSTEM(buildTrainingDigest(), lang) }];
       for (const m of history.slice(0, -1)) messages.push({ role: m.role, content: m.content });
       messages.push({ role: 'user', content: msg });
-      const useCfg = String(data.model || '').trim() ? { ...c, model: String(data.model).trim() } : c;
+      const useCfg = modelId ? { ...c, model: modelId } : c;
       const reply = await callLlm(useCfg, messages);
       db.addMemory('assistant', reply, sid);
       sendJson(res, { ok: true, reply, session_id: sid, sessions: db.listSessions() });
@@ -1351,6 +1411,42 @@ async function handlePost(req, res, rawPath, qs) {
     }
     return;
   }
+  if (rawPath === '/api/autosync') {
+    // 自动同步配置:{auto_sync:bool, auto_sync_hours:number}
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    try {
+      const data = JSON.parse(await readBody(req));
+      await syncSerial(() => {
+        const cfg = loadConfig();
+        if ('auto_sync' in data) cfg.auto_sync = data.auto_sync ? '1' : '0';
+        if ('auto_sync_hours' in data) {
+          const h = Number(data.auto_sync_hours);
+          cfg.auto_sync_hours = String(AUTO_SYNC_HOURS.includes(h) ? h : 24);
+        }
+        saveConfig(cfg);
+      });
+      applyAutoSync();
+      const st = autoSyncState();
+      sendJson(res, { ok: true, auto_sync: st.on, auto_sync_hours: st.hours, last_sync: db.getMeta('last_sync') || '' });
+    } catch (e) {
+      sendJson(res, { error: String(e.message || e) }, 500);
+    }
+    return;
+  }
+  if (rawPath === '/api/coach/session') {
+    // 会话管理:重命名 {session_id, title}
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    try {
+      const data = JSON.parse(await readBody(req));
+      const sid = Number(data.session_id);
+      if (!sid) { sendJson(res, { error: '缺少 session_id' }, 400); return; }
+      const title = db.renameSession(sid, data.title);
+      sendJson(res, { ok: true, session_id: sid, title, sessions: db.listSessions() });
+    } catch (e) {
+      sendJson(res, { error: String(e.message || e) }, 500);
+    }
+    return;
+  }
   if (rawPath === '/api/token/recreate') {
     // 重新生成 API token（立即生效）
     if (!requireApiToken(req, res, qs, rawPath)) return;
@@ -1358,6 +1454,40 @@ async function handlePost(req, res, rawPath, qs) {
     return;
   }
   sendError404(res);
+}
+
+// ---------- 自动同步 ----------
+// 周期由 strava.conf 的 auto_sync / auto_sync_hours 控制(设置页配置)。
+// 每 60s 心跳一次:开关开启且距 last_sync 超过周期 → 触发一次增量同步。
+// 复用 syncSerial 队列,与手动同步互斥;SYNC_PROGRESS.running 时跳过本轮。
+const AUTO_SYNC_HOURS = [6, 12, 24, 48, 72];
+let _autoSyncTimer = null;
+function autoSyncState() {
+  const cfg = loadConfig();
+  const hours = AUTO_SYNC_HOURS.includes(Number(cfg.auto_sync_hours)) ? Number(cfg.auto_sync_hours) : 24;
+  return { on: String(cfg.auto_sync || '0') === '1', hours };
+}
+function applyAutoSync() {
+  if (_autoSyncTimer) { clearInterval(_autoSyncTimer); _autoSyncTimer = null; }
+  if (!autoSyncState().on) return;
+  _autoSyncTimer = setInterval(() => { autoSyncTick().catch(() => {}); }, 60000);
+  if (_autoSyncTimer.unref) _autoSyncTimer.unref();
+}
+async function autoSyncTick() {
+  try {
+    const { on, hours } = autoSyncState();
+    if (!on || SYNC_PROGRESS.running || !hasCredentials()) return;
+    const last = db.getMeta('last_sync');
+    const lastTs = last ? Date.parse(String(last).replace(' ', 'T')) : NaN;
+    if (Number.isFinite(lastTs) && Date.now() - lastTs < hours * 3600000) return;
+    const [tok] = await getAccessToken();
+    if (!tok) return;
+    log('system', `自动同步触发(周期 ${hours}h)`);
+    const r = await syncSerial(() => syncFromStrava(tok, 20, 'incremental'));
+    log('system', `自动同步完成:新增 ${r.new} / 共 ${r.activities}`);
+  } catch (e) {
+    log('system', `自动同步失败:${e.message || e}`);
+  }
 }
 
 async function main() {
@@ -1388,6 +1518,9 @@ async function main() {
   });
   // TCP backlog / keep-alive 默认值即可; Node 的 listen 自动处理 SO_REUSEAddr
   await new Promise((resolve) => server.listen(port, BIND_HOST, resolve));
+  applyAutoSync();
+  const as = autoSyncState();
+  if (as.on) log('system', `自动同步已启用(每 ${as.hours}h)`);
   console.log(`Strava Panel listening on ${port}`);
   console.log(`Data dir: ${DATA_DIR}`);
   console.log(`DB: ${DB_FILE}`);

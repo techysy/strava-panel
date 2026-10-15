@@ -32,14 +32,16 @@ CREATE TABLE IF NOT EXISTS coach_memory(
 CREATE TABLE IF NOT EXISTS coach_sessions(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT,
+    model TEXT,
     created_at TEXT,
     updated_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_start_date ON activities(start_date);`;
 
-// 心率/功率扩展列:老库(PRAGMA 检测缺列)自动 ALTER 升级,新库建表后同样补齐。
+// 心率/功率/踏频扩展列:老库(PRAGMA 检测缺列)自动 ALTER 升级,新库建表后同样补齐。
 const EXTRA_COLS = [['average_heartrate', 'REAL'], ['max_heartrate', 'REAL'],
-                    ['average_watts', 'REAL'], ['kilojoules', 'REAL']];
+                    ['average_watts', 'REAL'], ['kilojoules', 'REAL'],
+                    ['average_cadence', 'REAL'], ['max_cadence', 'REAL']];
 
 const pad2 = (n) => String(n).padStart(2, '0');
 const fmtDate = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -230,6 +232,29 @@ export class StravaDB {
     if (memCols.size && !memCols.has('session_id')) {
       this.db.exec('ALTER TABLE coach_memory ADD COLUMN session_id INTEGER DEFAULT 0');
     }
+    // coach_sessions 模型列迁移:老表缺 model 列则补齐(会话级辅助模型)
+    const sessCols = new Set(this.db.prepare('PRAGMA table_info(coach_sessions)').all().map(c => c.name));
+    if (sessCols.size && !sessCols.has('model')) {
+      this.db.exec('ALTER TABLE coach_sessions ADD COLUMN model TEXT');
+    }
+    // 孤儿会话回填:有记忆但会话行缺失(coach_memory.session_id 不在 coach_sessions)→ 补回会话。
+    // 根因修复:旧版"清空记忆"会把 coach_sessions 整表删掉,导致有对话的会话从历史列表蒸发。
+    try {
+      const orphans = this.db.prepare(
+        `SELECT DISTINCT session_id FROM coach_memory
+         WHERE session_id IS NOT NULL
+           AND session_id NOT IN (SELECT id FROM coach_sessions)`).all();
+      const insSess = this.db.prepare('INSERT INTO coach_sessions(id,title,created_at,updated_at) VALUES(?,?,?,?)');
+      for (const o of orphans) {
+        const sid = Number(o.session_id);
+        const firstU = this.db.prepare(
+          "SELECT content FROM coach_memory WHERE session_id=? AND role='user' ORDER BY id LIMIT 1").get(sid);
+        const bounds = this.db.prepare(
+          'SELECT MIN(created_at) a, MAX(created_at) b FROM coach_memory WHERE session_id=?').get(sid);
+        insSess.run(sid, firstU ? String(firstU.content).slice(0, 40) : '',
+          (bounds && bounds.a) || null, (bounds && bounds.b) || (bounds && bounds.a) || null);
+      }
+    } catch { /* 回填失败不致命 */ }
   }
 
   // ---- write ----
@@ -240,8 +265,9 @@ export class StravaDB {
     const ins = this.db.prepare(`INSERT OR REPLACE INTO activities
         (id,name,type,distance,moving_time,total_elevation_gain,
          start_date,start_date_local,elapsed_time,average_speed,max_speed,
-         average_heartrate,max_heartrate,average_watts,kilojoules)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+         average_heartrate,max_heartrate,average_watts,kilojoules,
+         average_cadence,max_cadence)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
     for (const a of activities) {
       const rid = a && a.id;
       if (!rid) continue;
@@ -251,7 +277,8 @@ export class StravaDB {
         a.start_date ?? null, a.start_date_local ?? null,
         a.elapsed_time ?? null, a.average_speed ?? null, a.max_speed ?? null,
         a.average_heartrate ?? null, a.max_heartrate ?? null,
-        a.average_watts ?? null, a.kilojoules ?? null);
+        a.average_watts ?? null, a.kilojoules ?? null,
+        a.average_cadence ?? null, a.max_cadence ?? null);
     }
     this.setMeta('last_sync', localIsoNow());
     return added;
@@ -297,8 +324,11 @@ export class StravaDB {
                     MAX(max_heartrate) max_hr,
                     AVG(average_watts) avg_watts,
                     SUM(kilojoules) total_kj,
+                    AVG(average_cadence) avg_cad,
+                    MAX(max_cadence) max_cad,
                     SUM(CASE WHEN average_heartrate IS NOT NULL THEN 1 ELSE 0 END) hr_count,
-                    SUM(CASE WHEN average_watts IS NOT NULL THEN 1 ELSE 0 END) pw_count
+                    SUM(CASE WHEN average_watts IS NOT NULL THEN 1 ELSE 0 END) pw_count,
+                    SUM(CASE WHEN average_cadence IS NOT NULL OR max_cadence IS NOT NULL THEN 1 ELSE 0 END) cad_count
              FROM activities WHERE type='Ride'`;
     const params = [];
     if (startDate) { q += ' AND start_date >= ?'; params.push(startDate); }
@@ -320,8 +350,12 @@ export class StravaDB {
       max_heartrate: r.hr_count ? pyRound(r.max_hr, 0) : null,
       avg_watts: r.pw_count ? pyRound(r.avg_watts, 0) : null,
       total_kilojoules: r.pw_count ? pyRound(r.total_kj || 0, 0) : null,
+      // 踏频:同心率/功率,无数据输出 null(前端隐藏卡片)
+      avg_cadence: r.cad_count ? pyRound(r.avg_cad, 0) : null,
+      max_cadence: r.cad_count ? pyRound(r.max_cad, 0) : null,
       hr_count: r.hr_count || 0,
       power_count: r.pw_count || 0,
+      cadence_count: r.cad_count || 0,
     };
   }
 
@@ -495,10 +529,24 @@ export class StravaDB {
     return rows.reverse();
   }
 
+  renameSession(sid, title) {
+    /** 重命名会话(设置页手动命名);title 空串则清空回退自动标题 */
+    const t = String(title || '').trim().slice(0, 60);
+    this.db.prepare('UPDATE coach_sessions SET title=? WHERE id=?').run(t, Number(sid) || 0);
+    return t;
+  }
+
+  setSessionModel(sid, model) {
+    /** 设置会话级辅助模型('' 清除,回退默认配置) */
+    const m = String(model || '').trim();
+    this.db.prepare('UPDATE coach_sessions SET model=? WHERE id=?').run(m, Number(sid) || 0);
+    return m;
+  }
+
   listSessions() {
-    /** 会话列表(按最近更新倒序),含消息数与首条预览 */
+    /** 会话列表(按最近更新倒序),含消息数、首条预览与会话级模型 */
     return this.db.prepare(`
-      SELECT s.id, s.title, s.created_at, s.updated_at,
+      SELECT s.id, s.title, s.model, s.created_at, s.updated_at,
              (SELECT COUNT(*) FROM coach_memory m WHERE m.session_id=s.id) AS msg_count
       FROM coach_sessions s
       ORDER BY s.updated_at DESC, s.id DESC`).all();
@@ -509,14 +557,14 @@ export class StravaDB {
   }
 
   clearMemory(sid = null) {
-    /** sid 给定只清该会话,否则清全部(含会话记录) */
+    /** sid 给定只清该会话,否则清全部。
+     *  只删消息、保留会话记录:清空记忆后历史会话仍可选可续聊(会话列表不再凭空蒸发)。 */
     if (sid !== null) {
       const r = this.db.prepare('DELETE FROM coach_memory WHERE session_id=?').run(Number(sid) || 0);
       return Number(r.changes);
     }
-    this.db.prepare('DELETE FROM coach_memory').run();
-    const r2 = this.db.prepare('DELETE FROM coach_sessions').run();
-    return Number(r2.changes);
+    const r = this.db.prepare('DELETE FROM coach_memory').run();
+    return Number(r.changes);
   }
 }
 
