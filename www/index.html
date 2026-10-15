@@ -253,8 +253,9 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 .chat-msg.assistant code{background:var(--tertiary);border:1px solid var(--border-subtle);border-radius:5px;padding:1px 5px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace}
 .chat-msg.assistant ul,.chat-msg.assistant ol{margin:4px 0 8px;padding-left:20px}
 .chat-msg .who{font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;opacity:.55;margin-bottom:3px}
-.chat-input{display:flex;gap:8px;margin-top:12px;align-items:flex-end}
-.chat-input textarea{flex:1;min-height:44px;max-height:120px;resize:vertical}
+.chat-input{display:flex;gap:8px;margin-top:12px;align-items:flex-end;padding:10px 12px;border:1px solid var(--border);border-radius:14px;background:var(--surface);transition:border-color .15s,box-shadow .15s}
+.chat-input textarea{flex:1;min-height:44px;max-height:120px;resize:vertical;background:transparent;border:0;outline:none;font-size:13.5px;color:var(--text)}
+.chat-input:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.14)}
 .chat-empty{color:var(--text-3);font-size:13px;text-align:center;padding:30px 10px;line-height:1.8}
 .chat-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
 .chat-toolbar .spacer{flex:1}
@@ -300,6 +301,31 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 .sess-row input[type=text]{flex:1.2;min-width:80px;font-size:12.5px}
 .sess-row select{flex:1;min-width:80px}
 .sess-empty{padding:14px 10px;color:var(--text-3);font-size:12.5px;text-align:center}
+/* 日历视图(训练建议) */
+.cal-view{display:flex;gap:10px;margin-top:10px;align-items:flex-start}
+.cal-grid{flex:1;display:grid;grid-template-columns:repeat(7,1fr);gap:3px;min-width:0}
+.cal-dow{font-size:10.5px;font-weight:700;color:var(--text-3);text-align:center;padding:4px 0}
+.cal-cell{min-height:52px;border:1px solid var(--border-subtle);border-radius:8px;padding:4px 5px;font-size:11px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
+.cal-cell:hover{border-color:var(--viz);box-shadow:var(--shadow-sm)}
+.cal-cell.empty{border-color:transparent;cursor:default}
+.cal-cell.empty:hover{box-shadow:none}
+.cal-cell.today{border-color:var(--accent);border-width:2px}
+.cal-cell .cd{font-size:10px;font-weight:700;color:var(--text-3);margin-bottom:2px}
+.cal-cell.today .cd{color:var(--accent)}
+.cal-cell .cp{font-size:10px;color:var(--text-2);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cal-cell .cp.done{color:var(--ok);text-decoration:line-through}
+.cal-side{width:220px;flex-shrink:0;display:flex;flex-direction:column;gap:8px}
+.cal-side h4{font-size:12px;font-weight:700;color:var(--text-2);margin:0}
+.cal-side .plan-item{padding:8px 10px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface);font-size:12px}
+.cal-side .plan-item .pi-date{font-weight:700;color:var(--viz);margin-bottom:2px}
+.cal-side .plan-item .pi-content{color:var(--text-2);line-height:1.4;word-break:break-word}
+.cal-side .plan-item .pi-del{position:absolute;top:4px;right:4px;width:18px;height:18px;border:0;border-radius:5px;background:transparent;color:var(--text-3);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.cal-side .plan-item .pi-del:hover{background:var(--err-soft);color:var(--err)}
+.cal-side .plan-item .pi-del .ic{width:10px;height:10px}
+.cal-nav{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.cal-nav button{border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:4px 10px;font-size:12px;font-weight:600;color:var(--text-2);cursor:pointer}
+.cal-nav button:hover{border-color:var(--viz);color:var(--viz)}
+.cal-nav .cal-title{font-size:13px;font-weight:700;color:var(--text);flex:1;text-align:center}
 /* 自动同步(设置 → 数据) */
 .autosync-box{margin-top:16px;padding-top:14px;border-top:1px solid var(--border-subtle)}
 .as-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -537,6 +563,18 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
     <div class="view" id="tab-coach">
       <div class="panel">
         <h2><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span data-i18n="coach_title">AI 训练建议</span></h2>
+        <div class="cal-view" id="calView" style="display:none">
+          <div class="cal-grid" id="calGrid"></div>
+          <div class="cal-side">
+            <div class="cal-nav">
+              <button onclick="calNav(-1)">‹</button>
+              <span class="cal-title" id="calTitle"></span>
+              <button onclick="calNav(1)">›</button>
+            </div>
+            <div id="calPlans"></div>
+            <button class="btn" onclick="calAddPlan()" style="width:100%"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span data-i18n="cal_addPlan">添加计划</span></button>
+          </div>
+        </div>
         <div class="llm-warn" id="llmWarn"><svg class="ic" aria-hidden="true"><use href="#i-warn"/></svg><span data-i18n="coach_noLlm">尚未配置模型</span> · <a onclick="switchNav('settings');switchSubTab('model')" data-i18n="coach_gotoSettings">前往 设置 → 模型</a></div>
         <div class="chat-toolbar">
           <div class="pop-anchor">
@@ -750,6 +788,7 @@ const I18N = {
     coach_plan_race_q:'今天是 {today},我将参加「{name}」,比赛日期 {race}(距今 {days} 天)。请从今天起制定赛前周期计划:按基础/强化/减量/赛前激活分阶段(标注每阶段起止日期,不得早于今天),含最后一次大强度课与休息日建议。',
     sub_sess:'会话', sess_mgmt:'会话管理', sess_mgmtHint:'为每个会话重命名、选择辅助模型(留空用默认配置)。训练建议页的「会话」下拉同步此处。',
     sess_rename_ph:'重命名…', sess_renamed:'已重命名', sess_modelSet:'辅助模型已设置',
+    cal_addPlan:'添加计划', cal_empty:'本月暂无计划', cal_planPrompt:'输入训练内容(如: 间歇 4x8min / 长距离 3h)', cal_delete:'删除计划', cal_deleteConfirm:'确定删除该计划?',
   },
   en: {
     app_title:'Strava Panel', nav_dash:'Dashboard', nav_data:'Rides', nav_rides:'Recent Rides', nav_settings:'Settings',
@@ -814,6 +853,7 @@ const I18N = {
     coach_plan_race_q:'Today is {today}; I will race “{name}” on {race} ({days} days from now). Build a race-prep plan starting today: base / build / taper / activation phases with concrete date ranges (never before today), including the last hard session and rest days.',
     sub_sess:'Sessions', sess_mgmt:'Session Management', sess_mgmtHint:'Rename each session and pick an auxiliary model (empty = use the default). The Coach tab Sessions dropdown syncs here.',
     sess_rename_ph:'Rename…', sess_renamed:'Renamed', sess_modelSet:'Aux model set',
+    cal_addPlan:'Add plan', cal_empty:'No plans this month', cal_planPrompt:'Enter workout (e.g. intervals 4x8min / long ride 3h)', cal_delete:'Delete plan', cal_deleteConfirm:'Delete this plan?',
   }
 };
 let currentLang = localStorage.getItem('sv_lang') || 'zh';
@@ -1029,6 +1069,14 @@ async function apiGet(path, qs){
 }
 async function apiPost(path, body){
   const r = await fetch(API + path, { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+apiToken }, body: JSON.stringify(body||{}) });
+  return r.json();
+}
+async function apiPut(path, body){
+  const r = await fetch(API + path, { method:'PUT', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+apiToken }, body: JSON.stringify(body||{}) });
+  return r.json();
+}
+async function apiDelete(path, body){
+  const r = await fetch(API + path, { method:'DELETE', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+apiToken }, body: JSON.stringify(body||{}) });
   return r.json();
 }
 
@@ -1473,7 +1521,11 @@ function renderActivities(){
     const hr = a.average_heartrate != null ? +a.average_heartrate : null;
     const pw = a.average_watts != null ? +a.average_watts : null;
     const cad = a.average_cadence != null ? +a.average_cadence : null;
-    return `<tr><td>${date}</td><td>${escapeHtml(a.name||'')}</td>`
+    const nm = String(a.name||'');
+    const nmHtml = a.id
+      ? '<a href="https://www.strava.com/activities/'+a.id+'" target="_blank" rel="noopener" title="'+escapeHtml(nm)+'" style="color:inherit;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:280px">'+escapeHtml(nm)+'</a>'
+      : '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:280px">'+escapeHtml(nm)+'</span>';
+    return `<tr><td>${date}</td><td>${nmHtml}</td>`
       + cell(dist, dist != null ? (dist/1000).toFixed(1)+' km' : '—', 'dist')
       + cell(dur, dur != null ? (dur/3600).toFixed(1)+' h' : '—', 'dur')
       + cell(spd, spd != null ? (spd*3.6).toFixed(1)+' km/h' : '—', 'spd')
@@ -1926,6 +1978,7 @@ async function loadCoach(){
     renderSessions();
     renderChat(d.messages);
     renderModelPick();
+    loadCal();
   }catch(e){}
 }
 async function switchSession(id){
@@ -2042,6 +2095,87 @@ function sendCoach(){
   const ta = document.getElementById('chatText');
   coachAsk(ta ? ta.value : '');
 }
+// ---- 日历视图(训练计划落库) ----
+let calCursor = new Date();
+let calPlans = [];
+function isoDate(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+async function loadCal(){
+  try{
+    const d = await apiGet('/api/coach/plans', 'session_id=' + (coachSessionId||0));
+    calPlans = d.plans || [];
+    renderCal();
+  }catch(e){}
+}
+function renderCal(){
+  const grid = document.getElementById('calGrid');
+  const title = document.getElementById('calTitle');
+  const box = document.getElementById('calPlans');
+  if(!grid) return;
+  const y = calCursor.getFullYear(), m = calCursor.getMonth();
+  title.textContent = y + ' 年 ' + (m+1) + ' 月';
+  const first = new Date(y, m, 1);
+  const startDow = first.getDay();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const todayIso = isoDate(new Date());
+  const dows = ['日','一','二','三','四','五','六'];
+  let html = dows.map(d => '<div class="cal-dow">'+d+'</div>').join('');
+  for(let i = 0; i < startDow; i++) html += '<div class="cal-cell empty"></div>';
+  for(let d = 1; d <= daysInMonth; d++){
+    const iso = isoDate(new Date(y, m, d));
+    const plans = calPlans.filter(p => p.date === iso);
+    const isToday = iso === todayIso;
+    html += '<div class="cal-cell'+(isToday?' today':'')+'" onclick="calCellClick(\''+iso+'\')">'+
+      '<div class="cd">'+d+'</div>'+
+      plans.map(p => '<div class="cp'+(p.status==='done'?' done':'')+'" title="'+escapeHtml(p.content)+'">'+escapeHtml(p.content.slice(0,12))+'</div>').join('')+
+      '</div>';
+  }
+  grid.innerHTML = html;
+  // 右侧计划列表(当前月)
+  const monthPlans = calPlans.filter(p => p.date.startsWith(y+'-'+String(m+1).padStart(2,'0')));
+  box.innerHTML = monthPlans.map(p =>
+    '<div class="plan-item" style="position:relative">'+
+    '<div class="pi-date">'+p.date.slice(5)+(p.status==='done'?' ✓':'')+'</div>'+
+    '<div class="pi-content">'+escapeHtml(p.content)+'</div>'+
+    '<button class="pi-del" onclick="calDeletePlan('+p.id+')" title="删除"><svg class="ic"><use href="#i-trash"/></svg></button>'+
+    '</div>').join('') || '<div class="pop-empty">'+escapeHtml(t('cal_empty'))+'</div>';
+}
+function calNav(dir){
+  calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + dir, 1);
+  renderCal();
+}
+function calCellClick(iso){
+  const existing = calPlans.find(p => p.date === iso);
+  if(existing){
+    // 已有计划 → 标记完成/取消
+    apiPut('/api/coach/plans', { id: existing.id, content: existing.content, status: existing.status === 'done' ? 'planned' : 'done' });
+    existing.status = existing.status === 'done' ? 'planned' : 'done';
+    renderCal();
+    return;
+  }
+  appConfirm(t('cal_addPlan'), iso + ' — ' + t('cal_planPrompt'), false).then(ok => {
+    if(!ok) return;
+    const content = prompt(t('cal_planPrompt'));
+    if(!content || !content.trim()) return;
+    apiPost('/api/coach/plans', { session_id: coachSessionId || 0, date: iso, content: content.trim() }).then(d => {
+      calPlans = d.plans || [];
+      renderCal();
+    });
+  });
+}
+async function calAddPlan(){
+  const content = prompt(t('cal_planPrompt'));
+  if(!content || !content.trim()) return;
+  const d = await apiPost('/api/coach/plans', { session_id: coachSessionId || 0, date: isoDate(new Date()), content: content.trim() });
+  calPlans = d.plans || [];
+  renderCal();
+}
+async function calDeletePlan(id){
+  if(!await appConfirm(t('cal_delete'), t('cal_deleteConfirm'), true)) return;
+  const d = await apiDelete('/api/coach/plans', { id });
+  calPlans = d.plans || [];
+  renderCal();
+}
+
 // ---- 计划弹层:本周 / 月度 / 赛前(时间感知:以今天为起点) ----
 function planDateCtx(){
   const now = new Date();

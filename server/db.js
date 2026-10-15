@@ -36,6 +36,15 @@ CREATE TABLE IF NOT EXISTS coach_sessions(
     created_at TEXT,
     updated_at TEXT
 );
+CREATE TABLE IF NOT EXISTS coach_plans(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER DEFAULT 0,
+    date TEXT NOT NULL,
+    content TEXT NOT NULL,
+    status TEXT DEFAULT 'planned',
+    created_at TEXT,
+    updated_at TEXT
+);
 CREATE INDEX IF NOT EXISTS idx_start_date ON activities(start_date);`;
 
 // 心率/功率/踏频扩展列:老库(PRAGMA 检测缺列)自动 ALTER 升级,新库建表后同样补齐。
@@ -236,6 +245,19 @@ export class StravaDB {
     const sessCols = new Set(this.db.prepare('PRAGMA table_info(coach_sessions)').all().map(c => c.name));
     if (sessCols.size && !sessCols.has('model')) {
       this.db.exec('ALTER TABLE coach_sessions ADD COLUMN model TEXT');
+    }
+    // coach_plans 日历计划表迁移:老库缺表则补齐
+    const hasPlans = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='coach_plans'").get();
+    if (!hasPlans) {
+      this.db.exec(`CREATE TABLE coach_plans(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER DEFAULT 0,
+        date TEXT NOT NULL,
+        content TEXT NOT NULL,
+        status TEXT DEFAULT 'planned',
+        created_at TEXT,
+        updated_at TEXT
+      )`);
     }
     // 孤儿会话回填:有记忆但会话行缺失(coach_memory.session_id 不在 coach_sessions)→ 补回会话。
     // 根因修复:旧版"清空记忆"会把 coach_sessions 整表删掉,导致有对话的会话从历史列表蒸发。
@@ -565,6 +587,31 @@ export class StravaDB {
     }
     const r = this.db.prepare('DELETE FROM coach_memory').run();
     return Number(r.changes);
+  }
+
+  // ---- 训练计划 (coach_plans, 日历视图) ----
+  addPlan(sessionId, date, content, status = 'planned') {
+    const now = localIsoNow();
+    const r = this.db.prepare('INSERT INTO coach_plans(session_id,date,content,status,created_at,updated_at) VALUES(?,?,?,?,?,?)')
+      .run(Number(sessionId) || 0, String(date), String(content), String(status), now, now);
+    return Number(r.lastInsertRowid);
+  }
+
+  updatePlan(id, content, status) {
+    const now = localIsoNow();
+    this.db.prepare('UPDATE coach_plans SET content=?, status=?, updated_at=? WHERE id=?')
+      .run(String(content), String(status), now, Number(id));
+  }
+
+  deletePlan(id) {
+    return Number(this.db.prepare('DELETE FROM coach_plans WHERE id=?').run(Number(id)).changes);
+  }
+
+  listPlans(sessionId = null) {
+    if (sessionId != null) {
+      return this.db.prepare('SELECT * FROM coach_plans WHERE session_id=? ORDER BY date').all(Number(sessionId) || 0);
+    }
+    return this.db.prepare('SELECT * FROM coach_plans ORDER BY date').all();
   }
 }
 

@@ -1463,6 +1463,36 @@ async function handlePost(req, res, rawPath, qs) {
     }
     return;
   }
+  if (rawPath === '/api/coach/plans') {
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    try {
+      const data = await readBody(req).then((b) => { try { return JSON.parse(b || '{}'); } catch { return {}; } });
+      if (req.method === 'GET') {
+        const sid = qs.session_id != null ? Number(qs.session_id) : null;
+        sendJson(res, { ok: true, plans: db.listPlans(sid) });
+      } else if (req.method === 'POST') {
+        const sid = data.session_id != null ? Number(data.session_id) : 0;
+        const date = String(data.date || '');
+        const content = String(data.content || '');
+        if (!date || !content) { sendJson(res, { error: '缺少 date 或 content' }, 400); return; }
+        const id = db.addPlan(sid, date, content, data.status || 'planned');
+        sendJson(res, { ok: true, id, plans: db.listPlans(sid) });
+      } else if (req.method === 'DELETE') {
+        const id = Number(data.id || qs.id);
+        if (!id) { sendJson(res, { error: '缺少 id' }, 400); return; }
+        db.deletePlan(id);
+        sendJson(res, { ok: true, plans: db.listPlans(data.session_id != null ? Number(data.session_id) : null) });
+      } else if (req.method === 'PUT') {
+        const id = Number(data.id);
+        if (!id) { sendJson(res, { error: '缺少 id' }, 400); return; }
+        db.updatePlan(id, data.content, data.status || 'planned');
+        sendJson(res, { ok: true, plans: db.listPlans(data.session_id != null ? Number(data.session_id) : null) });
+      }
+    } catch (e) {
+      sendJson(res, { error: String(e.message || e) }, 500);
+    }
+    return;
+  }
   if (rawPath === '/api/token/recreate') {
     // 重新生成 API token（立即生效）
     if (!requireApiToken(req, res, qs, rawPath)) return;
