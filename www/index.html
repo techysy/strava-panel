@@ -111,9 +111,10 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .btn:hover{border-color:var(--border-strong);color:var(--text)}
 .btn:active{transform:translateY(1px)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
-.btn.primary{background:var(--accent);color:#fff;border-color:transparent;box-shadow:0 2px 12px -2px rgba(var(--accent-rgb),.55)}
-.btn.primary .ic{color:#fff}
-.btn.primary:hover{background:var(--accent-2);color:#fff;border-color:transparent}
+.btn.primary{background:var(--surface);color:var(--accent);border-color:var(--accent);box-shadow:none}
+.btn.primary .ic{color:var(--accent)}
+.btn.primary:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.primary:hover .ic{color:#fff}
 
 /* panels & stat cards */
 .panel{background:var(--surface);border:1px solid var(--border-subtle);border-radius:var(--radius);padding:16px 18px;margin-bottom:12px;box-shadow:var(--shadow-sm)}
@@ -250,7 +251,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 #tab-coach .llm-warn,#tab-coach .chat-toolbar,#tab-coach .chat-input,#tab-coach #coachMsg{flex-shrink:0}
 .chat-box{display:flex;flex-direction:column;flex:1;min-height:0}
 .chat-msgs{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px 2px;min-height:120px}
-.chat-msg{max-width:78%;padding:10px 14px;border-radius:14px;font-size:13.5px;line-height:1.65;word-break:break-word;white-space:normal;max-height:320px;overflow-y:auto}
+.chat-msg{max-width:78%;padding:10px 14px;border-radius:14px;font-size:13.5px;line-height:1.65;word-break:break-word;white-space:normal}
 .chat-msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px;text-shadow:0 1px 2px rgba(0,0,0,.18)}
 .chat-msg.assistant{align-self:flex-start;background:var(--surface-2);border:1px solid var(--border-subtle);color:var(--text);border-bottom-left-radius:4px}
 .chat-msg.assistant p{margin:0 0 8px}.chat-msg.assistant p:last-child{margin-bottom:0}
@@ -275,6 +276,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 .modal p{font-size:13.5px;color:var(--text-2);line-height:1.65;margin-bottom:18px}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px}
 .modal.sm{width:min(340px,92vw)}
+.modal.lg{width:min(780px,94vw)}
 .modal .upd-body{font-size:13.5px;color:var(--text-2);line-height:1.65;margin-bottom:18px}
 .modal .upd-body .upd-spin{display:inline-block;width:14px;height:14px;border:2px solid var(--border-strong);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;margin-right:8px;vertical-align:-2px}
 .modal .upd-body .upd-latest{color:var(--viz);font-weight:700}
@@ -610,24 +612,8 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 
     <!-- 训练建议 -->
     <div class="view" id="tab-coach">
-      <div class="seg" id="coachViewSeg" style="margin-bottom:12px">
-        <button id="cvChat" class="active" onclick="setCoachView('chat')" data-i18n="cv_chat">对话</button>
-        <button id="cvCal" onclick="setCoachView('cal')" data-i18n="cv_cal">训练日历</button>
-      </div>
       <div class="panel">
-        <h2><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span data-i18n="coach_title">AI 训练建议</span></h2>
-        <div class="cal-view" id="calView" style="display:none">
-          <div class="cal-grid" id="calGrid"></div>
-          <div class="cal-side">
-            <div class="cal-nav">
-              <button onclick="calNav(-1)">‹</button>
-              <span class="cal-title" id="calTitle"></span>
-              <button onclick="calNav(1)">›</button>
-            </div>
-            <div id="calPlans"></div>
-            <button class="btn" onclick="calAddPlan()" style="width:100%"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span data-i18n="cal_addPlan">添加计划</span></button>
-          </div>
-        </div>
+        <h2 style="position:relative"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span data-i18n="coach_title">AI 训练建议</span><button class="btn" id="calOpenBtn" onclick="openCalModal()" style="position:absolute;right:0;top:50%;transform:translateY(-50%);padding:5px 12px"><svg class="ic" aria-hidden="true"><use href="#i-calendar"/></svg><span data-i18n="cv_cal">训练日历</span></button></h2>
         <div class="llm-warn" id="llmWarn"><svg class="ic" aria-hidden="true"><use href="#i-warn"/></svg><span data-i18n="coach_noLlm">尚未配置模型</span> · <a onclick="switchNav('settings');switchSubTab('model')" data-i18n="coach_gotoSettings">前往 设置 → 模型</a></div>
         <div class="chat-toolbar">
           <div class="pop-anchor">
@@ -650,9 +636,28 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
           <div class="chat-msgs" id="chatMsgs"><div class="chat-empty" data-i18n="coach_empty">向 AI 教练提问训练规划,它会读取你的骑行数据(距离/时长/心率/功率)并结合历史对话给出建议。对话记忆保存在本地数据库。</div></div>
           <div class="chat-input">
             <textarea id="chatText" rows="1" data-i18n-ph="coach_ph" placeholder="例:下周想提升耐力,帮我安排训练" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCoach();}"></textarea>
-            <button class="btn primary" onclick="sendCoach()" id="sendBtn"><svg class="ic" aria-hidden="true"><use href="#i-send"/></svg><span data-i18n="coach_send">发送</span></button>
+            <button class="btn" onclick="sendCoach()" id="sendBtn"><svg class="ic" aria-hidden="true"><use href="#i-send"/></svg><span data-i18n="coach_send">发送</span></button>
           </div>
           <div class="hint" id="coachMsg" style="margin-top:8px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 训练日历弹窗(独立于对话) -->
+    <div class="modal-mask" id="calMask">
+      <div class="modal lg" role="dialog" aria-modal="true">
+        <h3 id="calModalTitle"><svg class="ic" aria-hidden="true"><use href="#i-calendar"/></svg><span data-i18n="cv_cal">训练日历</span></h3>
+        <div class="cal-view" id="calView">
+          <div class="cal-grid" id="calGrid"></div>
+          <div class="cal-side">
+            <div class="cal-nav">
+              <button onclick="calNav(-1)">‹</button>
+              <span class="cal-title" id="calTitle"></span>
+              <button onclick="calNav(1)">›</button>
+            </div>
+            <div id="calPlans"></div>
+            <button class="btn" onclick="calAddPlan()" style="width:100%"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span data-i18n="cal_addPlan">添加计划</span></button>
+          </div>
         </div>
       </div>
     </div>
@@ -1052,20 +1057,13 @@ function switchNav(nav){
 }
 // 教练页视图切换: 对话 / 训练日历
 let coachCurView = 'chat';
-function setCoachView(v){
-  coachCurView = v;
-  document.querySelectorAll('#coachViewSeg button').forEach(b => b.classList.remove('active'));
-  document.getElementById(v === 'cal' ? 'cvCal' : 'cvChat').classList.add('active');
-  const calView = document.getElementById('calView');
-  const chatArea = document.getElementById('chatArea');
-  if(v === 'cal'){
-    if(calView) calView.style.display = 'flex';
-    if(chatArea) chatArea.style.display = 'none';
-    loadCal();
-  } else {
-    if(calView) calView.style.display = 'none';
-    if(chatArea) chatArea.style.display = 'flex';
-  }
+// 训练日历弹窗
+function openCalModal(){
+  const mask = document.getElementById('calMask');
+  if(!mask) return;
+  loadCal();
+  mask.classList.add('show');
+  mask.onclick = (e) => { if(e.target === mask) mask.classList.remove('show'); };
 }
 function switchSubTab(name){
   document.querySelectorAll('.subtab').forEach(el=>el.classList.remove('active'));
