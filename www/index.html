@@ -139,6 +139,7 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .pw-stat{flex:1;min-width:100px;display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--border-subtle);border-radius:12px;background:var(--surface)}
 .pw-stat .label{font-size:11.5px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px}
 .pw-stat .value{font-size:20px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
+.pw-stat .pw-ref{font-size:11px;color:var(--text-3);margin-top:2px;font-variant-numeric:tabular-nums}
 .stat-row .v.path{font-size:11.5px;font-weight:500;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62%}
 .stat-badge{display:inline-flex;align-items:center;font-size:12px;padding:4px 10px;border-radius:999px;font-weight:600}
 .stat-badge .sdot{width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:6px;flex-shrink:0}
@@ -602,16 +603,16 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         </div>
       </div>
       <div class="panel">
-        <h2><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg><span data-i18n="power_title">最佳功率曲线</span><span class="clegend" id="powerLegend" style="display:none"><span class="sw"><i class="box pw-all"></i><span data-i18n="pw_all">全部</span></span><span class="sw"><i class="box pw-recent"></i><span data-i18n="cmp_this">本期</span></span></span><span class="cmp-toggle" id="pwCmpToggle" onclick="togglePowerCompare()"><span data-i18n="cmp_label">对比全部</span><span class="switch"></span></span></h2>
+        <h2><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg><span data-i18n="power_title">最佳功率曲线</span><span class="clegend" id="powerLegend" style="display:none"><span class="sw"><i class="box pw-recent"></i><span data-i18n="cmp_this">当前周期</span></span><span class="sw"><i class="dash pw-all"></i><span data-i18n="pw_all">历史最佳</span></span></span><span class="cmp-toggle" id="pwCmpToggle" onclick="togglePowerCompare()"><span data-i18n="pw_cmp_all">对比历史最佳</span><span class="switch"></span></span></h2>
         <div class="hint" style="margin:-4px 0 12px" data-i18n="power_hint">横轴为持续时间，纵轴为该时长内可维持的最大平均功率。自动接入 Intervals.icu 高精度功率曲线。</div>
         <div id="powerChart"></div>
         <div class="power-stats" id="powerStats" style="display:none">
           <div class="pw-stats-row">
-            <div class="pw-stat"><span class="label" data-i18n="pw_ftp_est">估算 FTP</span><span class="value"><b id="pwFtp">-</b> <span class="pw-unit-label">W</span></span></div>
-            <div class="pw-stat"><span class="label" data-i18n="pw_best_5s">5秒最佳</span><span class="value"><b id="pw5s">-</b> <span class="pw-unit-label">W</span></span></div>
-            <div class="pw-stat"><span class="label" data-i18n="pw_best_1min">1分钟最佳</span><span class="value"><b id="pw1min">-</b> <span class="pw-unit-label">W</span></span></div>
-            <div class="pw-stat"><span class="label" data-i18n="pw_best_5min">5分钟最佳</span><span class="value"><b id="pw5min">-</b> <span class="pw-unit-label">W</span></span></div>
-            <div class="pw-stat"><span class="label" data-i18n="pw_best_20min">20分钟最佳</span><span class="value"><b id="pw20min">-</b> <span class="pw-unit-label">W</span></span></div>
+            <div class="pw-stat"><span class="label" data-i18n="pw_ftp_est">估算 FTP</span><span class="value"><b id="pwFtp">-</b> <span class="pw-unit-label">W</span></span><span class="pw-ref" id="refFtp"></span></div>
+            <div class="pw-stat"><span class="label" data-i18n="pw_best_5s">5秒最佳</span><span class="value"><b id="pw5s">-</b> <span class="pw-unit-label">W</span></span><span class="pw-ref" id="ref5s"></span></div>
+            <div class="pw-stat"><span class="label" data-i18n="pw_best_1min">1分钟最佳</span><span class="value"><b id="pw1min">-</b> <span class="pw-unit-label">W</span></span><span class="pw-ref" id="ref1min"></span></div>
+            <div class="pw-stat"><span class="label" data-i18n="pw_best_5min">5分钟最佳</span><span class="value"><b id="pw5min">-</b> <span class="pw-unit-label">W</span></span><span class="pw-ref" id="ref5min"></span></div>
+            <div class="pw-stat"><span class="label" data-i18n="pw_best_20min">20分钟最佳</span><span class="value"><b id="pw20min">-</b> <span class="pw-unit-label">W</span></span><span class="pw-ref" id="ref20min"></span></div>
           </div>
         </div>
       </div>
@@ -830,6 +831,7 @@ const I18N = {
     prev_page:'‹ 上一页', next_page:'下一页 ›', empty:'暂无数据',
     nav_power:'功率曲线', power_title:'最佳功率曲线', power_hint:'横轴为持续时间，纵轴为该时长内可维持的最大平均功率。数据来源于本地活动记录。',
     pw_all:'全部', pw_recent6m:'近6月', pw_ftp_est:'估算 FTP', pw_best_5s:'5秒最佳', pw_best_1min:'1分钟最佳', pw_best_5min:'5分钟最佳', pw_best_20min:'20分钟最佳', pw_ftp_hint:'20分钟最佳 × 0.95',
+    pw_cmp_all:'对比历史最佳', pw_ref_all:'历史: {v}',
     ctx_exportTxt:'导出文本', ctx_exportImg:'导出图片', ctx_copy:'复制内容',
     sub_cred:'凭据', sub_api:'API', sub_data:'数据',
     setup_title:'配置 Strava 凭据', setup_hint:'在 <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a> 查看 Client ID / Client Secret。Refresh Token 需通过 OAuth 授权获取。',
@@ -902,6 +904,7 @@ const I18N = {
     prev_page:'‹ Prev', next_page:'Next ›', empty:'No data',
     nav_power:'Power Curve', power_title:'Best Power Curve', power_hint:'X-axis: duration; Y-axis: best average power sustained for that duration. Data from local activities.',
     pw_all:'All', pw_recent6m:'6 Months', pw_ftp_est:'Est. FTP', pw_best_5s:'5s Best', pw_best_1min:'1min Best', pw_best_5min:'5min Best', pw_best_20min:'20min Best', pw_ftp_hint:'20min best × 0.95',
+    pw_cmp_all:'Compare All-Time', pw_ref_all:'All-time: {v}',
     ctx_exportTxt:'Export Text', ctx_exportImg:'Export Image', ctx_copy:'Copy',
     sub_cred:'Credentials', sub_api:'API', sub_data:'Data',
     setup_title:'Configure Strava Credentials', setup_hint:'View Client ID / Client Secret at <a href="https://www.strava.com/settings/api" target="_blank">Strava My API Application</a>. Refresh Token obtained via OAuth.',
@@ -1494,27 +1497,36 @@ function renderPowerCurve(){
     const firstX = xOf(data.durations[0]).toFixed(1);
     return `<polygon points="${firstX},${baseY} ${pts.join(' ')} ${lastX},${baseY}" fill="${fillId}"/>`;
   };
-  // 曲线绘制
+  // 曲线绘制: 过滤无效超长微小尾部
   const drawCurve = (data, color, dashed) => {
-    const pts = data.durations.map((dur, i) => `${xOf(dur).toFixed(1)},${yOf(valOf(data.watts[i])).toFixed(1)}`);
+    const pts = [];
+    for(let i = 0; i < data.durations.length; i++){
+      const dur = data.durations[i];
+      const w = data.watts[i];
+      if(w <= 0) break;
+      pts.push(`${xOf(dur).toFixed(1)},${yOf(valOf(w)).toFixed(1)}`);
+      // 如果已低于峰值的 3% 且超过 2 小时，不再往后拉平地拖尾
+      if(dur > 7200 && w < rawMax * 0.05 && (!data.watts[i+1] || data.watts[i+1] <= w)) break;
+    }
     return `<polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"${dashed ? ' stroke-dasharray="6 4"' : ''}/>`;
   };
-  // 数据点圆圈
+  // 数据点圆圈: 仅保留 5 个生理关键锚点(1s冲刺, 5s最大无氧, 1m无氧容量, 5m摄氧量, 20m阈值FTP), 彻底消除密集扎堆
   const drawDots = (data, color) => {
-    const keyDurations = [1, 5, 15, 30, 60, 120, 180, 300, 600, 1200, 1800, 2700, 3600, 7200, 14400];
-    return data.durations.map((dur, i) => {
-      if(!keyDurations.includes(dur) && dur > 60 && dur % 300 !== 0) return '';
-      const x = xOf(dur).toFixed(1), y = yOf(valOf(data.watts[i])).toFixed(1);
-      return `<circle cx="${x}" cy="${y}" r="3" fill="${C.surface}" stroke="${color}" stroke-width="2"/>`;
+    const anchorDurs = [1, 5, 60, 300, 1200];
+    return anchorDurs.map(dur => {
+      const idx = data.durations.indexOf(dur);
+      if(idx < 0 || data.watts[idx] <= 0) return '';
+      const x = xOf(dur).toFixed(1), y = yOf(valOf(data.watts[idx])).toFixed(1);
+      return `<circle cx="${x}" cy="${y}" r="3.5" fill="${C.surface}" stroke="${color}" stroke-width="2"/>`;
     }).join('');
   };
 
-  // X 轴关键刻度与垂直虚线网格 (对齐 Intervals.icu: 1s, 15s, 1m, 5m, 10m, 20m, 30m, 1h, 2h, 4h, 8h)
-  const xTickDurs = [1, 15, 60, 300, 600, 1200, 1800, 3600, 7200, 14400, 28800].filter(d => d >= minDur && d <= maxDur);
+  // X 轴关键刻度与垂直虚线网格: 8 个黄金间隔(1s, 5s, 30s, 1m, 5m, 20m, 1h, 3h), 间距舒展均匀
+  const xTickDurs = [1, 5, 30, 60, 300, 1200, 3600, 10800].filter(d => d >= minDur && d <= maxDur);
   let vGrid = '', xLabels = '';
   xTickDurs.forEach(d => {
     const x = xOf(d).toFixed(1);
-    vGrid += `<line x1="${x}" y1="${padT}" x2="${x}" y2="${baseY}" stroke="${C.border}" stroke-width="1" stroke-dasharray="3 3" opacity="0.65"/>`;
+    vGrid += `<line x1="${x}" y1="${padT}" x2="${x}" y2="${baseY}" stroke="${C.border}" stroke-width="1" stroke-dasharray="3 3" opacity="0.6"/>`;
     xLabels += `<text x="${x}" y="${h-8}" text-anchor="middle" font-size="10.5" font-weight="600" fill="${C.muted}">${fmtDuration(d)}</text>`;
   });
 
@@ -1542,7 +1554,7 @@ function renderPowerCurve(){
     ftpText = `<text x="${w-padR}" y="${fy-6}" text-anchor="end" font-size="11" font-weight="700" fill="${C.brand}">FTP ${ftpDisplay} ${uLabel}</text>`;
   }
 
-  // 命中区: 每个数据点一个透明圆, hover 出 tooltip
+  // 命中区: 鼠标 hover 节点
   const hits = curve.durations.map((dur, i) => {
     const x = xOf(dur).toFixed(1), y = yOf(valOf(curve.watts[i])).toFixed(1);
     return `<circle class="pwhit" data-i="${i}" cx="${x}" cy="${y}" r="12" fill="transparent"/>`;
@@ -1550,8 +1562,8 @@ function renderPowerCurve(){
 
   const allArea = showAll ? drawArea(all, 'url(#allGrad)') : '';
   const curveArea = drawArea(curve, 'url(#pwGrad)');
-  const allDots = showAll ? drawDots(all, C.muted) : '';
   const allLine = showAll ? drawCurve(all, C.muted, true) : '';
+  const allDots = showAll ? drawDots(all, C.muted) : '';
   const curveLine = drawCurve(curve, C.viz, false);
   const curveDots = drawDots(curve, C.viz);
 
@@ -1604,6 +1616,7 @@ function renderPowerCurve(){
     const dur = durMap[s];
     const idx = curData.durations.indexOf(dur);
     const el = document.getElementById('pw' + s);
+    const refEl = document.getElementById('ref' + s);
     if(el) {
       if(idx >= 0 && curData.watts[idx] > 0){
         const wVal = curData.watts[idx];
@@ -1612,16 +1625,40 @@ function renderPowerCurve(){
         el.textContent = '-';
       }
     }
+    // 开启对比时在卡片下方小字展示历史最佳参考
+    if(refEl){
+      if(showAll && all && all.durations){
+        const allIdx = all.durations.indexOf(dur);
+        if(allIdx >= 0 && all.watts[allIdx] > 0){
+          const aw = isWkg ? (all.watts[allIdx] / weight).toFixed(2) : all.watts[allIdx];
+          refEl.textContent = t('pw_ref_all', { v: aw + ' ' + uLabel });
+          refEl.style.display = 'block';
+        } else { refEl.style.display = 'none'; }
+      } else { refEl.style.display = 'none'; }
+    }
   });
+
   // 估算 FTP: 取当前周期的 20min 估算或 eFTP
   const curFtp = curData.eftp || (curIdx20 >= 0 && curData.watts[curIdx20] > 0 ? Math.round(curData.watts[curIdx20] * 0.95) : 0);
   const ftpEl = document.getElementById('pwFtp');
+  const refFtpEl = document.getElementById('refFtp');
   if(ftpEl){
     if(curFtp > 0){
       ftpEl.textContent = isWkg ? (curFtp / weight).toFixed(2) : curFtp;
     } else {
       ftpEl.textContent = '-';
     }
+  }
+  if(refFtpEl){
+    if(showAll && all && all.durations){
+      const allIdx20 = all.durations.indexOf(1200);
+      const allFtp = all.eftp || (allIdx20 >= 0 && all.watts[allIdx20] > 0 ? Math.round(all.watts[allIdx20] * 0.95) : 0);
+      if(allFtp > 0){
+        const af = isWkg ? (allFtp / weight).toFixed(2) : allFtp;
+        refFtpEl.textContent = t('pw_ref_all', { v: af + ' ' + uLabel });
+        refFtpEl.style.display = 'block';
+      } else { refFtpEl.style.display = 'none'; }
+    } else { refFtpEl.style.display = 'none'; }
   }
 
   document.getElementById('powerStats').style.display = '';
@@ -2991,6 +3028,7 @@ initTheme();
 applyI18n();
 renderCompareUI();
 refreshStatus();
+switchNav(currentNav);
 </script>
 </body>
 </html>
