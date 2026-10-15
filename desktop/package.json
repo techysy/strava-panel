@@ -54,8 +54,7 @@
           ]
         }
       ],
-      "icon": "icon.ico",
-      "allowElevation": true
+      "icon": "icon.ico"
     },
     "mac": {
       "target": [
