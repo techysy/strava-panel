@@ -273,6 +273,14 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 .modal h3 .ic{width:17px;height:17px;color:var(--warn)}
 .modal p{font-size:13.5px;color:var(--text-2);line-height:1.65;margin-bottom:18px}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px}
+.modal.sm{width:min(340px,92vw)}
+.modal .upd-body{font-size:13.5px;color:var(--text-2);line-height:1.65;margin-bottom:18px}
+.modal .upd-body .upd-spin{display:inline-block;width:14px;height:14px;border:2px solid var(--border-strong);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;margin-right:8px;vertical-align:-2px}
+.modal .upd-body .upd-latest{color:var(--viz);font-weight:700}
+.modal .upd-body .upd-ver{font-weight:700;color:var(--text)}
+.modal .upd-meta{font-size:12px;color:var(--text-3);margin-top:6px}
+.modal .upd-prog{height:6px;background:var(--tertiary);border-radius:3px;margin:10px 0 4px;overflow:hidden}
+.modal .upd-prog-bar{height:100%;background:var(--accent);border-radius:3px;transition:width .3s}
 .modal .btn.danger{background:var(--err);border-color:transparent;color:#fff;box-shadow:0 2px 12px -2px rgba(220,38,38,.5)}
 .modal .btn.danger:hover{background:var(--err);opacity:.9}
 /* 会话/模型 下拉弹层(锚定按钮下方) */
@@ -466,6 +474,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
             <button class="hmenu-item" onclick="exportJson()"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span class="mi-txt" data-i18n="export_json">导出 JSON</span></button>
             <button class="hmenu-item" onclick="closeHmenu();syncNow('full')"><svg class="ic" aria-hidden="true"><use href="#i-database"/></svg><span class="mi-txt" data-i18n="sync_full">全量重同步</span></button>
             <button class="hmenu-item" onclick="closeHmenu();refreshStatus()"><svg class="ic" aria-hidden="true"><use href="#i-server"/></svg><span class="mi-txt" data-i18n="hm_refresh">刷新状态</span></button>
+            <button class="hmenu-item" onclick="closeHmenu();openUpdateModal()"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span class="mi-txt" data-i18n="hm_update">检查更新</span></button>
           </div>
           <div class="hmenu-group">
             <div class="hmenu-title" data-i18n="menu_about">关于</div>
@@ -744,6 +753,14 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
     </div>
   </div>
 </div>
+<!-- 检查更新弹窗(状态驱动: checking/latest/available/downloading/downloaded/error) -->
+<div class="modal-mask" id="updMask">
+  <div class="modal sm" role="dialog" aria-modal="true">
+    <h3 id="updTitle"></h3>
+    <div id="updBody"></div>
+    <div class="modal-actions" id="updActions"></div>
+  </div>
+</div>
 
 <script>
 // ===== i18n =====
@@ -779,7 +796,10 @@ const I18N = {
     token_creating:'正在生成新 token…', token_done:'新 token (立即生效)：', token_fail:'创建失败:',
     load_log:'加载中…', no_log:'(暂无日志)', log_fmt:'{src} 日志 · {disp} · 共 {total} 行',
     menu_workspace:'工作区', menu_appearance:'外观', menu_language:'语言', menu_about:'关于', theme_system:'跟随系统', theme_light:'亮色', theme_dark:'暗色',
-    hm_refresh:'刷新状态', hm_apidoc:'API 文档', hm_github:'GitHub', ctip_rides:'次',
+    hm_refresh:'刷新状态', hm_update:'检查更新', hm_apidoc:'API 文档', hm_github:'GitHub', ctip_rides:'次',
+    upd_checking:'正在检查更新…', upd_latest:'已是最新版本（当前 v{ver}）', upd_available:'发现新版本 v{ver}',
+    upd_download:'下载更新', upd_downloading:'下载中… {pct}%', upd_downloaded:'下载完成，点击安装', upd_install:'安装并重启',
+    upd_error:'检查更新失败：{msg}', upd_retry:'重试', upd_openGithub:'打开 Releases 页面', upd_close:'关闭', upd_curVer:'当前版本 v{ver}', upd_size:'大小 {size}', upd_pub:'发布于 {date}', upd_noAsset:'未找到适用于当前平台的安装包',
     sg_ok:'正常', sg_attention:'需关注', sg_ready:'就绪', sg_empty:'空', sg_pending:'未生成',
     nav_coach:'训练建议', coach_title:'AI 训练建议', coach_noLlm:'尚未配置模型', coach_gotoSettings:'前往 设置 → 模型',
     coach_suggest:'生成本周训练建议', coach_clear:'清空记忆', coach_empty:'向 AI 教练提问训练规划,它会读取你的骑行数据(距离/时长/心率/功率)并结合历史对话给出建议。对话记忆保存在本地数据库。',
@@ -846,7 +866,10 @@ const I18N = {
     token_creating:'Generating new token…', token_done:'New token (effective now):', token_fail:'Failed:',
     load_log:'Loading…', no_log:'(no log)', log_fmt:'{src} log · {disp} · {total} lines',
     menu_workspace:'Workspace', menu_appearance:'Appearance', menu_language:'Language', menu_about:'About', theme_system:'System', theme_light:'Light', theme_dark:'Dark',
-    hm_refresh:'Refresh Status', hm_apidoc:'API Docs', hm_github:'GitHub', ctip_rides:'rides',
+    hm_refresh:'Refresh Status', hm_update:'Check for Updates', hm_apidoc:'API Docs', hm_github:'GitHub', ctip_rides:'rides',
+    upd_checking:'Checking for updates…', upd_latest:'Up to date (v{ver})', upd_available:'New version v{ver} available',
+    upd_download:'Download Update', upd_downloading:'Downloading… {pct}%', upd_downloaded:'Download complete, click to install', upd_install:'Install & Restart',
+    upd_error:'Update check failed: {msg}', upd_retry:'Retry', upd_openGithub:'Open Releases Page', upd_close:'Close', upd_curVer:'Current v{ver}', upd_size:'Size {size}', upd_pub:'Published {date}', upd_noAsset:'No installer found for current platform',
     sg_ok:'OK', sg_attention:'Attention', sg_ready:'Ready', sg_empty:'Empty', sg_pending:'Not generated',
     nav_coach:'Coach', coach_title:'AI Training Coach', coach_noLlm:'Model not configured', coach_gotoSettings:'Go to Settings → Model',
     coach_suggest:'Plan this week', coach_clear:'Clear memory', coach_empty:'Ask the AI coach about training plans. It reads your ride data (distance/duration/HR/power) plus conversation history. Memory is stored in the local database.',
@@ -2020,6 +2043,117 @@ function appConfirm(title, body, danger){
     mask.onclick = (e) => { if(e.target === mask) done(false); };
     mask.classList.add('show');
   });
+}
+
+// ===== 检查更新(应用内弹窗) =====
+// 纯 Web 面板直接调 GitHub Releases API;桌面版走 electron-updater 桥(如有)。
+// 状态机: checking → latest / available → downloading → downloaded / error
+const UPD_REPO = 'techysy/strava-panel';
+let updState = { phase: 'idle', version: '', asset: null, error: '' };
+function updCurVer(){ return (typeof APP_VERSION !== 'undefined' && APP_VERSION) || (window.bootVer || ''); }
+function updPlatform(){ return /win/i.test(navigator.userAgent) ? 'win' : (/mac/i.test(navigator.userAgent) ? 'mac' : 'other'); }
+async function openUpdateModal(){
+  const mask = document.getElementById('updMask');
+  const body = document.getElementById('updBody');
+  const actions = document.getElementById('updActions');
+  document.getElementById('updTitle').innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg>' + t('hm_update');
+  const done = () => { mask.classList.remove('show'); };
+  mask.onclick = (e) => { if(e.target === mask) done(); };
+  mask.classList.add('show');
+  // 桌面版: 优先走 electron-updater 桥
+  if (window.stravaUpdater && window.stravaUpdater.check) {
+    try {
+      const s = await window.stravaUpdater.check();
+      updState = s;
+      renderUpdateModal(s, done);
+      return;
+    } catch { /* fallback to GitHub API */ }
+  }
+  // Web / 桌面 fallback: GitHub Releases API
+  renderUpdateModal({ phase: 'checking' }, done);
+  try {
+    const resp = await fetch(`https://api.github.com/repos/${UPD_REPO}/releases/latest`, {
+      headers: { Accept: 'application/vnd.github+json' }
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const rel = await resp.json();
+    const ver = (rel.tag_name || '').replace(/^v/, '');
+    const cur = updCurVer();
+    if (!ver) throw new Error('no version');
+    // 严格大于才算新版本
+    const isNewer = ver.split('.').map(Number).reduce((a,v,i)=>{ const c=cur.split('.').map(Number); return a || (v > (c[i]||0)); }, false) && ver !== cur;
+    if (!isNewer) {
+      updState = { phase: 'latest', version: cur || ver };
+    } else {
+      // 找当前平台的安装包
+      const plat = updPlatform();
+      const assetName = plat === 'win' ? rel.assets.find(a => /Setup.*\.exe/.test(a.name))
+        : plat === 'mac' ? rel.assets.find(a => /mac.*\.dmg/i.test(a.name) || /Setup.*arm64.*\.dmg/.test(a.name))
+        : null;
+      updState = { phase: 'available', version: ver, asset: assetName || null, publish: rel.published_at || '', html_url: rel.html_url || '' };
+    }
+  } catch(e) {
+    updState = { phase: 'error', error: e.message || '' };
+  }
+  renderUpdateModal(updState, done);
+}
+function renderUpdateModal(s, done){
+  const body = document.getElementById('updBody');
+  const actions = document.getElementById('updActions');
+  const cur = updCurVer();
+  let html = '', btns = '';
+  if (s.phase === 'checking') {
+    html = `<div class="upd-body"><span class="upd-spin"></span>${t('upd_checking')}</div>`;
+  } else if (s.phase === 'latest') {
+    html = `<div class="upd-body"><span class="upd-latest">✓</span> ${t('upd_latest').replace('{ver}', s.version || cur)}</div>`;
+    btns = `<button class="btn primary" onclick="document.getElementById('updMask').classList.remove('show')">${t('upd_close')}</button>`;
+  } else if (s.phase === 'available') {
+    const sizeMB = s.asset ? (s.asset.size / 1048576).toFixed(1) : '';
+    const pubDate = s.publish ? new Date(s.publish).toLocaleDateString() : '';
+    html = `<div class="upd-body">
+      <div class="upd-ver">${t('upd_available').replace('{ver}', s.version)}</div>
+      <div class="upd-meta">${t('upd_curVer').replace('{ver}', cur)}${sizeMB ? ' · ' + t('upd_size').replace('{size}', sizeMB + ' MB') : ''}${pubDate ? ' · ' + t('upd_pub').replace('{date}', pubDate) : ''}</div>
+    </div>`;
+    if (s.asset) {
+      btns += `<button class="btn primary" onclick="updDownload('${s.asset.browser_download_url}','${s.asset.name}')">${t('upd_download')}</button>`;
+    } else {
+      html += `<div class="upd-meta" style="color:var(--err)">${t('upd_noAsset')}</div>`;
+    }
+    if (s.html_url) {
+      btns += `<button class="btn" onclick="window.open('${s.html_url}','_blank')">${t('upd_openGithub')}</button>`;
+    }
+    btns += `<button class="btn" onclick="document.getElementById('updMask').classList.remove('show')">${t('upd_close')}</button>`;
+  } else if (s.phase === 'downloading') {
+    html = `<div class="upd-body">${t('upd_downloading').replace('{pct}', (s.pct||0).toFixed(0))}</div><div class="upd-prog"><div class="upd-prog-bar" style="width:${(s.pct||0).toFixed(0)}%"></div></div>`;
+  } else if (s.phase === 'downloaded') {
+    html = `<div class="upd-body"><span class="upd-latest">✓</span> ${t('upd_downloaded')}</div>`;
+    btns = `<button class="btn primary" onclick="updInstall()">${t('upd_install')}</button><button class="btn" onclick="document.getElementById('updMask').classList.remove('show')">${t('upd_close')}</button>`;
+  } else if (s.phase === 'error') {
+    html = `<div class="upd-body" style="color:var(--err)">${t('upd_error').replace('{msg}', escapeHtml(s.error || ''))}</div>`;
+    btns = `<button class="btn primary" onclick="openUpdateModal()">${t('upd_retry')}</button><button class="btn" onclick="window.open('https://github.com/${UPD_REPO}/releases','_blank')">${t('upd_openGithub')}</button><button class="btn" onclick="document.getElementById('updMask').classList.remove('show')">${t('upd_close')}</button>`;
+  }
+  body.innerHTML = html;
+  actions.innerHTML = btns;
+}
+function updDownload(url, name){
+  updState = { ...updState, phase: 'downloading', pct: 0 };
+  renderUpdateModal(updState, ()=>{});
+  // 桌面版: 走主进程下载
+  if (window.stravaUpdater && window.stravaUpdater.download) {
+    window.stravaUpdater.download(url, name).then(s => { updState = s; renderUpdateModal(s, ()=>{}); }).catch(e => { updState = { phase:'error', error: e.message }; renderUpdateModal(updState, ()=>{}); });
+    return;
+  }
+  // Web: 浏览器直接下载
+  const a = document.createElement('a');
+  a.href = url; a.download = name || '';
+  document.body.appendChild(a); a.click(); a.remove();
+  updState = { phase: 'downloaded' };
+  renderUpdateModal(updState, ()=>{});
+}
+function updInstall(){
+  if (window.stravaUpdater && window.stravaUpdater.install) {
+    window.stravaUpdater.install();
+  }
 }
 
 function mdLite(src){
