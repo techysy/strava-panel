@@ -70,6 +70,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .hmenu-group{padding:3px 0}
 .hmenu-group + .hmenu-group{margin-top:4px;padding-top:7px;border-top:1px solid var(--border-subtle)}
 .hmenu-title{padding:5px 10px 6px;font-size:11px;font-weight:700;letter-spacing:.7px;color:var(--text-3);text-transform:uppercase}
+.hmenu-sub{padding:6px 10px 3px;font-size:10.5px;font-weight:700;letter-spacing:.5px;color:var(--text-3);text-transform:uppercase;opacity:.8}
 .hmenu-item{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border:0;border-radius:10px;background:transparent;color:var(--text-2);font-size:13.5px;font-weight:600;cursor:pointer;text-align:left;font-family:inherit;text-decoration:none}
 .hmenu-item .ic{color:var(--text-3);transition:color .15s}
 .hmenu-item:hover{background:var(--hover);color:var(--text)}
@@ -469,10 +470,13 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
           </div>
           <div class="hmenu-group">
             <div class="hmenu-title" data-i18n="menu_workspace">工作区</div>
+            <div class="hmenu-sub" data-i18n="ws_sync">同步</div>
             <button class="hmenu-item" onclick="closeHmenu();syncNow()"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span class="mi-txt" data-i18n="sync_btn">立即同步</span></button>
+            <button class="hmenu-item" onclick="closeHmenu();syncNow('full')"><svg class="ic" aria-hidden="true"><use href="#i-database"/></svg><span class="mi-txt" data-i18n="sync_full">全量重同步</span></button>
+            <div class="hmenu-sub" data-i18n="ws_export">导出</div>
             <button class="hmenu-item" onclick="exportCsv()"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span class="mi-txt" data-i18n="export_csv">导出 CSV</span></button>
             <button class="hmenu-item" onclick="exportJson()"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span class="mi-txt" data-i18n="export_json">导出 JSON</span></button>
-            <button class="hmenu-item" onclick="closeHmenu();syncNow('full')"><svg class="ic" aria-hidden="true"><use href="#i-database"/></svg><span class="mi-txt" data-i18n="sync_full">全量重同步</span></button>
+            <div class="hmenu-sub" data-i18n="ws_system">系统</div>
             <button class="hmenu-item" onclick="closeHmenu();refreshStatus()"><svg class="ic" aria-hidden="true"><use href="#i-server"/></svg><span class="mi-txt" data-i18n="hm_refresh">刷新状态</span></button>
             <button class="hmenu-item" onclick="closeHmenu();openUpdateModal()"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span class="mi-txt" data-i18n="hm_update">检查更新</span></button>
           </div>
@@ -795,7 +799,7 @@ const I18N = {
     syncing:'同步中…', sync_done:'同步完成', sync_fail:'同步失败',
     token_creating:'正在生成新 token…', token_done:'新 token (立即生效)：', token_fail:'创建失败:',
     load_log:'加载中…', no_log:'(暂无日志)', log_fmt:'{src} 日志 · {disp} · 共 {total} 行',
-    menu_workspace:'工作区', menu_appearance:'外观', menu_language:'语言', menu_about:'关于', theme_system:'跟随系统', theme_light:'亮色', theme_dark:'暗色',
+    menu_workspace:'工作区', ws_sync:'同步', ws_export:'导出', ws_system:'系统', menu_appearance:'外观', menu_language:'语言', menu_about:'关于', theme_system:'跟随系统', theme_light:'亮色', theme_dark:'暗色',
     hm_refresh:'刷新状态', hm_update:'检查更新', hm_apidoc:'API 文档', hm_github:'GitHub', ctip_rides:'次',
     upd_checking:'正在检查更新…', upd_latest:'已是最新版本（当前 v{ver}）', upd_available:'发现新版本 v{ver}',
     upd_download:'下载更新', upd_downloading:'下载中… {pct}%', upd_downloaded:'下载完成，点击安装', upd_install:'安装并重启',
@@ -865,7 +869,7 @@ const I18N = {
     syncing:'Syncing…', sync_done:'Sync Complete', sync_fail:'Sync Failed',
     token_creating:'Generating new token…', token_done:'New token (effective now):', token_fail:'Failed:',
     load_log:'Loading…', no_log:'(no log)', log_fmt:'{src} log · {disp} · {total} lines',
-    menu_workspace:'Workspace', menu_appearance:'Appearance', menu_language:'Language', menu_about:'About', theme_system:'System', theme_light:'Light', theme_dark:'Dark',
+    menu_workspace:'Workspace', ws_sync:'Sync', ws_export:'Export', ws_system:'System', menu_appearance:'Appearance', menu_language:'Language', menu_about:'About', theme_system:'System', theme_light:'Light', theme_dark:'Dark',
     hm_refresh:'Refresh Status', hm_update:'Check for Updates', hm_apidoc:'API Docs', hm_github:'GitHub', ctip_rides:'rides',
     upd_checking:'Checking for updates…', upd_latest:'Up to date (v{ver})', upd_available:'New version v{ver} available',
     upd_download:'Download Update', upd_downloading:'Downloading… {pct}%', upd_downloaded:'Download complete, click to install', upd_install:'Install & Restart',
