@@ -579,6 +579,15 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 
     <!-- 功率曲线 -->
     <div class="view" id="tab-power">
+      <div class="seg" id="pwRangeSeg" style="margin-bottom:12px">
+        <button id="pwRg7d" onclick="setPwRange('7d')" data-i18n="rg_7d">近7天</button>
+        <button id="pwRg1m" onclick="setPwRange('1m')" data-i18n="rg_1m">近1月</button>
+        <button id="pwRg3m" onclick="setPwRange('3m')" data-i18n="rg_3m">近3月</button>
+        <button id="pwRg6m" onclick="setPwRange('6m')" data-i18n="rg_6m">近6月</button>
+        <button id="pwRgYtd" onclick="setPwRange('ytd')" data-i18n="rg_ytd">本年度</button>
+        <button id="pwRg12m" onclick="setPwRange('12m')" data-i18n="rg_12m">近12月</button>
+        <button id="pwRgAll" class="active" onclick="setPwRange('all')" data-i18n="rg_all">所有</button>
+      </div>
       <div class="panel">
         <h2><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg><span data-i18n="power_title">最佳功率曲线</span><span class="clegend" id="powerLegend" style="display:none"><span class="sw"><i class="box pw-all"></i><span data-i18n="pw_all">全部</span></span><span class="sw"><i class="box pw-recent"></i><span data-i18n="pw_recent6m">近6月</span></span></span><span class="cmp-toggle" id="pwCmpToggle" onclick="togglePowerCompare()"><span data-i18n="cmp_label">对比上期</span><span class="switch"></span></span></h2>
         <div class="hint" style="margin:-4px 0 12px" data-i18n="power_hint">横轴为持续时间，纵轴为该时长内可维持的最大平均功率。数据来源于本地活动记录。</div>
@@ -1343,11 +1352,19 @@ async function loadData(){
 // ===== 功率曲线 =====
 let powerCurveData = null;  // 缓存最近一次功率曲线数据（主题切换后重绘）
 let powerCurveCompareOn = localStorage.getItem('sp-pw-compare') === '1';
+let pwRange = 'all';  // 功率曲线时间范围: 7d/1m/3m/6m/ytd/12m/all
+function setPwRange(r){
+  pwRange = r;
+  document.querySelectorAll('#pwRangeSeg button').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('pwRg' + r.charAt(0).toUpperCase() + r.slice(1));
+  if(btn) btn.classList.add('active');
+  loadPowerCurve();
+}
 async function loadPowerCurve(){
   const host = document.getElementById('powerChart');
   host.innerHTML = `<div style="color:var(--text-3);font-size:13px">${t('load_log')}</div>`;
   try{
-    const d = await apiGet('/api/powercurve');
+    const d = await apiGet('/api/powercurve', pwRange !== 'all' ? 'range=' + pwRange : '');
     powerCurveData = d;
     renderPowerCurve();
   }catch(e){
@@ -1369,31 +1386,40 @@ function fmtDuration(sec){
 function renderPowerCurve(){
   const d = powerCurveData;
   const host = document.getElementById('powerChart');
-  if(!d || !d.all || !d.all.durations || !d.all.durations.length){
+  if(!d || !d.curve || !d.curve.durations || !d.curve.durations.length){
     host.innerHTML = `<div style="color:var(--text-3);font-size:13px">${t('empty')}</div>`;
     document.getElementById('powerStats').style.display = 'none';
     return;
   }
   const C = chartColors();
+  const curve = d.curve;
   const all = d.all;
-  const recent6m = d.recent6m;
-  const showRecent = powerCurveCompareOn && recent6m && recent6m.durations && recent6m.durations.length;
+  const showAll = powerCurveCompareOn && all && all.durations && all.durations.length;
   // X 轴: log2 刻度
-  const allDurations = all.durations.concat(showRecent ? recent6m.durations : []);
+  const allDurations = curve.durations.concat(showAll ? all.durations : []);
   const minDur = Math.min(...allDurations), maxDur = Math.max(...allDurations);
   const logMin = Math.log2(minDur), logMax = Math.log2(maxDur);
   const w = Math.max(320, host.clientWidth || 560);
   const h = Math.max(280, host.clientHeight || 280), padL = 42, padR = 10, padT = 16, padB = 30;
   const iw = w - padL - padR, ih = h - padT - padB;
   // Y 轴
-  let rawMax = Math.max(...all.watts, 0);
-  if(showRecent) rawMax = Math.max(rawMax, ...recent6m.watts);
+  let rawMax = Math.max(...curve.watts, 0);
+  if(showAll) rawMax = Math.max(rawMax, ...all.watts);
   let max = rawMax * 1.15;
   if(max <= 0) max = 10;
   else if(max < 10) max = Math.ceil(max);
   else max = Math.ceil(max / 50) * 50;
   const xOf = (dur) => padL + ((Math.log2(dur) - logMin) / (logMax - logMin)) * iw;
   const yOf = (watts) => padT + ih - (watts / max) * ih;
+  // 面积填充
+  const drawArea = (data, color) => {
+    if(!data.durations.length) return '';
+    const baseY = padT + ih;
+    const pts = data.durations.map((dur, i) => `${xOf(dur).toFixed(1)},${yOf(data.watts[i]).toFixed(1)}`);
+    const lastX = xOf(data.durations[data.durations.length-1]).toFixed(1);
+    const firstX = xOf(data.durations[0]).toFixed(1);
+    return `<polygon points="${firstX},${baseY} ${pts.join(' ')} ${lastX},${baseY}" fill="${color}" opacity="0.08"/>`;
+  };
   // 曲线绘制
   const drawCurve = (data, color, dashed) => {
     const pts = data.durations.map((dur, i) => `${xOf(dur).toFixed(1)},${yOf(data.watts[i]).toFixed(1)}`);
@@ -1420,42 +1446,44 @@ function renderPowerCurve(){
     if(f > 0) grid += `<text x="${padL-6}" y="${gy}" text-anchor="end" font-size="10" fill="${C.muted}">${Math.round(f*max)}</text>`;
   });
   // FTP 估算线: 20min best × 0.95
-  const idx20 = all.durations.indexOf(1200);
+  const idx20 = curve.durations.indexOf(1200);
   let ftpLine = '', ftpText = '';
-  if(idx20 >= 0 && all.watts[idx20] > 0){
-    const ftp = Math.round(all.watts[idx20] * 0.95);
+  if(idx20 >= 0 && curve.watts[idx20] > 0){
+    const ftp = Math.round(curve.watts[idx20] * 0.95);
     const fy = yOf(ftp).toFixed(1);
     ftpLine = `<line x1="${padL}" y1="${fy}" x2="${w-padR}" y2="${fy}" stroke="${C.brand}" stroke-width="1.6" stroke-dasharray="8 5" opacity="0.7"/>`;
     ftpText = `<text x="${w-padR}" y="${fy-5}" text-anchor="end" font-size="10.5" font-weight="700" fill="${C.brand}">FTP ${ftp}W</text>`;
   }
   // 命中区: 每个数据点一个透明圆, hover 出 tooltip
-  const hits = all.durations.map((dur, i) => {
-    const x = xOf(dur).toFixed(1), y = yOf(all.watts[i]).toFixed(1);
+  const hits = curve.durations.map((dur, i) => {
+    const x = xOf(dur).toFixed(1), y = yOf(curve.watts[i]).toFixed(1);
     return `<circle class="pwhit" data-i="${i}" cx="${x}" cy="${y}" r="10" fill="transparent"/>`;
   }).join('');
-  const recentDots = showRecent ? drawDots(recent6m, C.viz) : '';
-  const recentLine = showRecent ? drawCurve(recent6m, C.viz, false) : '';
-  const allLine = drawCurve(all, C.muted, showRecent);
-  const allDots = drawDots(all, showRecent ? C.muted : C.viz);
+  const allArea = showAll ? drawArea(all, C.muted) : '';
+  const curveArea = drawArea(curve, C.viz);
+  const allDots = showAll ? drawDots(all, C.muted) : '';
+  const allLine = showAll ? drawCurve(all, C.muted, false) : '';
+  const curveLine = drawCurve(curve, C.viz, showAll);
+  const curveDots = drawDots(curve, showAll ? C.viz : C.viz);
   // tooltip
   const tipId = 'powerTip';
   host.innerHTML = `<div class="chart-wrap"><svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block" role="img" aria-label="power curve">
-    ${grid}${ftpLine}${ftpText}${allLine}${recentLine}${allDots}${recentDots}${xLabels}${hits}
+    ${grid}${allArea}${curveArea}${ftpLine}${ftpText}${allLine}${curveLine}${allDots}${curveDots}${xLabels}${hits}
   </svg><div class="ctip" id="${tipId}"></div></div>`;
   // hover 交互
   const tip = host.querySelector('#' + tipId);
-  const allDurArr = all.durations, allWattsArr = all.watts;
-  const recentDurArr = showRecent ? recent6m.durations : [], recentWattsArr = showRecent ? recent6m.watts : [];
+  const curveDurArr = curve.durations, curveWattsArr = curve.watts;
+  const allDurArr = showAll ? all.durations : [], allWattsArr = showAll ? all.watts : [];
   host.querySelectorAll('.pwhit').forEach(hit=>{
     hit.addEventListener('mouseenter', ()=>{
       const i = +hit.dataset.i;
-      const dur = allDurArr[i], watts = allWattsArr[i];
+      const dur = curveDurArr[i], watts = curveWattsArr[i];
       let txt = `${fmtDuration(dur)} · ${watts}W`;
-      // 找近6月同档位
-      const ri = recentDurArr.indexOf(dur);
+      // 找全部历史同档位
+      const ri = allDurArr.indexOf(dur);
       if(ri >= 0){
-        const rw = recentWattsArr[ri];
-        txt += ` · ${t('pw_recent6m')} ${rw}W`;
+        const rw = allWattsArr[ri];
+        txt += ` · ${t('pw_all')} ${rw}W`;
       }
       tip.textContent = txt;
       tip.style.opacity = '1';

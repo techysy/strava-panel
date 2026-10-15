@@ -1143,13 +1143,20 @@ async function handleGet(req, res, rawPath, qs) {
     if (!requireApiToken(req, res, qs, rawPath)) return;
     try {
       await ensureLocalData();
-      const recent = db.powerCurve(qs.start || null, qs.end || null);
-      // 对比区间: 近6月 vs 全部
+      // 前端传 range key(7d/1m/3m/6m/ytd/12m/all)或显式 start/end
       const now = new Date();
-      const dAgo = (days) => { const d = new Date(now); d.setDate(d.getDate() - days); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+      const p2 = (n) => String(n).padStart(2, '0');
+      const dAgo = (days) => { const d = new Date(now); d.setDate(d.getDate() - days); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`; };
+      const rangeMap = {
+        '7d': dAgo(7), '1m': dAgo(30), '3m': dAgo(90),
+        '6m': dAgo(182), 'ytd': `${now.getFullYear()}-01-01`, '12m': dAgo(365),
+      };
+      const start = qs.start || (rangeMap[qs.range] || null);
+      const end = qs.end || null;
+      const curve = db.powerCurve(start, end);
+      // 对比用: 全部历史
       const all = db.powerCurve(null, null);
-      const recent6m = db.powerCurve(dAgo(182), null);
-      sendJson(res, { recent, all, recent6m, unit: 'W' });
+      sendJson(res, { curve, all, unit: 'W', range: qs.range || 'all' });
     } catch (e) {
       sendJson(res, { error: String(e.message || e) }, 500);
     }
