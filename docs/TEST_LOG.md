@@ -35,6 +35,12 @@
 - 质量保障：`scripts/fit-selftest.mjs`（51 项断言，以第三方 `fit-file-parser` 为独立裁判，覆盖 CRC 抗错、压缩时间戳重序列化往返、大端解析、四工具输出字节级验证）。运行：`npm install fit-file-parser --no-save && node scripts/fit-selftest.mjs`。
 - 中途发现并修复的解析器真 bug（自验证抓出）：CRC 表算法用错（单次查表 → 半字节双查表）、uint32 被基类型掩码截断高 16 位、压缩时间戳头运算符优先级错、大端定义消息被忽略。
 
+### 修复（2.5.2 真机验收发现）
+- **「写入训练日历」报"未识别到有效的日历事件"**：ICS 解析正则只认 `DTSTART:20261018` / `DTSTART;VALUE=DATE:...` 两种裸格式，而 LLM 常输出 `DTSTART;TZID=Asia/Shanghai:20261018T080000`、带连字符、冒号后带空格等形态 → 全部匹配失败。新正则兼容 8 种变体（9/9 用例通过，含多事件跳过无 SUMMARY 畸形项）。
+- **晚间 22:00 仍把训练排在今天**：系统提示词只注入日期没注入钟点，LLM 无从知道"今天已晚"。现在 dateLine 含 HH:MM，timeRule 加"约 19:00 后课表从明天开始，除非用户明确要求今天"；三个计划模板（周/月/赛前）同步加晚间提示。
+- **表格单元里字面 `<br>` 显示**：LLM 在表格单元格用 `<br>` 换行，mdLite 先整体转义导致显示成文本。转义后定向还原（跳过代码块，`<script>` 注入仍被转义，已验证）。
+- **设置 → 偏好（新子页）**：运动员运动方式勾选（骑行/跑步/步行/徒步/游泳/室内骑行/力量训练/综合训练），与训练建议页「运动方式」弹窗共用同一 `coach_sports` 状态，双向同步。
+
 ### 致命修复（功能此前完全不可用）
 - **「写入训练日历」批量接口 100% 崩溃**：`db.addPlansBatch` 用了 `this.db.transaction()`，但项目是 `node:sqlite` 的 `DatabaseSync`，**无此方法**（那是 better-sqlite3 的 API）。任何批量写入都返回 `this.db.transaction is not a function`。改用显式 `BEGIN`/`COMMIT`/`ROLLBACK`，并验证中途抛错时已写入行一并回滚、事务状态干净可继续写。
 - **训练建议页加载即抛错**：`loadCoach()` 调用了从未定义的 `setCoachView()`，异常被 `catch(e){}` 静默吞掉，导致后续 `loadCal()` 根本不执行（日历数据不加载）。已删除该调用与残留的 `coachCurView`，并把静默 catch 改为 `console.error`。

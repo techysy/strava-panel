@@ -796,6 +796,7 @@ const num = (v) => (v instanceof PyFloat ? v.v : (v == null ? 0 : Number(v) || 0
 const SPORT_LABEL = {
   Ride: '骑行', Run: '跑步', Walk: '步行', Swim: '游泳', Hike: '徒步',
   VirtualRide: '室内骑行', RideVirtual: '室内骑行', Workout: '综合训练',
+  WeightTraining: '力量训练',
 };
 function coachSports() {
   /** 用户勾选的运动方式（strava.conf coach_sports，逗号分隔），默认仅骑行。 */
@@ -849,12 +850,13 @@ const COACH_SYSTEM = (digest, lang, now = new Date(), sports = ['Ride']) => {
   const daysLeftInMonth = monthEnd.getDate() - now.getDate();
   const yearEnd = new Date(now.getFullYear(), 11, 31);
   const daysLeftInYear = Math.round((yearEnd - now) / 86400000);
+  const timeHHMM = `${p2(now.getHours())}:${p2(now.getMinutes())}`;
   const dateLine = lang === 'en'
-    ? `【CURRENT TIME】${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())} (${dowEN}), ISO week ${isoWeek}. Remaining: ${daysLeftInMonth} days this month, ${daysLeftInYear} days this year.`
-    : `【当前时间】${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())} 周${dowCN},第 ${isoWeek} 周。剩余:本月 ${daysLeftInMonth} 天,本年 ${daysLeftInYear} 天。`;
+    ? `【CURRENT TIME】${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())} ${timeHHMM} (${dowEN}), ISO week ${isoWeek}. Remaining: ${daysLeftInMonth} days this month, ${daysLeftInYear} days this year.`
+    : `【当前时间】${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())} ${timeHHMM} 周${dowCN},第 ${isoWeek} 周。剩余:本月 ${daysLeftInMonth} 天,本年 ${daysLeftInYear} 天。`;
   const timeRule = lang === 'en'
-    ? 'When making any TIME-BOUND plan (weekly / monthly / race prep), treat today as the ONLY start date: NEVER schedule sessions on past dates. A weekly plan covers today→Sunday only; a monthly plan covers today→month end; a race plan counts back from race day but starts no earlier than today. State concrete dates.'
-    : '制定任何时间相关计划(周/月/赛前)时,以今天为唯一起点,绝不安排已过去的日期:周计划只覆盖今天→本周日,月计划只覆盖今天→月末,赛前计划从今天起排到比赛日。给出具体日期。';
+    ? 'When making any TIME-BOUND plan (weekly / monthly / race prep), treat today as the ONLY start date: NEVER schedule sessions on past dates. A weekly plan covers today→Sunday only; a monthly plan covers today→month end; a race plan counts back from race day but starts no earlier than today. State concrete dates. IMPORTANT — respect the current clock time: if it is already evening/night (roughly 19:00 or later), do NOT put a training session on today; start the schedule from tomorrow instead, unless the user explicitly asks for a session today.'
+    : '制定任何时间相关计划(周/月/赛前)时,以今天为唯一起点,绝不安排已过去的日期:周计划只覆盖今天→本周日,月计划只覆盖今天→月末,赛前计划从今天起排到比赛日。给出具体日期。重要——必须尊重当前钟点:如果现在已是傍晚/晚间(约 19:00 之后),不要把训练排在今天,课表从明天开始排,除非用户明确要求今天就要练。';
   const calRule = lang === 'en'
     ? 'Strava Panel has a built-in Training Calendar and one-click ICS import/export capability. When the user asks you to build a training plan, schedule workouts, or add to calendar: 1) Outline the daily schedule clearly with concrete dates (YYYY-MM-DD); 2) Provide a standard iCalendar (ICS) code block (BEGIN:VCALENDAR ... END:VCALENDAR) so the panel can automatically parse it and let the user import it into their training calendar with one click. NEVER say you lack permissions to write to their calendar; provide the schedule with the ICS block and tell them they can click "写入训练日历" on the message.'
     : 'Strava Panel 内置了训练日历系统，并深度支持一键导入与 ICS 日历文件导出。当用户要求你安排训练计划、课表或“添加到训练日历”时：1) 给出具体的每日训练计划（标明具体公历日期 YYYY-MM-DD）；2) 务必在回答末尾提供标准的 iCalendar (ICS) 代码块（以 ```ics 包裹 BEGIN:VCALENDAR ... END:VCALENDAR），面板会自动识别该代码块并在卡片下方提供「写入训练日历」和「下载 ICS」快捷按钮；3) 严禁回答“我没有权限写入你的训练日历”，直接告知用户已生成课表，点击消息卡片下方的按钮即可一键同步至内置训练日历。';

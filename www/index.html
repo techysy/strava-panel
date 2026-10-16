@@ -743,6 +743,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         <button class="subtab active" onclick="switchSubTab('cred')"><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg><span class="tab-txt" data-i18n="sub_cred">凭据</span></button>
         <button class="subtab" onclick="switchSubTab('api')"><svg class="ic" aria-hidden="true"><use href="#i-cpu"/></svg><span class="tab-txt" data-i18n="sub_api">API</span></button>
         <button class="subtab" onclick="switchSubTab('model')"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span class="tab-txt" data-i18n="sub_model">模型</span></button>
+        <button class="subtab" onclick="switchSubTab('prefs')"><svg class="ic" aria-hidden="true"><use href="#i-bike"/></svg><span class="tab-txt" data-i18n="sub_prefs">偏好</span></button>
         <button class="subtab" onclick="switchSubTab('data')"><svg class="ic" aria-hidden="true"><use href="#i-database"/></svg><span class="tab-txt" data-i18n="sub_data">数据</span></button>
         <button class="subtab" onclick="switchSubTab('sess')"><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg><span class="tab-txt" data-i18n="sub_sess">会话</span></button>
       </div>
@@ -807,6 +808,17 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
           <div id="manualModelRow" style="display:none;gap:8px;align-items:center">
             <input id="llm_model" placeholder="qwen2.5:14b / gpt-4o-mini ..." autocomplete="off" style="flex:1">
             <button class="btn" onclick="addManualModel()" data-i18n="model_addBtn">添加</button>
+          </div>
+        </div>
+      </div>
+      <div class="subpanel" id="sub-prefs">
+        <div class="panel">
+          <h2><svg class="ic" aria-hidden="true"><use href="#i-bike"/></svg><span data-i18n="prefs_title">运动员偏好</span></h2>
+          <p class="hint" style="margin-bottom:8px" data-i18n="prefs_hint">勾选你实际进行的运动方式。AI 教练只会推荐所选运动内的训练，训练数据摘要也按此过滤；训练建议页顶部的「运动方式」与此同步。</p>
+          <div class="sport-checks" id="prefsSportChecks" style="max-width:280px"></div>
+          <div class="row" style="margin-top:12px;display:flex;gap:8px;align-items:center">
+            <button class="btn" onclick="savePrefs()" data-i18n="prefs_save">保存偏好</button>
+            <span class="hint" id="prefsMsg"></span>
           </div>
         </div>
       </div>
@@ -1080,9 +1092,10 @@ const I18N = {
     coach_plan:'生成计划', coach_plan_week:'本周计划', coach_plan_month:'月度计划', coach_plan_race:'赛前计划',
     coach_race_name_ph:'比赛名称(可选,如 环青海湖)', coach_race_start:'生成赛前计划', coach_race_default:'目标比赛',
     coach_race_needDate:'请先选择比赛日期', coach_race_past:'比赛日期不能早于今天',
-    coach_plan_week_q:'今天是 {today}。请制定本周训练计划,只安排从今天到本周日({end})的课表,不要包含已过去的日期;给出每天的具体内容、时长、强度(心率/功率区间)与恢复安排。',
-    coach_plan_month_q:'今天是 {today}。请制定本月剩余训练计划(今天到 {end}),按周划分重点,只安排今天及之后的日期;给出每周里程/爬升目标与关键课。',
-    coach_plan_race_q:'今天是 {today},我将参加「{name}」,比赛日期 {race}(距今 {days} 天)。请从今天起制定赛前周期计划:按基础/强化/减量/赛前激活分阶段(标注每阶段起止日期,不得早于今天),含最后一次大强度课与休息日建议。',
+    coach_plan_week_q:'现在是 {today}。请制定本周训练计划,只安排从现在起到本周日({end})的课表,不要包含已过去的日期;若今天已是晚间则课表从明天开始;给出每天的具体内容、时长、强度(心率/功率区间)与恢复安排。',
+    coach_plan_month_q:'现在是 {today}。请制定本月剩余训练计划(今天到 {end}),按周划分重点,只安排今天及之后的日期,若今天已是晚间则从明天开始;给出每周里程/爬升目标与关键课。',
+    coach_plan_race_q:'现在是 {today},我将参加「{name}」,比赛日期 {race}(距今 {days} 天)。请从今天起制定赛前周期计划:按基础/强化/减量/赛前激活分阶段(标注每阶段起止日期,不得早于今天,若今天已是晚间则从明天开始),含最后一次大强度课与休息日建议。',
+    sub_prefs:'偏好', prefs_title:'运动员偏好', prefs_hint:'勾选你实际进行的运动方式。AI 教练只会推荐所选运动内的训练，训练数据摘要也按此过滤；训练建议页顶部的「运动方式」与此同步。', prefs_save:'保存偏好',
     sub_sess:'会话', sess_mgmt:'会话管理', sess_mgmtHint:'为每个会话重命名、选择辅助模型(留空用默认配置)。训练建议页的「会话」下拉同步此处。',
     sess_rename_ph:'重命名…', sess_renamed:'已重命名', sess_modelSet:'辅助模型已设置',
     pw_unit_w:'瓦特 (W)', pw_unit_wkg:'瓦特 / 公斤 (W/kg)',
@@ -1189,9 +1202,10 @@ const I18N = {
     coach_plan:'Plans', coach_plan_week:'This week', coach_plan_month:'This month', coach_plan_race:'Race prep',
     coach_race_name_ph:'Race name (optional)', coach_race_start:'Build race plan', coach_race_default:'my race',
     coach_race_needDate:'Pick a race date first', coach_race_past:'Race date cannot be before today',
-    coach_plan_week_q:'Today is {today}. Build a training plan for THIS week covering only today through Sunday ({end}) — never past dates. Give each day’s workout, duration, intensity (HR/power zones) and recovery.',
-    coach_plan_month_q:'Today is {today}. Build a training plan for the rest of this month (today → {end}), split by weekly focus, only today and later. Give weekly distance/elevation targets and key sessions.',
-    coach_plan_race_q:'Today is {today}; I will race “{name}” on {race} ({days} days from now). Build a race-prep plan starting today: base / build / taper / activation phases with concrete date ranges (never before today), including the last hard session and rest days.',
+    coach_plan_week_q:'It is now {today}. Build a training plan for THIS week covering only now through Sunday ({end}) — never past dates; if it is already evening, start from tomorrow. Give each day’s workout, duration, intensity (HR/power zones) and recovery.',
+    coach_plan_month_q:'It is now {today}. Build a training plan for the rest of this month (today → {end}), split by weekly focus, only today and later; if it is already evening, start from tomorrow. Give weekly distance/elevation targets and key sessions.',
+    coach_plan_race_q:'It is now {today}; I will race “{name}” on {race} ({days} days from now). Build a race-prep plan starting today (if it is already evening, start tomorrow): base / build / taper / activation phases with concrete date ranges (never before today), including the last hard session and rest days.',
+    sub_prefs:'Prefs', prefs_title:'Athlete Preferences', prefs_hint:'Pick the sports you actually do. The AI coach only recommends workouts within the selected sports, and the training digest is filtered the same way; the Sports selector on the Coach tab stays in sync with this page.', prefs_save:'Save preferences',
     sub_sess:'Sessions', sess_mgmt:'Session Management', sess_mgmtHint:'Rename each session and pick an auxiliary model (empty = use the default). The Coach tab Sessions dropdown syncs here.',
     sess_rename_ph:'Rename…', sess_renamed:'Renamed', sess_modelSet:'Aux model set',
     pw_unit_w:'Watts (W)', pw_unit_wkg:'Watts / kg (W/kg)',
@@ -1355,6 +1369,7 @@ function switchSubTab(name){
   if(name==='api') loadApiDoc();
   if(name==='cred') loadCredConfig();
   if(name==='model') loadLlmConfig();
+  if(name==='prefs') loadCoachSports();   // 拉取已存偏好并渲染（与教练页共用状态）
   if(name==='data') loadAutoSyncCfg();
   if(name==='sess') loadSessList();
 }
@@ -2656,6 +2671,10 @@ function mdLite(src){
   // 围栏代码块(整体转义后按行处理,内部不再解析)
   h = h.replace(/```[^\n]*\n([\s\S]*?)```/g, (m, code) => '<pre><code>' + code.replace(/\n$/, '') + '</code></pre>');
   h = h.replace(/```[^\n]*```/g, (m) => '<pre><code>' + m.slice(3, -3) + '</code></pre>');
+  // LLM 常在表格单元里输出字面 <br> 作换行；escapeHtml 后还原（跳过代码块，仅匹配 br 标签本身，无 XSS 风险）
+  h = h.split(/(<pre>[\s\S]*?<\/pre>)/g).map(seg =>
+    seg.startsWith('<pre>') ? seg : seg.replace(/&lt;br\s*\/?&gt;/gi, '<br>')
+  ).join('');
   // 标题(#~#### 统一映射到 h4,避免聊天气泡里字号过大)
   h = h.replace(/^#{1,4}[ \t]+(.+)$/gm, '<h4>$1</h4>');
   // 分隔线
@@ -2896,7 +2915,9 @@ function parseIcsPlans(icsText){
   const events = [];
   const blocks = icsUnfold(icsText).split(/BEGIN:VEVENT/i).slice(1);
   for(const block of blocks){
-    const dMatch = block.match(/DTSTART(?:;VALUE=DATE)?:?(\d{4})(\d{2})(\d{2})/i);
+    // LLM 输出的 DTSTART 形态多样：VALUE=DATE / TZID=... / 带T时间 / 带连字符 / 冒号后空格，
+    // 正则必须全部兼容，否则解析出 0 个事件（旧版只认两种裸格式，实际频繁"未识别"）。
+    const dMatch = block.match(/DTSTART(?:;[^:\r\n]*)?:\s*(\d{4})-?(\d{2})-?(\d{2})/i);
     const sMatch = block.match(/SUMMARY:(.+?)(?:\r?\n|$)/i);
     const descMatch = block.match(/DESCRIPTION:(.+?)(?:\r?\n|$)/i);
     if(dMatch && sMatch){
@@ -3230,9 +3251,10 @@ function planDateCtx(){
   const WD = ['日','一','二','三','四','五','六'];
   const WD_EN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const iso = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+  const hhmm = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
   const zh = currentLang === 'zh'
-    ? ((now.getMonth()+1) + '月' + now.getDate() + '日 周' + WD[now.getDay()])
-    : (iso + ' (' + WD_EN[now.getDay()] + ')');
+    ? ((now.getMonth()+1) + '月' + now.getDate() + '日 周' + WD[now.getDay()] + ' ' + hhmm)
+    : (iso + ' ' + hhmm + ' (' + WD_EN[now.getDay()] + ')');
   // 本周日(周一为一周起点;周日当天即今天)
   const sunday = new Date(now); sunday.setDate(now.getDate() + (7 - now.getDay()) % 7);
   const sunIso = sunday.getFullYear() + '-' + String(sunday.getMonth()+1).padStart(2,'0') + '-' + String(sunday.getDate()).padStart(2,'0');
@@ -3489,6 +3511,7 @@ const SPORT_OPTIONS = [
   { id: 'Hike', zh: '徒步', en: 'Hiking' },
   { id: 'Swim', zh: '游泳', en: 'Swimming' },
   { id: 'VirtualRide', zh: '室内骑行', en: 'Indoor Cycling' },
+  { id: 'WeightTraining', zh: '力量训练', en: 'Strength Training' },
   { id: 'Workout', zh: '综合训练', en: 'Workout' },
 ];
 let coachSportsSel = ['Ride'];
@@ -3527,7 +3550,32 @@ async function loadCoachSports(){
     if(d.coach_sports) coachSportsSel = String(d.coach_sports).split(',').map(s=>s.trim()).filter(Boolean);
     if(!coachSportsSel.length) coachSportsSel = ['Ride'];
     updateSportLabel();
+    renderPrefsChecks();   // 设置页与教练页弹窗共用同一状态
   }catch(e){ console.error('loadCoachSports failed', e); }
+}
+// ---- 设置 → 偏好（与教练页「运动方式」弹窗同一 coachSportsSel 状态）----
+function renderPrefsChecks(){
+  const box = document.getElementById('prefsSportChecks');
+  if(!box) return;
+  box.innerHTML = SPORT_OPTIONS.map(o =>
+    '<label><input type="checkbox" value="'+o.id+'"'+(coachSportsSel.includes(o.id)?' checked':'')+' onchange="onPrefsToggle(this)"><span>'+escapeHtml(currentLang==='en'?o.en:o.zh)+'</span></label>'
+  ).join('');
+}
+function onPrefsToggle(cb){
+  const id = cb.value;
+  if(cb.checked){ if(!coachSportsSel.includes(id)) coachSportsSel.push(id); }
+  else coachSportsSel = coachSportsSel.filter(x=>x!==id);
+  if(!coachSportsSel.length){ cb.checked = true; coachSportsSel = [id]; toast(t('coach_sportsNeedOne'), false); }
+  updateSportLabel();
+}
+async function savePrefs(){
+  const msg = document.getElementById('prefsMsg');
+  await ensureApiToken();
+  try{
+    const d = await apiPost('/api/config', { coach_sports: coachSportsSel.join(',') });
+    if(d.ok){ if(msg) msg.textContent = t('coach_sportsSaved'); toast(t('coach_sportsSaved'), true); }
+    else { if(msg) msg.textContent = t('coach_sportsSaveFail') + shortErr(d.error); toast(t('coach_sportsSaveFail'), false); }
+  }catch(e){ if(msg) msg.textContent = t('coach_sportsSaveFail') + shortErr(e.message); toast(t('coach_sportsSaveFail'), false); }
 }
 
 // ===== 出行计划（移植自 Hermes skill: cycling/outdoor-trip-planner）=====
