@@ -38,6 +38,7 @@ import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { StravaDB, PyFloat, pyRound, pyDump, pyStr, pyf } from './db.js';
+import { tripWeather, tripTrains, TRIP_DESTINATIONS } from './trip.js';
 
 const STRAVA_AUTH_URL = 'https://www.strava.com/oauth/token';
 const STRAVA_API = 'https://www.strava.com/api/v3';
@@ -157,6 +158,8 @@ function saveConfig(cfg) {
     `auto_sync_hours=${String(cfg.auto_sync_hours || '24')}`,
     `intervals_athlete_id=${cfg.intervals_athlete_id || ''}`,
     `intervals_api_key=${cfg.intervals_api_key || ''}`,
+    `coach_sports=${cfg.coach_sports || 'Ride'}`,
+    `coach_home_city=${cfg.coach_home_city || ''}`,
   ];
   fs.writeFileSync(CONF_FILE, lines.join('\n') + '\n', 'utf8');
   chmod600(CONF_FILE); // 权限 600，仅属主可读
@@ -789,38 +792,54 @@ function parseLlmModels(cfg) {
 // 在 db.js 里被包装成 PyFloat 对象(为与 Python 版字节级对齐),拼文本/算术前须还原为 number。
 const num = (v) => (v instanceof PyFloat ? v.v : (v == null ? 0 : Number(v) || 0));
 
+// 运动方式 → 展示名/单位（digest 与提示词共用）
+const SPORT_LABEL = {
+  Ride: '骑行', Run: '跑步', Walk: '步行', Swim: '游泳', Hike: '徒步',
+  VirtualRide: '室内骑行', RideVirtual: '室内骑行', Workout: '综合训练',
+};
+function coachSports() {
+  /** 用户勾选的运动方式（strava.conf coach_sports，逗号分隔），默认仅骑行。 */
+  const raw = String(loadConfig().coach_sports || 'Ride');
+  const list = raw.split(',').map(s => s.trim()).filter(Boolean);
+  return list.length ? list : ['Ride'];
+}
+
 function buildTrainingDigest() {
   /** 汇总近期训练数据为紧凑文本,作为教练系统提示的上下文。 */
   const p1 = (n) => String(n).padStart(2, '0');
   const f = (d) => `${d.getFullYear()}-${p1(d.getMonth() + 1)}-${p1(d.getDate())}`;
   const now = new Date();
   const dAgo = (days) => { const d = new Date(now); d.setDate(d.getDate() - days); return f(d); };
+  const sports = coachSports();
+  const label = sports.map(s => SPORT_LABEL[s] || s).join('+');
   const seg = (days) => {
-    const st = db.stats(dAgo(days), f(now));
+    const st = db.stats(dAgo(days), f(now), sports);
     return `${days}天: ${st.total_rides}次 / ${num(st.total_distance_km).toFixed(1)}km / ${num(st.total_duration_h).toFixed(1)}h / 爬升${Math.round(num(st.total_elevation_m))}m`
       + (st.avg_heartrate != null ? ` / 均心率${num(st.avg_heartrate)}bpm` : '')
       + (st.avg_watts != null ? ` / 均功率${num(st.avg_watts)}W` : '')
       + (st.avg_cadence != null ? ` / 均踏频${num(st.avg_cadence)}rpm` : '');
   };
-  const acts = db.getActivities('Ride', 15).map((a) => {
+  const acts = db.getActivities(sports, 15).map((a) => {
     const km = (num(a.distance) / 1000).toFixed(1);
     const h = (num(a.moving_time) / 3600).toFixed(1);
     const el = Math.round(num(a.total_elevation_gain));
     const hr = a.average_heartrate != null ? Math.round(num(a.average_heartrate)) + 'bpm' : '-';
     const pw = a.average_watts != null ? Math.round(num(a.average_watts)) + 'W' : '-';
     const cad = a.average_cadence != null ? Math.round(num(a.average_cadence)) + 'rpm' : '-';
-    return `${String(a.start_date_local || a.start_date || '').slice(0, 10)} ${(a.name || '').slice(0, 30)} ${km}km/${h}h/爬${el}m/HR${hr}/PW${pw}/CAD${cad}`;
+    const tp = SPORT_LABEL[a.type] || a.type || '';
+    return `${String(a.start_date_local || a.start_date || '').slice(0, 10)} [${tp}] ${(a.name || '').slice(0, 30)} ${km}km/${h}h/爬${el}m/HR${hr}/PW${pw}/CAD${cad}`;
   });
-  const weekly = db.weekly(dAgo(56), f(now)).map((w) => `${w.week}:${num(w.dist_km).toFixed(1)}km(${w.count}次)`).join(' ');
+  const weekly = db.weekly(dAgo(56), f(now), sports).map((w) => `${w.week}:${num(w.dist_km).toFixed(1)}km(${w.count}次)`).join(' ');
   return [
+    `【运动员主项】${label}`,
     '【近况】' + seg(7) + '; ' + seg(28) + '; ' + seg(90),
     '【近8周趋势】' + (weekly || '无'),
-    '【最近15次骑行】',
+    `【最近15次训练(${label})】`,
     ...acts,
   ].join('\n');
 }
 
-const COACH_SYSTEM = (digest, lang, now = new Date()) => {
+const COACH_SYSTEM = (digest, lang, now = new Date(), sports = ['Ride']) => {
   /** 注入当前时间:计划类回答(周/月/赛前)必须以今天为唯一起点,不安排已过去的日期。 */
   const p2 = (n) => String(n).padStart(2, '0');
   const dowCN = ['日', '一', '二', '三', '四', '五', '六'][now.getDay()];
@@ -836,15 +855,27 @@ const COACH_SYSTEM = (digest, lang, now = new Date()) => {
   const timeRule = lang === 'en'
     ? 'When making any TIME-BOUND plan (weekly / monthly / race prep), treat today as the ONLY start date: NEVER schedule sessions on past dates. A weekly plan covers today→Sunday only; a monthly plan covers today→month end; a race plan counts back from race day but starts no earlier than today. State concrete dates.'
     : '制定任何时间相关计划(周/月/赛前)时,以今天为唯一起点,绝不安排已过去的日期:周计划只覆盖今天→本周日,月计划只覆盖今天→月末,赛前计划从今天起排到比赛日。给出具体日期。';
+  const calRule = lang === 'en'
+    ? 'Strava Panel has a built-in Training Calendar and one-click ICS import/export capability. When the user asks you to build a training plan, schedule workouts, or add to calendar: 1) Outline the daily schedule clearly with concrete dates (YYYY-MM-DD); 2) Provide a standard iCalendar (ICS) code block (BEGIN:VCALENDAR ... END:VCALENDAR) so the panel can automatically parse it and let the user import it into their training calendar with one click. NEVER say you lack permissions to write to their calendar; provide the schedule with the ICS block and tell them they can click "写入训练日历" on the message.'
+    : 'Strava Panel 内置了训练日历系统，并深度支持一键导入与 ICS 日历文件导出。当用户要求你安排训练计划、课表或“添加到训练日历”时：1) 给出具体的每日训练计划（标明具体公历日期 YYYY-MM-DD）；2) 务必在回答末尾提供标准的 iCalendar (ICS) 代码块（以 ```ics 包裹 BEGIN:VCALENDAR ... END:VCALENDAR），面板会自动识别该代码块并在卡片下方提供「写入训练日历」和「下载 ICS」快捷按钮；3) 严禁回答“我没有权限写入你的训练日历”，直接告知用户已生成课表，点击消息卡片下方的按钮即可一键同步至内置训练日历。';
+  const sportNames = sports.map(s => SPORT_LABEL[s] || s);
+  const sportRule = lang === 'en'
+    ? `【SPORT DISCIPLINE — HARD RULE】This athlete's selected sports are: ${sports.join(', ')}. ONLY recommend and schedule training within these sports. NEVER suggest workouts from any other sport (e.g. if the athlete is a cyclist, do NOT prescribe running workouts as main sessions). Cross-training may only be mentioned if the user explicitly asks for it. If the user requests a plan, every session must belong to a selected sport.`
+    : `【运动方式 — 硬性规则】该运动员选择的运动方式为：${sports.join(', ')}（${sportNames.join('、')}）。只允许在这些运动方式内推荐和安排训练,绝不推荐其他运动的训练(例如运动员是骑行者,就不要把跑步排进课表)。交叉训练仅在用户主动要求时才可提及。生成任何课表时,每一课都必须属于所选运动。`;
+  const roleLine = lang === 'en'
+    ? `You are the built-in coach of Strava Panel for this ${sportNames.join('+').toLowerCase() || 'endurance'} athlete. Below is the athlete's training data aggregated from the local database:`
+    : `你是 Strava Panel 内置的${sportNames.join('+') || '耐力'}教练。以下是该运动员从本地数据库汇总的训练数据:`;
   return [
-    '你是 Strava Panel 内置的骑行教练。以下是该骑手从本地数据库汇总的训练数据:',
+    roleLine,
     '',
     digest,
     '',
     dateLine,
     '',
     '规则: 基于上述真实数据回答,不要编造数据;数据不足时明确说明并给出需要补充的信息。',
+    sportRule,
     timeRule,
+    calRule,
     '给出具体的、可执行的训练建议(强度用心率/功率/踏频/体感描述)。回答保持简洁,用 markdown 轻量排版(可用标题、表格、列表)。',
     lang === 'zh' ? '始终使用简体中文回答。' : 'Always answer in English.',
   ].join('\n');
@@ -1170,6 +1201,29 @@ async function handleGet(req, res, rawPath, qs) {
     }
     return;
   }
+  if (rawPath === '/api/trip/weather') {
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    try {
+      sendJson(res, await tripWeather(qs));
+    } catch (e) {
+      sendJson(res, { error: String(e.message || e) }, 502);
+    }
+    return;
+  }
+  if (rawPath === '/api/trip/trains') {
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    try {
+      sendJson(res, await tripTrains(qs, DATA_DIR));
+    } catch (e) {
+      sendJson(res, { error: String(e.message || e) }, 502);
+    }
+    return;
+  }
+  if (rawPath === '/api/trip/destinations') {
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    sendJson(res, { ok: true, destinations: TRIP_DESTINATIONS });
+    return;
+  }
   if (rawPath === '/api/powercurve') {
     if (!requireApiToken(req, res, qs, rawPath)) return;
     try {
@@ -1297,6 +1351,8 @@ async function handleGet(req, res, rawPath, qs) {
       last_sync: db.getMeta('last_sync') || '',
       intervals_athlete_id: cfg.intervals_athlete_id || 'i221776',
       intervals_api_key: cfg.intervals_api_key || '',
+      coach_sports: cfg.coach_sports || 'Ride',
+      coach_home_city: cfg.coach_home_city || '',
     });
     return;
   }
@@ -1398,7 +1454,7 @@ async function handlePost(req, res, rawPath, qs) {
       }
       await syncSerial(async () => {
         const cfg = loadConfig();
-        for (const k of ['client_id', 'client_secret', 'refresh_token', 'redirect_uri', 'intervals_athlete_id', 'intervals_api_key']) {
+        for (const k of ['client_id', 'client_secret', 'refresh_token', 'redirect_uri', 'intervals_athlete_id', 'intervals_api_key', 'coach_sports', 'coach_home_city']) {
           if (data[k] !== undefined) cfg[k] = String(data[k]).trim();
         }
         saveConfig(cfg);
@@ -1476,8 +1532,8 @@ async function handlePost(req, res, rawPath, qs) {
       // 模型优先级:请求显式 model > 会话级 model(设置页配置) > 已保存默认配置
       const sessRow = db.db.prepare('SELECT model FROM coach_sessions WHERE id=?').get(sid);
       const modelId = String(data.model || '').trim() || (sessRow && sessRow.model ? sessRow.model : '');
-      // 组消息:系统提示(含训练摘要) + 历史对话(去掉刚写入又重复的最后一条由 history 天然包含)
-      const messages = [{ role: 'system', content: COACH_SYSTEM(buildTrainingDigest(), lang) }];
+      // 组消息:系统提示(含训练摘要+运动方式约束) + 历史对话(去掉刚写入又重复的最后一条由 history 天然包含)
+      const messages = [{ role: 'system', content: COACH_SYSTEM(buildTrainingDigest(), lang, new Date(), coachSports()) }];
       for (const m of history.slice(0, -1)) messages.push({ role: m.role, content: m.content });
       messages.push({ role: 'user', content: msg });
       const useCfg = modelId ? { ...c, model: modelId } : c;
@@ -1558,11 +1614,16 @@ async function handlePost(req, res, rawPath, qs) {
         sendJson(res, { ok: true, plans: db.listPlans(sid) });
       } else if (req.method === 'POST') {
         const sid = data.session_id != null ? Number(data.session_id) : 0;
-        const date = String(data.date || '');
-        const content = String(data.content || '');
-        if (!date || !content) { sendJson(res, { error: '缺少 date 或 content' }, 400); return; }
-        const id = db.addPlan(sid, date, content, data.status || 'planned');
-        sendJson(res, { ok: true, id, plans: db.listPlans(sid) });
+        if (Array.isArray(data.items) && data.items.length) {
+          const added = db.addPlansBatch(sid, data.items);
+          sendJson(res, { ok: true, added, plans: db.listPlans(sid) });
+        } else {
+          const date = String(data.date || '');
+          const content = String(data.content || '');
+          if (!date || !content) { sendJson(res, { error: '缺少 date 或 content' }, 400); return; }
+          const id = db.addPlan(sid, date, content, data.status || 'planned');
+          sendJson(res, { ok: true, id, plans: db.listPlans(sid) });
+        }
       } else if (req.method === 'DELETE') {
         const id = Number(data.id || qs.id);
         if (!id) { sendJson(res, { error: '缺少 id' }, 400); return; }

@@ -77,7 +77,7 @@ sync_pkg "$CLI_PKG"     "cli/package.json     "
 
 echo ""
 if [ "$CHANGED" -eq 0 ]; then
-    echo "✓ 四处版本号已同步（全部为 $VERSION，无需改动）"
+    echo "✓ 版本号已同步（本次无需改动，当前 $VERSION）"
 else
     echo "✓ 版本号已同步为 $VERSION（更新 $CHANGED 处，已一致 $SYNCED 处）"
 fi

@@ -1,6 +1,6 @@
 {
   "name": "@techysy/strava-panel",
-  "version": "2.5.0",
+  "version": "2.5.2",
   "description": "Strava 骑行数据面板 CLI — 托盘管理的骑行统计服务(Tray-managed Strava cycling dashboard)",
   "bin": {
     "strava-panel": "./cli.js",

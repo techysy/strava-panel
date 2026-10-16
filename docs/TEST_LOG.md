@@ -1,8 +1,85 @@
 # Strava Panel 测试记录
 
-> 发版规则：本地验证 OK 后再发正式包；测试包用 `当前版本.第四位累加`（如 1.2.1.1）；测试记录更新点/问题点，正式发布时聚合到 CHANGELOG。
-> 版本体系：正式版 1.2.x 体系，基于 v1.2.0 连续递增：测试版四位累加 `1.2.1.1`，验收后正式版 `1.2.2`。
+> 发版规则：本地验证 OK 后再发正式包；测试记录更新点/问题点，正式发布时聚合到 CHANGELOG。
+> 版本体系：统一三段语义化版本号（X.Y.Z），测试包与正式包同号；`server/VERSION` 为唯一事实来源，改完跑 `bash scripts/sync-version.sh` 同步到 manifest / desktop/package.json / cli/package.json。
 > 交付：新 fpk 放 `/vol1/1000/fnOS App/fpk/strava/`，旧 fpk 移 `../oldfpk/`。
+
+---
+
+## 2.5.2 (2026-10-16)
+
+> 阻塞级功能修复 + **原生 FIT 文件工具**（新 tab）+ **出行计划**（新 tab）+ **教练运动方式过滤**。
+
+### 新功能：出行计划（移植 Hermes skill cycling/outdoor-trip-planner）
+- 新增「出行计划」tab，按 skill 流程实现：确认日期（一键下周末）→ 查目的地天气 → 查高铁余票 → 装备/穿衣提醒。
+- 后端 `server/trip.js`（从 skill 移植，12306 查询逻辑 + Open-Meteo 天气 + 内置 5 个常用目的地：松潘/黄龙九寨/西昌邛海/米易梯田/峨眉山零公里）：
+  - `GET /api/trip/weather?lat&lon&days` — Open-Meteo 逐时天气，聚合为逐日 6~18 点运动窗口（最高/最低温、最大降雨概率、代表天气）；
+  - `GET /api/trip/trains?from&to&date&type` — 12306 余票（车站数据缓存 7 天到 DATA_DIR），支持城市/站名解析、G/D/C 车型过滤；
+  - `GET /api/trip/destinations` — 目的地表。
+  - 浏览器直连 12306 会被 CORS 拦，故全部走服务端代理；三个端点都吃面板 api_token。
+- 前端：目的地选择联动经纬度/到达站/简介；天气表高亮所选日期；车票表含商务/一等/二等/软卧席位与可购状态；中英文全量 i18n。
+- 已实测：松潘天气 7 天聚合正确；成都东→松潘 D280 余票查询正确（黄龙九寨站为松潘景区实际车站，12306 按城市返回，与官网行为一致）。
+
+### 新功能：教练按运动方式过滤（修「骑行选手被推跑步课」）
+- 训练建议页新增「运动方式」选择器（骑行/跑步/步行/徒步/游泳/室内骑行/综合训练，多选），存 `strava.conf` 的 `coach_sports`。
+- 三层生效：① `COACH_SYSTEM` 注入硬性规则「只允许在所选运动内推荐训练，交叉训练仅用户主动要求时提及」；② `buildTrainingDigest` 按所选运动过滤 stats/weekly/最近活动（不再写死 Ride）；③ 教练角色行动态化（骑行教练/跑步教练/骑行+跑步教练）。
+- `db.stats` / `db.weekly` / `db.getRides` / `db.getActivities` 支持类型数组，默认 `['Ride']` 保持向后兼容；已用真实数据验证类型过滤（Ride 2 / Ride+Run 3 / Run 1）。
+
+### 新功能：FIT 文件工具（原生实现）
+- 新增「FIT 工具」tab，四个能力全部在浏览器本地完成，**文件不上传任何服务器**：
+  - **删除功率 / 心率**：从 record 定义消息里彻底摘掉字段（不是填 0），设备与平台不再显示；
+  - **拆分**：按时间断点（码表自动分段记录）或固定条数切成多份，每份独立合法；
+  - **合并**：多文件按时间自动衔接去重（时间轴不重叠、严格递增），重建 lap/session；
+  - **转换 GPX / TCX**：轨迹、高程、心率、踏频、功率全字段映射。
+- 实现要点：`www/fit.js`（解析内核：CRC16 半字节表、定义/数据消息、大端、压缩时间戳累积器、字段级 size 精确读写）+ `www/fit-ui.js`（拖拽多文件、概览标签、四工具面板）。
+- 质量保障：`scripts/fit-selftest.mjs`（51 项断言，以第三方 `fit-file-parser` 为独立裁判，覆盖 CRC 抗错、压缩时间戳重序列化往返、大端解析、四工具输出字节级验证）。运行：`npm install fit-file-parser --no-save && node scripts/fit-selftest.mjs`。
+- 中途发现并修复的解析器真 bug（自验证抓出）：CRC 表算法用错（单次查表 → 半字节双查表）、uint32 被基类型掩码截断高 16 位、压缩时间戳头运算符优先级错、大端定义消息被忽略。
+
+### 致命修复（功能此前完全不可用）
+- **「写入训练日历」批量接口 100% 崩溃**：`db.addPlansBatch` 用了 `this.db.transaction()`，但项目是 `node:sqlite` 的 `DatabaseSync`，**无此方法**（那是 better-sqlite3 的 API）。任何批量写入都返回 `this.db.transaction is not a function`。改用显式 `BEGIN`/`COMMIT`/`ROLLBACK`，并验证中途抛错时已写入行一并回滚、事务状态干净可继续写。
+- **训练建议页加载即抛错**：`loadCoach()` 调用了从未定义的 `setCoachView()`，异常被 `catch(e){}` 静默吞掉，导致后续 `loadCal()` 根本不执行（日历数据不加载）。已删除该调用与残留的 `coachCurView`，并把静默 catch 改为 `console.error`。
+- **功率曲线 `curIdx20 is not defined`**：`renderPowerCurve` 引用了未定义的 `curIdx20`，估算 FTP 卡片直接抛 ReferenceError。已按同文件 `allIdx20` 的写法补齐定义。
+
+### 正确性修复
+- **ICS 转义与折行对称**：解析侧未还原 iCalendar 转义（`,` `;` `\n` 会以字面反斜杠显示）；导出侧未转义，生成的 ICS 对 Apple/Google 日历非法。已补 `icsEscape`/`icsUnescape` 与 RFC 5545 的 75 字节折行 + 解析侧反向展开，往返 5 组用例无损。
+- **检查更新会把降级误判为新版本**：旧比较逻辑用「任一段更大」判定，当前 2.6.0、远端 2.5.9 时会提示可更新。改为逐段数值比较（12 组用例通过，含 2.10.0 > 2.9.0 这类数值而非字符串的比较）。
+- **日历增删改失败无任何提示**：`calCellClick`/`calAddPlan` 的 catch 完全静默，失败时点了没反应也不知道原因；`calDeletePlan` 更是没有 catch（unhandled rejection）。现统一补 console 日志 + Toast 提示。
+
+### 工具链修复
+- **测试包打的是陈旧代码**：`npm run dist` 不会同步源码，`extraResources` 取自 `desktop/build/app` 暂存副本，必须走 `desktop/build.ps1`（第 1 步 robocopy 汇集 `server/` + `www/`）。此前跳过了这步。
+- **版本号统一为三段语义化**：此前 `server/VERSION` 用四位累加测试号（2.5.1.x）而 `package.json` 固定 2.5.1，导致界面显示与安装包文件名对不上。现统一为 `X.Y.Z`（当前 2.5.2），`server/VERSION` 为唯一事实来源，跑 `bash scripts/sync-version.sh` 一并同步 manifest / desktop/package.json / cli/package.json / desktop/package-lock.json。
+
+### 验证
+- [ ] 功率曲线页正常渲染，估算 FTP 卡片有值，控制台无 `curIdx20` 报错
+- [ ] 训练建议页进入不报错，「训练日历」弹窗数据正常加载
+- [ ] AI 回复含 ICS 时，点「写入训练日历」成功落库多条，无报错
+- [ ] 日历增删改失败时有 Toast 提示
+- [ ] 界面版本号显示 v2.5.2，安装包文件名为 2.5.2
+- [ ] FIT 工具：拖入真实码表 .fit 文件，概览（点数/时长/功率/心率标签）正确
+- [ ] FIT 工具：删除功率/心率后的文件能上传 Strava 且不显示对应曲线
+- [ ] FIT 工具：合并/拆分产物能被 Garmin Connect / Wahoo 等第三方正常导入（真机验证）
+- [ ] FIT 工具：GPX/TCX 转换结果导入其他平台无异常
+- [ ] `node scripts/fit-selftest.mjs` 51/51 通过
+- [ ] 出行计划：选目的地后经纬度/简介联动正确，查天气返回 7 天且高亮所选日期
+- [ ] 出行计划：查高铁返回车次表（首次查询约 5~10 秒拉车站表，之后走缓存）
+- [ ] 教练：运动方式只勾「骑行」时，让 AI 排周计划，课表里不出现跑步等其它运动
+- [ ] 教练：勾「骑行+跑步」后，digest 统计包含两类活动，回复可同时覆盖两项
+- [ ] 教练：切换语言后运动方式按钮文案同步（骑行 ↔ Cycling）
+
+---
+
+## 2.5.1.3 (2026-10-16)
+
+> 基于 v2.5.0。训练建议页改为默认空白新会话,历史需手动选择。
+
+### 更新点
+- **训练建议默认空白新会话**：进入训练建议页不再自动加载全部历史对话,默认空白;需要回顾历史时通过「会话」下拉选择对应会话加载。
+- **新会话重置模型覆盖**：点「新会话」同时清空会话级模型覆盖,回退默认配置,避免残留上一会话的选择。
+
+### 验证
+- [ ] 训练建议页首次进入为空白(顶部会话标记显示「新会话」)
+- [ ] 「会话」下拉选择历史会话后正确加载消息
+- [ ] 新会话发消息后正常落库,再次选择可回看
 
 ---
 

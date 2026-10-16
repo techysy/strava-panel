@@ -103,6 +103,54 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 #tab-data .panel:last-child,#tab-rides .panel,#tab-dash .panel:last-child,#tab-coach .panel,#tab-power .panel{flex:1;display:flex;flex-direction:column}
 #weeklyChart{flex:1;min-height:220px}
 #powerChart{flex:1;min-height:280px}
+/* FIT 工具：原生实现（本地处理，不上传） */
+.fit-drop{border:1.5px dashed var(--border-strong);border-radius:14px;padding:26px 16px;text-align:center;cursor:pointer;transition:all .15s;background:var(--surface)}
+.fit-drop:hover,.fit-drop.over{border-color:var(--accent);background:var(--hover)}
+.fit-drop .ic{width:26px;height:26px;color:var(--text-3);margin-bottom:6px}
+.fit-drop b{display:block;font-size:13.5px;margin-bottom:3px}
+.fit-drop span{font-size:12px;color:var(--text-3)}
+.fit-empty{padding:16px;text-align:center;color:var(--text-3);font-size:12.5px}
+.fit-list{margin-top:10px;display:flex;flex-direction:column;gap:6px;max-height:230px;overflow-y:auto}
+.fit-file{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface)}
+.ff-main{flex:1;min-width:0}
+.ff-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ff-meta{font-size:11.5px;color:var(--text-3);margin-top:2px}
+.ff-tags{margin-top:4px;display:flex;gap:4px;flex-wrap:wrap}
+.ff-tags b{font-size:10px;font-weight:600;padding:1px 6px;border-radius:5px;background:var(--tertiary);color:var(--text-2)}
+.ff-tags b.t-pw{color:#f97316} .ff-tags b.t-hr{color:#ec4899} .ff-tags b.t-cad{color:#3b82f6} .ff-tags b.t-geo{color:#10b981}
+.ff-tags b.t-bad{color:#ef4444;background:rgba(239,68,68,.12)}
+.ff-time{font-size:11px;color:var(--text-3);white-space:nowrap}
+.ff-del{width:22px;height:22px;border-radius:6px;border:0;background:transparent;color:var(--text-3);cursor:pointer;font-size:16px;line-height:1;flex:none}
+.ff-del:hover{background:rgba(239,68,68,.14);color:#ef4444}
+.fit-tools{margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.fit-tool{border:1px solid var(--border-subtle);border-radius:12px;padding:12px;background:var(--surface);display:flex;flex-direction:column;gap:8px}
+.fit-tool h3{margin:0;font-size:13px;display:flex;align-items:center;gap:6px}
+.fit-tool .tt{font-size:11.5px;color:var(--text-3)}
+.fit-tool .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fit-tool .row label{font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer}
+.fit-tool select,.fit-tool input[type=number],.fit-tool input[type=text]{background:var(--tertiary);border:1px solid var(--border-subtle);border-radius:8px;padding:5px 8px;font-size:12px;color:var(--text);outline:none}
+.fit-tool input[type=number]{width:82px}
+.fit-tool input[type=text]{flex:1;min-width:100px}
+.fit-tool .btn{align-self:flex-start}
+/* 出行计划 */
+.trip-grid{display:grid;grid-template-columns:1fr;gap:12px}
+.trip-card{border:1px solid var(--border-subtle);border-radius:12px;padding:12px;background:var(--surface)}
+.trip-card h3{margin:0 0 8px;font-size:13px;display:flex;align-items:center;gap:6px}
+.trip-card .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
+.trip-card label{font-size:12px;color:var(--text-2);display:flex;align-items:center;gap:4px}
+.trip-card input,.trip-card select{background:var(--tertiary);border:1px solid var(--border-subtle);border-radius:8px;padding:5px 8px;font-size:12px;color:var(--text);outline:none}
+.trip-card input[type=date]{width:140px}
+.trip-card input.num{width:90px}
+.trip-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+.trip-table th,.trip-table td{padding:5px 8px;text-align:left;border-bottom:1px solid var(--border-subtle);white-space:nowrap}
+.trip-table th{color:var(--text-3);font-weight:600;font-size:11px}
+.trip-table .ok{color:#10b981;font-weight:600} .trip-table .no{color:var(--text-3)} .trip-table .bad{color:#ef4444}
+.trip-dest-meta{font-size:11.5px;color:var(--text-3);margin-top:6px;line-height:1.7}
+.trip-gear{font-size:12px;line-height:1.9;color:var(--text-2)}
+.trip-gear summary{cursor:pointer;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
+.sport-checks{display:flex;flex-direction:column;gap:2px;min-width:150px}
+.sport-checks label{display:flex;align-items:center;gap:6px;font-size:12.5px;padding:4px 6px;border-radius:7px;cursor:pointer}
+.sport-checks label:hover{background:var(--hover)}
 #tab-dash .log-view{flex:1;max-height:none}
 
 /* buttons */
@@ -262,6 +310,12 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 .chat-msg.assistant p{margin:0 0 8px}.chat-msg.assistant p:last-child{margin-bottom:0}
 .chat-msg.assistant code{background:var(--tertiary);border:1px solid var(--border-subtle);border-radius:5px;padding:1px 5px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace}
 .chat-msg.assistant ul,.chat-msg.assistant ol{margin:4px 0 8px;padding-left:20px}
+.chat-msg .msg-actions{display:flex;gap:8px;margin-top:10px;padding-top:8px;border-top:1px dashed var(--border-subtle);flex-wrap:wrap}
+.chat-msg .msg-act-btn{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:600;background:var(--surface);border:1px solid var(--border-subtle);color:var(--text-2);cursor:pointer;transition:all .15s}
+.chat-msg .msg-act-btn:hover{background:var(--hover);border-color:var(--border-strong);color:var(--text)}
+.chat-msg .msg-act-btn.primary{background:var(--surface);color:var(--viz);border-color:rgba(45,212,191,.4)}
+.chat-msg .msg-act-btn.primary:hover{background:var(--viz);color:#fff;border-color:var(--viz)}
+.chat-msg .msg-act-btn .ic{width:13px;height:13px}
 .chat-msg .who{font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;opacity:.55;margin-bottom:3px}
 .chat-input{display:flex;gap:8px;margin-top:12px;align-items:flex-end;padding:10px 12px;border:1px solid var(--border);border-radius:14px;background:var(--surface);transition:border-color .15s,box-shadow .15s}
 .chat-input textarea{flex:1;min-height:44px;max-height:120px;resize:vertical;background:transparent;border:0;outline:none;font-size:13.5px;color:var(--text)}
@@ -446,6 +500,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></symbol>
 <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
 <symbol id="i-mountain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3l4 8 5-5 5 15H2L8 3z"/></symbol>
+<symbol id="i-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 .42-8.98 7 7 0 0 0-13.26 2.4A3.5 3.5 0 0 0 6 19h11.5z"/></symbol>
 <symbol id="i-route" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h6a3 3 0 0 0 3-3V8"/></symbol>
 </defs>
 </svg>
@@ -503,6 +558,8 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
     <button data-view="rides" onclick="switchNav('rides')"><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg><span class="tab-txt" data-i18n="nav_rides">最近骑行</span></button>
     <button data-view="power" onclick="switchNav('power')"><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg><span class="tab-txt" data-i18n="nav_power">功率曲线</span></button>
     <button data-view="coach" onclick="switchNav('coach')"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span class="tab-txt" data-i18n="nav_coach">训练建议</span></button>
+    <button data-view="fit" onclick="switchNav('fit')"><svg class="ic" aria-hidden="true"><use href="#i-file"/></svg><span class="tab-txt" data-i18n="nav_fit">FIT 工具</span></button>
+    <button data-view="trip" onclick="switchNav('trip')"><svg class="ic" aria-hidden="true"><use href="#i-mountain"/></svg><span class="tab-txt" data-i18n="nav_trip">出行计划</span></button>
     <button data-view="dash" onclick="switchNav('dash')"><svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg><span class="tab-txt" data-i18n="nav_dash">仪表板</span></button>
     <button data-view="settings" onclick="switchNav('settings')"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg><span class="tab-txt" data-i18n="nav_settings">设置</span></button>
   </nav>
@@ -598,12 +655,12 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
           <button id="pwRgAll" class="active" onclick="setPwRange('all')" data-i18n="rg_all">所有</button>
         </div>
         <div class="mode-seg" id="pwUnitSeg">
-          <button class="seg-btn on" id="btnUnitW" onclick="setPwUnit('w')">瓦特 (W)</button>
-          <button class="seg-btn" id="btnUnitWkg" onclick="setPwUnit('wkg')">瓦特 / 公斤 (W/kg)</button>
+          <button class="seg-btn on" id="btnUnitW" onclick="setPwUnit('w')" data-i18n="pw_unit_w">瓦特 (W)</button>
+          <button class="seg-btn" id="btnUnitWkg" onclick="setPwUnit('wkg')" data-i18n="pw_unit_wkg">瓦特 / 公斤 (W/kg)</button>
         </div>
       </div>
       <div class="panel">
-        <h2><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg><span data-i18n="power_title">最佳功率曲线</span><span class="clegend" id="powerLegend" style="display:none"><span class="sw"><i class="box pw-recent"></i><span data-i18n="cmp_this">当前周期</span></span><span class="sw"><i class="dash pw-all"></i><span data-i18n="pw_all">历史最佳</span></span></span><span class="cmp-toggle" id="pwCmpToggle" onclick="togglePowerCompare()"><span data-i18n="pw_cmp_all">对比历史最佳</span><span class="switch"></span></span></h2>
+        <h2><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg><span data-i18n="power_title">最佳功率曲线</span><span class="clegend" id="powerLegend" style="display:none"><span class="sw"><i class="box pw-recent"></i><span data-i18n="pw_cur_period">当前周期</span></span><span class="sw"><i class="dash pw-all"></i><span data-i18n="pw_all">历史最佳</span></span></span><span class="cmp-toggle" id="pwCmpToggle" onclick="togglePowerCompare()"><span data-i18n="pw_cmp_all">对比历史最佳</span><span class="switch"></span></span></h2>
         <div class="hint" style="margin:-4px 0 12px" data-i18n="power_hint">横轴为持续时间，纵轴为该时长内可维持的最大平均功率。自动接入 Intervals.icu 高精度功率曲线。</div>
         <div id="powerChart"></div>
         <div class="power-stats" id="powerStats" style="display:none">
@@ -629,6 +686,10 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
             <div class="pop-list" id="sessPop"></div>
           </div>
           <button class="btn" onclick="newCoachSession()"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span data-i18n="coach_new">新会话</span></button>
+          <div class="pop-anchor">
+            <button class="btn" onclick="toggleCoachPop('sportPop',event)" id="sportPickBtn"><svg class="ic" aria-hidden="true"><use href="#i-bike"/></svg><span class="pi-title" id="curSportLabel" data-i18n="coach_sports">运动方式</span><svg class="ic" aria-hidden="true" style="width:11px;height:11px"><use href="#i-chev"/></svg></button>
+            <div class="pop-list" id="sportPop"></div>
+          </div>
           <div class="pop-anchor">
             <button class="btn" onclick="toggleCoachPop('modelPop',event)" id="modelPickBtn"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span class="pi-title" id="curModelLabel" data-i18n="coach_pickModel">选择模型</span></button>
             <div class="pop-list right" id="modelPop"></div>
@@ -667,7 +728,10 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
               <button onclick="calNav(1)">›</button>
             </div>
             <div id="calPlans"></div>
-            <button class="btn" onclick="calAddPlan()" style="width:100%"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span data-i18n="cal_addPlan">添加计划</span></button>
+            <div style="display:flex;gap:6px">
+              <button class="btn" onclick="calAddPlan()" style="flex:1"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span data-i18n="cal_addPlan">添加计划</span></button>
+              <button class="btn" onclick="exportCalIcs()" title="导出 ICS"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="cal_exportIcs">导出 ICS</span></button>
+            </div>
           </div>
         </div>
       </div>
@@ -766,12 +830,12 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
             <p class="hint" data-i18n="autosync_hint">开启后服务端按周期自动执行增量同步(仅拉取新活动);手动同步不受影响。</p>
           </div>
           <div class="autosync-box" style="margin-top:14px">
-            <h4 style="font-size:13px;margin:0 0 6px;display:flex;align-items:center;gap:6px"><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg>Intervals.icu 真实功率数据源</h4>
-            <p class="hint" style="margin:0 0 10px">接入后「功率曲线」将自动展示 Intervals.icu 的秒级真实最佳功率曲线与 eFTP。</p>
+            <h4 style="font-size:13px;margin:0 0 6px;display:flex;align-items:center;gap:6px"><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg><span data-i18n="intervals_title">Intervals.icu 真实功率数据源</span></h4>
+            <p class="hint" style="margin:0 0 10px" data-i18n="intervals_hint">接入后「功率曲线」将自动展示 Intervals.icu 的秒级真实最佳功率曲线与 eFTP。</p>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-              <input id="intervals_athlete_id" placeholder="运动员 ID (如 i221776)" style="max-width:180px">
-              <input id="intervals_api_key" type="password" placeholder="API 密钥 (API_KEY)" style="max-width:240px">
-              <button class="btn" onclick="saveIntervalsConfig()">保存配置</button>
+              <input id="intervals_athlete_id" data-i18n-ph="intervals_athlete_ph" placeholder="运动员 ID (如 i221776)" style="max-width:180px">
+              <input id="intervals_api_key" data-i18n-ph="intervals_key_ph" type="password" placeholder="API 密钥 (API_KEY)" style="max-width:240px">
+              <button class="btn" onclick="saveIntervalsConfig()" data-i18n="model_save">保存配置</button>
             </div>
             <span class="hint" id="intervalsMsg" style="display:block;margin-top:6px"></span>
           </div>
@@ -783,6 +847,118 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
           <p class="hint" style="margin-bottom:6px" data-i18n="sess_mgmtHint">为每个会话重命名、选择辅助模型(留空用默认配置)。训练建议页的「会话」下拉同步此处。</p>
           <div id="sessList" class="sess-list"></div>
           <div class="msg" id="sessMsg"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FIT 文件工具（原生实现，文件全程留在本地） -->
+    <div class="view" id="tab-fit">
+      <div class="panel">
+        <h2><svg class="ic" aria-hidden="true"><use href="#i-file"/></svg><span data-i18n="fit_title">FIT 文件工具</span>
+          <button class="btn" onclick="FitUI.clearAll()" style="margin-left:auto;padding:4px 10px" data-i18n="fit_clearAll">清空</button>
+        </h2>
+        <p class="hint" style="margin:-4px 0 12px" data-i18n="fit_hint">合并分段活动、拆分长记录、删除功率/心率、转 GPX/TCX。全部在本地浏览器完成，文件不会上传。</p>
+
+        <div class="fit-drop" id="fitDrop">
+          <svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>
+          <b data-i18n="fit_dropTitle">拖入 .fit 文件</b>
+          <span data-i18n="fit_dropSub">或点击选择（可多选）</span>
+        </div>
+        <input type="file" id="fitInput" accept=".fit" multiple hidden>
+
+        <div class="fit-list" id="fitFileList"></div>
+
+        <div class="fit-tools" id="fitPanel" style="display:none">
+          <div class="fit-tool" id="fitToolStrip">
+            <h3><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg><span data-i18n="fit_strip">删除功率 / 心率</span></h3>
+            <div class="tt" data-i18n="fit_stripHint">从文件结构中彻底移除该字段（不是填 0），设备与平台将不再显示。</div>
+            <div class="row">
+              <label><input type="checkbox" id="fitDropPower" checked><span data-i18n="fit_stripPower">功率</span></label>
+              <label><input type="checkbox" id="fitDropHr" checked><span data-i18n="fit_stripHr">心率</span></label>
+            </div>
+            <div class="tt" data-i18n="fit_target">目标：</div><span id="fitStripTarget" class="tt">-</span>
+            <button class="btn" onclick="FitUI.runStrip()" data-i18n="fit_actionStrip">执行并下载</button>
+          </div>
+
+          <div class="fit-tool" id="fitToolSplit">
+            <h3><svg class="ic" aria-hidden="true"><use href="#i-route"/></svg><span data-i18n="fit_split">拆分</span></h3>
+            <div class="tt" data-i18n="fit_splitHint">按时间断点（码表分段记录）或固定条数切成多个文件。</div>
+            <div class="row">
+              <select id="fitSplitMode">
+                <option value="gap" data-i18n="fit_byGap">按时间断点</option>
+                <option value="count" data-i18n="fit_byCount">按条数</option>
+              </select>
+              <span id="fitGapRow" class="row"><input type="number" id="fitSplitGap" value="300" min="10" step="10"><span class="tt" data-i18n="fit_secGap">秒以上视为断点</span></span>
+              <span id="fitCountRow" class="row" style="display:none"><input type="number" id="fitSplitCount" value="1000" min="2" step="10"><span class="tt" data-i18n="fit_pointsEach">点/份</span></span>
+            </div>
+            <div class="tt" data-i18n="fit_target">目标：</div><span id="fitSplitTarget" class="tt">-</span>
+            <button class="btn" onclick="FitUI.runSplit()" data-i18n="fit_actionSplit">执行并下载</button>
+          </div>
+
+          <div class="fit-tool" id="fitToolCombine">
+            <h3><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span data-i18n="fit_combine">合并</span></h3>
+            <div class="tt" id="fitCombineHint">-</div>
+            <div class="tt" data-i18n="fit_combineHint2">按时间自动衔接并去重；每段起止时间不会重叠。每个文件按导入顺序拼接。</div>
+            <button class="btn" onclick="FitUI.runCombine()" data-i18n="fit_actionCombine">执行并下载</button>
+          </div>
+
+          <div class="fit-tool" id="fitToolConvert">
+            <h3><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg><span data-i18n="fit_convert">转换为 GPX / TCX</span></h3>
+            <div class="tt" data-i18n="fit_convertHint">轨迹、高程、心率、踏频、功率全部映射；GPX 供大多数平台上传，TCX 兼容 Garmin。</div>
+            <input type="text" id="fitActName" data-i18n-ph="fit_namePh" placeholder="活动名称（留空用文件名）">
+            <div class="tt" data-i18n="fit_target">目标：</div><span id="fitConvertTarget" class="tt">-</span>
+            <div class="row">
+              <button class="btn" onclick="FitUI.runConvert('gpx')">GPX</button>
+              <button class="btn" onclick="FitUI.runConvert('tcx')">TCX</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 出行计划（移植自 Hermes skill: cycling/outdoor-trip-planner） -->
+    <div class="view" id="tab-trip">
+      <div class="panel">
+        <h2><svg class="ic" aria-hidden="true"><use href="#i-mountain"/></svg><span data-i18n="trip_title">户外出行计划</span></h2>
+        <p class="hint" style="margin:-4px 0 12px" data-i18n="trip_hint">骑行 / 徒步 / 越野跑出行方案：查目的地周末天气、高铁余票与装备清单。数据来自 Open-Meteo 与 12306。</p>
+        <div class="trip-grid">
+          <div class="trip-card">
+            <h3><svg class="ic" aria-hidden="true"><use href="#i-calendar"/></svg><span data-i18n="trip_dateCard">出行日期</span></h3>
+            <div class="row">
+              <label><span data-i18n="trip_date">日期</span><input type="date" id="tripDate"></label>
+              <button class="btn" onclick="tripPickWeekend()" data-i18n="trip_nextWeekend">下周末</button>
+              <span class="tt" id="tripDateInfo" style="font-size:12px;color:var(--text-3)"></span>
+            </div>
+          </div>
+          <div class="trip-card">
+            <h3><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg><span data-i18n="trip_weatherCard">目的地天气</span></h3>
+            <div class="row">
+              <label><span data-i18n="trip_dest">目的地</span>
+                <select id="tripDestSel" onchange="tripDestChanged()"></select></label>
+              <label>lat<input type="text" id="tripLat" class="num" value="32.653"></label>
+              <label>lon<input type="text" id="tripLon" class="num" value="103.599"></label>
+              <button class="btn" onclick="tripLoadWeather()" data-i18n="trip_queryWeather">查天气</button>
+            </div>
+            <div class="trip-dest-meta" id="tripDestMeta"></div>
+            <div id="tripWeatherBox"></div>
+          </div>
+          <div class="trip-card">
+            <h3><svg class="ic" aria-hidden="true"><use href="#i-route"/></svg><span data-i18n="trip_trainCard">高铁余票</span></h3>
+            <div class="row">
+              <label><span data-i18n="trip_from">出发站</span><input type="text" id="tripFrom" value="成都东" style="width:110px"></label>
+              <label><span data-i18n="trip_to">到达站</span><input type="text" id="tripTo" value="松潘" style="width:110px"></label>
+              <label><span data-i18n="trip_date">日期</span><input type="date" id="tripTrainDate"></label>
+              <label><span data-i18n="trip_type">车型</span>
+                <select id="tripTrainType"><option value="GD">G/D</option><option value="" data-i18n="trip_typeAll">全部</option><option value="G">G</option><option value="D">D</option><option value="C">C</option></select></label>
+              <button class="btn" onclick="tripLoadTrains()" data-i18n="trip_queryTrains">查余票</button>
+            </div>
+            <div class="row"><button class="btn" onclick="tripSwapStations()" data-i18n="trip_swap">⇄ 互换（查返程）</button></div>
+            <div id="tripTrainBox"></div>
+          </div>
+          <details class="trip-card" open>
+            <summary class="trip-gear"><svg class="ic" aria-hidden="true"><use href="#i-bike"/></svg><span data-i18n="trip_gearTitle">出发前提醒与装备清单</span></summary>
+            <div class="trip-gear" id="tripGear" data-i18n="trip_gearBody"></div>
+          </details>
         </div>
       </div>
     </div>
@@ -811,6 +987,9 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 <!-- 消息右键导出菜单 -->
 <div id="msgCtxMenu" class="ctx-menu"></div>
 
+<!-- FIT 工具：解析内核 + UI（独立文件，便于单独测试） -->
+<script src="/static/fit.js"></script>
+<script src="/static/fit-ui.js"></script>
 <script>
 // ===== i18n =====
 const I18N = {
@@ -852,8 +1031,29 @@ const I18N = {
     upd_download:'下载更新', upd_downloading:'下载中… {pct}%', upd_downloaded:'下载完成，点击安装', upd_install:'安装并重启',
     upd_error:'检查更新失败：{msg}', upd_retry:'重试', upd_openGithub:'打开 Releases 页面', upd_close:'关闭', upd_curVer:'当前版本 v{ver}', upd_size:'大小 {size}', upd_pub:'发布于 {date}', upd_noAsset:'未找到适用于当前平台的安装包',
     sg_ok:'正常', sg_attention:'需关注', sg_ready:'就绪', sg_empty:'空', sg_pending:'未生成',
+    nav_fit:'FIT 工具', fit_title:'FIT 文件工具', fit_hint:'合并分段活动、拆分长记录、删除功率/心率、转 GPX/TCX。全部在本地浏览器完成，文件不会上传。',
+    fit_clearAll:'清空', fit_dropTitle:'拖入 .fit 文件', fit_dropSub:'或点击选择（可多选）', fit_empty:'尚未添加文件', fit_onlyFit:'仅支持 .fit 文件',
+    fit_parseFail:'无法解析', fit_noPoints:'文件中没有采样数据', fit_crcBad:'CRC 校验异常，文件可能已损坏', fit_fail:'处理失败：',
+    fit_strip:'删除功率 / 心率', fit_stripHint:'从文件结构中彻底移除该字段（不是填 0），设备与平台将不再显示。', fit_stripPower:'功率', fit_stripHr:'心率',
+    fit_split:'拆分', fit_splitHint:'按时间断点（码表分段记录）或固定条数切成多个文件。', fit_byGap:'按时间断点', fit_byCount:'按条数',
+    fit_secGap:'秒以上视为断点', fit_pointsEach:'点/份', fit_combine:'合并', fit_combineHint:'已选 {n} 个文件', fit_combineHint2:'按时间自动衔接并去重；每段起止时间不会重叠。',
+    fit_convert:'转换为 GPX / TCX', fit_convertHint:'轨迹、高程、心率、踏频、功率全部映射；GPX 供大多数平台上传，TCX 兼容 Garmin。', fit_namePh:'活动名称（留空用文件名）', fit_target:'目标：',
+    fit_actionStrip:'执行并下载', fit_actionSplit:'执行并下载', fit_actionCombine:'执行并下载',
+    fit_doneStrip:'已删除功率/心率，共处理 {n} 个采样点', fit_doneSplit:'已拆分为 {n} 个文件', fit_doneCombine:'合并完成，共 {n} 个采样点', fit_doneConvert:'转换完成，已开始下载',
+    fit_needMulti:'合并至少需要 2 个文件',
+    coach_sports:'运动方式', coach_sportsSave:'保存', coach_sportsSaved:'运动方式已保存，教练将只在该范围内推荐训练', coach_sportsSaveFail:'保存失败: ', coach_sportsNeedOne:'至少选择一种运动',
+    nav_trip:'出行计划', trip_title:'户外出行计划', trip_hint:'骑行 / 徒步 / 越野跑出行方案：查目的地周末天气、高铁余票与装备清单。数据来自 Open-Meteo 与 12306。',
+    trip_dateCard:'出行日期', trip_date:'日期', trip_nextWeekend:'下周末', trip_weatherCard:'目的地天气', trip_dest:'目的地', trip_queryWeather:'查天气', trip_alt:'海拔',
+    trip_trainCard:'高铁余票', trip_from:'出发站', trip_to:'到达站', trip_type:'车型', trip_typeAll:'全部', trip_queryTrains:'查余票', trip_swap:'⇄ 互换（查返程）',
+    trip_gearTitle:'出发前提醒与装备清单', trip_gearBody:'🎒 <b>通用装备</b>：薄外套/风壳（高原温差大）、防晒霜+墨镜、多带水（补给点少）、充电宝<br>🚴 <b>骑行额外</b>：备胎+气筒+骑行裤<br>🥾 <b>徒步额外</b>：登山杖+徒步鞋+头灯<br>🌡 <b>穿衣</b>：早上到站~12°C 运动服+薄外套；中午可脱；傍晚返程穿回；高海拔放坡体感更低，务必备风壳<br>⚠️ 高海拔（松潘 2800m+）注意高反；高原天气预报不准，出发前再看一次；返程票容易售罄，查到位子就要买',
+    trip_loading:'查询中…（首次查询需拉取车站数据，约 5~10 秒）', trip_fail:'查询失败: ', trip_badCoord:'请填写有效的经纬度', trip_fillTrain:'请填写出发/到达站与日期',
+    trip_weather:'天气', trip_temp:'温度', trip_rain:'降雨概率', trip_weatherNote:'仅显示 6~18 点运动窗口聚合；选中的出行日期高亮。',
+    trip_noTrains:'未查到符合条件的车次', trip_canBuy:'可购', trip_soldOut:'售罄', trip_trainsUnit:' 趟',
+    trip_train:'车次', trip_stations:'站点', trip_time:'时刻', trip_dur:'历时', trip_bizSeat:'商务/特等', trip_firstSeat:'一等', trip_secondSeat:'二等', trip_softSleep:'软卧', trip_status:'状态',
+
+    fit_durH:'小时', fit_durM:'分', fit_durS:'秒', fit_tagCad:'踏频', fit_tagGeo:'轨迹', fit_tagPoints:'点', fit_noDist:'无距离', fit_tagCrcBad:'CRC 异常', fit_remove:'移除',
     nav_coach:'训练建议', coach_title:'AI 训练建议', coach_noLlm:'尚未配置模型', coach_gotoSettings:'前往 设置 → 模型',
-    coach_suggest:'生成本周训练建议', coach_clear:'清空记忆', coach_empty:'向 AI 教练提问训练规划,它会读取你的骑行数据(距离/时长/心率/功率)并结合历史对话给出建议。对话记忆保存在本地数据库。',
+    coach_suggest:'生成本周训练建议', coach_clear:'清空记忆', coach_empty:'向 AI 教练提问训练规划,它会读取你选择的运动数据(距离/时长/心率/功率)并结合历史对话给出建议,且只推荐所选运动方式内的训练。对话记忆保存在本地数据库。',
     coach_ph:'例:下周想提升耐力,帮我安排训练', coach_send:'发送', coach_you:'你', coach_ai:'教练',
     coach_thinking:'教练思考中…', coach_fail:'请求失败:', coach_cleared:'记忆已清空',
     coach_clear_confirm:'将清空当前会话的全部对话记忆,此操作不可撤销。', coach_suggest_prompt:'请根据我最近的骑行数据,给出本周训练建议(含强度、时长、恢复安排)。',
@@ -885,7 +1085,22 @@ const I18N = {
     coach_plan_race_q:'今天是 {today},我将参加「{name}」,比赛日期 {race}(距今 {days} 天)。请从今天起制定赛前周期计划:按基础/强化/减量/赛前激活分阶段(标注每阶段起止日期,不得早于今天),含最后一次大强度课与休息日建议。',
     sub_sess:'会话', sess_mgmt:'会话管理', sess_mgmtHint:'为每个会话重命名、选择辅助模型(留空用默认配置)。训练建议页的「会话」下拉同步此处。',
     sess_rename_ph:'重命名…', sess_renamed:'已重命名', sess_modelSet:'辅助模型已设置',
+    pw_unit_w:'瓦特 (W)', pw_unit_wkg:'瓦特 / 公斤 (W/kg)',
+    pw_cur_period:'当前周期',
+    intervals_title:'Intervals.icu 真实功率数据源',
+    intervals_hint:'接入后「功率曲线」将自动展示 Intervals.icu 的秒级真实最佳功率曲线与 eFTP。',
+    intervals_athlete_ph:'运动员 ID (如 i221776)',
+    intervals_key_ph:'API 密钥 (API_KEY)',
+    intervals_saved:'Intervals.icu 配置已保存',
+    intervals_saving:'保存中…',
+    intervals_save_fail:'保存失败:',
+    cal_year_month:'{y} 年 {m} 月',
+    coach_calNoEvents:'未识别到有效的日历事件',
+    coach_calWorkoutDefault:'骑行训练',
+    copy_fail:'复制失败',
     cal_addPlan:'添加计划', cal_empty:'本月暂无计划', cal_planPrompt:'输入训练内容(如: 间歇 4x8min / 长距离 3h)', cal_delete:'删除计划', cal_deleteConfirm:'确定删除该计划?',
+    cal_exportIcs:'导出 ICS', cal_exportEmpty:'暂无训练计划可导出', cal_deleteFail:'删除计划失败: ',
+    coach_writeCal:'写入训练日历', coach_downloadIcs:'下载日历 (ICS)', coach_calWritten:'已成功将 {n} 条计划写入训练日历！', coach_calWriteFail:'写入训练日历失败: ',
   },
   en: {
     app_title:'Strava Panel', nav_dash:'Dashboard', nav_data:'Rides', nav_rides:'Recent Rides', nav_settings:'Settings',
@@ -925,8 +1140,29 @@ const I18N = {
     upd_download:'Download Update', upd_downloading:'Downloading… {pct}%', upd_downloaded:'Download complete, click to install', upd_install:'Install & Restart',
     upd_error:'Update check failed: {msg}', upd_retry:'Retry', upd_openGithub:'Open Releases Page', upd_close:'Close', upd_curVer:'Current v{ver}', upd_size:'Size {size}', upd_pub:'Published {date}', upd_noAsset:'No installer found for current platform',
     sg_ok:'OK', sg_attention:'Attention', sg_ready:'Ready', sg_empty:'Empty', sg_pending:'Not generated',
+    nav_fit:'FIT Tools', fit_title:'FIT File Tools', fit_hint:'Combine split activities, split long recordings, strip power/heart-rate, convert to GPX/TCX. Runs entirely in your browser — files are never uploaded.',
+    fit_clearAll:'Clear', fit_dropTitle:'Drop .fit files here', fit_dropSub:'or click to browse (multiple allowed)', fit_empty:'No files added yet', fit_onlyFit:'Only .fit files are supported',
+    fit_parseFail:'Cannot parse', fit_noPoints:'No sample data in file', fit_crcBad:'CRC check failed — file may be corrupted', fit_fail:'Failed: ',
+    fit_strip:'Strip Power / Heart Rate', fit_stripHint:'Removes the field from the file structure entirely (not zero-filled), so devices and platforms stop showing it.', fit_stripPower:'Power', fit_stripHr:'Heart rate',
+    fit_split:'Split', fit_splitHint:'Cut one long recording into multiple files by time gap or fixed sample count.', fit_byGap:'By time gap', fit_byCount:'By sample count',
+    fit_secGap:'sec+ counts as a gap', fit_pointsEach:'points/file', fit_combine:'Combine', fit_combineHint:'{n} files selected', fit_combineHint2:'Times are stitched and de-duplicated automatically; segments never overlap.',
+    fit_convert:'Convert to GPX / TCX', fit_convertHint:'Tracks, elevation, HR, cadence and power are all mapped. GPX suits most upload targets; TCX suits Garmin.', fit_namePh:'Activity name (blank = filename)', fit_target:'Target: ',
+    fit_actionStrip:'Run & download', fit_actionSplit:'Run & download', fit_actionCombine:'Run & download',
+    fit_doneStrip:'Power/HR stripped from {n} samples', fit_doneSplit:'Split into {n} files', fit_doneCombine:'Combined {n} samples', fit_doneConvert:'Converted — download started',
+    fit_needMulti:'Combining needs at least 2 files',
+    coach_sports:'Sports', coach_sportsSave:'Save', coach_sportsSaved:'Sports saved — the coach will now only recommend within these', coach_sportsSaveFail:'Save failed: ', coach_sportsNeedOne:'Pick at least one sport',
+    nav_trip:'Trip Planner', trip_title:'Outdoor Trip Planner', trip_hint:'Cycling / hiking / trail-run trip plans: weekend weather at the destination, 12306 train seats and a gear checklist. Data from Open-Meteo and 12306.',
+    trip_dateCard:'Trip date', trip_date:'Date', trip_nextWeekend:'Next weekend', trip_weatherCard:'Destination weather', trip_dest:'Destination', trip_queryWeather:'Check weather', trip_alt:'Alt',
+    trip_trainCard:'Train seats', trip_from:'From', trip_to:'To', trip_type:'Type', trip_typeAll:'All', trip_queryTrains:'Check seats', trip_swap:'⇄ Swap (return leg)',
+    trip_gearTitle:'Pre-trip reminders & gear list', trip_gearBody:'🎒 <b>General</b>: wind shell (big altitude temp swing), sunscreen + sunglasses, extra water (few resupply points), power bank<br>🚴 <b>Cycling extra</b>: spare tube + pump + bib shorts<br>🥾 <b>Hiking extra</b>: trekking poles + boots + headlamp<br>🌡 <b>Layers</b>: ~12°C at the morning arrival → kit + shell; peel off by midday; put the shell back for the evening return; descents at altitude feel far colder — always carry the wind shell<br>⚠️ Watch for altitude sickness above 2800m; mountain weather forecasts are unreliable, re-check before leaving; return tickets sell out fast — book when you see seats',
+    trip_loading:'Querying… (first run downloads the station list, ~5-10s)', trip_fail:'Query failed: ', trip_badCoord:'Enter valid lat/lon', trip_fillTrain:'Fill in from/to stations and date',
+    trip_weather:'Weather', trip_temp:'Temp', trip_rain:'Rain prob.', trip_weatherNote:'Aggregated over the 6-18 workout window; the selected trip date is highlighted.',
+    trip_noTrains:'No trains match the filters', trip_canBuy:'Bookable', trip_soldOut:'Sold out', trip_trainsUnit:' trains',
+    trip_train:'Train', trip_stations:'Stations', trip_time:'Times', trip_dur:'Duration', trip_bizSeat:'Business', trip_firstSeat:'1st', trip_secondSeat:'2nd', trip_softSleep:'Soft sleeper', trip_status:'Status',
+
+    fit_durH:'h', fit_durM:'min', fit_durS:'s', fit_tagCad:'Cadence', fit_tagGeo:'Track', fit_tagPoints:'pts', fit_noDist:'no distance', fit_tagCrcBad:'CRC bad', fit_remove:'Remove',
     nav_coach:'Coach', coach_title:'AI Training Coach', coach_noLlm:'Model not configured', coach_gotoSettings:'Go to Settings → Model',
-    coach_suggest:'Plan this week', coach_clear:'Clear memory', coach_empty:'Ask the AI coach about training plans. It reads your ride data (distance/duration/HR/power) plus conversation history. Memory is stored in the local database.',
+    coach_suggest:'Plan this week', coach_clear:'Clear memory', coach_empty:'Ask the AI coach about training plans. It reads your selected-sport data (distance/duration/HR/power) plus conversation history, and only recommends workouts within your chosen sports. Memory is stored in the local database.',
     coach_ph:'e.g. I want to build endurance next week, plan my training', coach_send:'Send', coach_you:'You', coach_ai:'Coach',
     coach_thinking:'Coach is thinking…', coach_fail:'Request failed:', coach_cleared:'Memory cleared',
     coach_clear_confirm:'This clears the current session conversation memory and cannot be undone.', coach_suggest_prompt:'Based on my recent rides, give me a training plan for this week (intensity, duration, recovery).',
@@ -958,7 +1194,22 @@ const I18N = {
     coach_plan_race_q:'Today is {today}; I will race “{name}” on {race} ({days} days from now). Build a race-prep plan starting today: base / build / taper / activation phases with concrete date ranges (never before today), including the last hard session and rest days.',
     sub_sess:'Sessions', sess_mgmt:'Session Management', sess_mgmtHint:'Rename each session and pick an auxiliary model (empty = use the default). The Coach tab Sessions dropdown syncs here.',
     sess_rename_ph:'Rename…', sess_renamed:'Renamed', sess_modelSet:'Aux model set',
+    pw_unit_w:'Watts (W)', pw_unit_wkg:'Watts / kg (W/kg)',
+    pw_cur_period:'Current',
+    intervals_title:'Intervals.icu Power Data',
+    intervals_hint:'Automatically shows Intervals.icu second-by-second power curve and eFTP.',
+    intervals_athlete_ph:'Athlete ID (e.g. i221776)',
+    intervals_key_ph:'API Key (API_KEY)',
+    intervals_saved:'Intervals.icu configuration saved',
+    intervals_saving:'Saving…',
+    intervals_save_fail:'Save failed:',
+    cal_year_month:'{y}/{m}',
+    coach_calNoEvents:'No valid calendar events found',
+    coach_calWorkoutDefault:'Cycling Workout',
+    copy_fail:'Copy failed',
     cal_addPlan:'Add plan', cal_empty:'No plans this month', cal_planPrompt:'Enter workout (e.g. intervals 4x8min / long ride 3h)', cal_delete:'Delete plan', cal_deleteConfirm:'Delete this plan?',
+    cal_exportIcs:'Export ICS', cal_exportEmpty:'No plans to export', cal_deleteFail:'Delete failed: ',
+    coach_writeCal:'Add to Calendar', coach_downloadIcs:'Download ICS', coach_calWritten:'Added {n} workouts to training calendar!', coach_calWriteFail:'Failed to add to calendar: ',
   }
 };
 let currentLang = localStorage.getItem('sv_lang') || 'zh';
@@ -985,6 +1236,8 @@ function setLang(lang){
   localStorage.setItem('sv_lang', lang);
   applyI18n();
   refreshStatus();
+  reRenderChart();
+  reRenderPowerCurve();
 }
 
 // ===== Theme =====
@@ -1075,11 +1328,15 @@ function switchNav(nav){
   if(nav==='rides'){ loadActivities(); }   // 最近骑行表格：打开视图才懒加载
   if(nav==='power'){ loadPowerCurve(); }   // 功率曲线：打开视图才懒加载
   if(nav==='coach'){ loadCoach(); }
+  if(nav==='fit'){ /* FIT 工具无网络请求，切 tab 无需额外加载 */ }
+  if(nav==='trip'){ tripInit(); }   // 出行计划：进入时初始化日期与目的地
   if(nav==='settings'){ loadCredConfig(); }  // cred 是默认子tab，直接进入时也回填凭据
   if(nav==='api'||nav==='settings'){ /* handled by subtab */ }
 }
-// 教练页视图切换: 对话 / 训练日历
-let coachCurView = 'chat';
+
+// ===== FIT 文件工具（原生实现）=====
+// fit.js / fit-ui.js 为独立文件，解析与工具逻辑与 UI 分离，便于单独测试。
+
 // 训练日历弹窗
 function openCalModal(){
   const mask = document.getElementById('calMask');
@@ -1107,7 +1364,7 @@ async function ensureApiToken(){
   try{
     const boot = await (await fetch(API + '/api/bootstrap')).json();
     if(boot.api_token){ apiToken = boot.api_token; }
-  }catch(e){}
+  }catch(e){ console.error('bootstrap failed', e); }
   return apiToken;
 }
 // 回填已保存的凭据到设置表单，免每次重输。只有未保存的值才覆盖输入框，
@@ -1135,7 +1392,7 @@ async function loadCredConfig(){
       document.getElementById('connText').textContent = ok ? t('conn_ok') : t('conn_noToken');
       document.getElementById('connMeta').textContent = d.athlete_id ? ('Athlete ' + d.athlete_id) : '';
     }
-  }catch(e){}
+  }catch(e){ console.error('refreshStatus failed', e); }
 }
 function togglePw(id, btn){
   const el = document.getElementById(id);
@@ -1400,7 +1657,7 @@ async function loadData(){
       renderMetricSel();
       renderMonthly(series, key, prevSeries);
     }
-  }catch(e){}
+  }catch(e){ console.error('loadData failed', e); }
   if(currentNav==='rides') await loadActivities();
 }
 // ===== 功率曲线 =====
@@ -1589,7 +1846,7 @@ function renderPowerCurve(){
   const curveDurArr = curve.durations, curveWattsArr = curve.watts;
   const allDurArr = showAll ? all.durations : [], allWattsArr = showAll ? all.watts : [];
   host.querySelectorAll('.pwhit').forEach(hit=>{
-    hit.addEventListener('mouseenter', ()=>{
+    hit.addEventListener('mouseenter', (ev)=>{
       const i = +hit.dataset.i;
       const dur = curveDurArr[i], watts = curveWattsArr[i];
       const wkgVal = (watts / weight).toFixed(2);
@@ -1604,6 +1861,16 @@ function renderPowerCurve(){
       }
       tip.textContent = txt;
       tip.style.opacity = '1';
+      const nodeX = xOf(dur), nodeY = yOf(valOf(watts));
+      tip.style.left = Math.min(Math.max(nodeX, 80), w - 80) + 'px';
+      tip.style.top = Math.max(8, nodeY - 32) + 'px';
+    });
+    hit.addEventListener('mousemove', (ev)=>{
+      const i = +hit.dataset.i;
+      const dur = curveDurArr[i], watts = curveWattsArr[i];
+      const nodeX = xOf(dur), nodeY = yOf(valOf(watts));
+      tip.style.left = Math.min(Math.max(nodeX, 80), w - 80) + 'px';
+      tip.style.top = Math.max(8, nodeY - 32) + 'px';
     });
     hit.addEventListener('mouseleave', ()=>{ tip.style.opacity = '0'; });
   });
@@ -1639,6 +1906,7 @@ function renderPowerCurve(){
   });
 
   // 估算 FTP: 取当前周期的 20min 估算或 eFTP
+  const curIdx20 = curData.durations.indexOf(1200);
   const curFtp = curData.eftp || (curIdx20 >= 0 && curData.watts[curIdx20] > 0 ? Math.round(curData.watts[curIdx20] * 0.95) : 0);
   const ftpEl = document.getElementById('pwFtp');
   const refFtpEl = document.getElementById('refFtp');
@@ -1873,7 +2141,7 @@ async function loadActivities(){
       page = 1;
       renderActivities();
     }
-  }catch(e){}
+  }catch(e){ console.error('loadActivities failed', e); }
 }
 function renderActivities(){
   const tbody = document.getElementById('recentTable').querySelector('tbody');
@@ -1990,7 +2258,7 @@ async function loadSessList(){
         '<select onchange="setSessionModel('+s.id+', this.value)">'+opts+'</select>'+
       '</div>';
     }).join('');
-  }catch(e){}
+  }catch(e){ console.error('renderSessions failed', e); }
 }
 async function renameSession(sid, title){
   try{
@@ -2026,24 +2294,24 @@ async function loadAutoSyncCfg(){
     const intKey = document.getElementById('intervals_api_key');
     if(intAth && d.intervals_athlete_id && !intAth.value.trim()) intAth.value = d.intervals_athlete_id;
     if(intKey && d.intervals_api_key && !intKey.value.trim()) intKey.value = d.intervals_api_key;
-  }catch(e){}
+  }catch(e){ console.error('loadIntervalsCfg failed', e); }
 }
 async function saveIntervalsConfig(){
   const athlete_id = (document.getElementById('intervals_athlete_id')?.value || '').trim();
   const api_key = (document.getElementById('intervals_api_key')?.value || '').trim();
   const msgEl = document.getElementById('intervalsMsg');
-  if(msgEl) msgEl.textContent = '保存中…';
+  if(msgEl) msgEl.textContent = t('intervals_saving');
   try{
     const d = await apiPost('/api/config', { intervals_athlete_id: athlete_id, intervals_api_key: api_key });
     if(d.ok){
-      if(msgEl) msgEl.textContent = 'Intervals.icu 配置已保存';
-      toast('Intervals.icu 配置已保存', true);
+      if(msgEl) msgEl.textContent = t('intervals_saved');
+      toast(t('intervals_saved'), true);
       loadPowerCurve(); // 重新加载曲线
     } else {
-      if(msgEl) msgEl.textContent = '保存失败: ' + (d.error||'');
+      if(msgEl) msgEl.textContent = t('intervals_save_fail') + ' ' + (d.error||'');
     }
   }catch(e){
-    if(msgEl) msgEl.textContent = '保存失败: ' + e.message;
+    if(msgEl) msgEl.textContent = t('intervals_save_fail') + ' ' + e.message;
   }
 }
 function renderAutoSyncPill(){
@@ -2195,7 +2463,7 @@ async function connectStrava(){
       client_secret: document.getElementById('client_secret').value,
       redirect_uri: document.getElementById('redirect_uri').value,
     });
-  }catch(e){}
+  }catch(e){ console.error('saveConfig failed', e); }
   try{
     const r = await apiGet('/api/oauth/start');
     if(!r.url){ msg.textContent = t('setup_fail') + (r.error||''); return; }
@@ -2265,6 +2533,19 @@ function appConfirm(title, body, danger){
 const UPD_REPO = 'techysy/strava-panel';
 let updState = { phase: 'idle', version: '', asset: null, error: '' };
 function updCurVer(){ return (typeof APP_VERSION !== 'undefined' && APP_VERSION) || (window.bootVer || ''); }
+function verIsNewer(remote, cur){
+  // 逐段数值比较：必须整体大于才算出新版本。
+  // 旧逻辑用 reduce + "任一段更大"判定，会把降级（如 2.6.0 vs 2.5.9）误判成可更新。
+  const a = String(remote || '').split('.').map(Number);
+  const b = String(cur || '').split('.').map(Number);
+  const n = Math.max(a.length, b.length);
+  for(let i = 0; i < n; i++){
+    const d = (a[i] || 0) - (b[i] || 0);
+    if(d > 0) return true;
+    if(d < 0) return false;
+  }
+  return false;
+}
 function updPlatform(){ return /win/i.test(navigator.userAgent) ? 'win' : (/mac/i.test(navigator.userAgent) ? 'mac' : 'other'); }
 async function openUpdateModal(){
   const mask = document.getElementById('updMask');
@@ -2295,7 +2576,7 @@ async function openUpdateModal(){
     const cur = updCurVer();
     if (!ver) throw new Error('no version');
     // 严格大于才算新版本
-    const isNewer = ver.split('.').map(Number).reduce((a,v,i)=>{ const c=cur.split('.').map(Number); return a || (v > (c[i]||0)); }, false) && ver !== cur;
+    const isNewer = verIsNewer(ver, cur);
     if (!isNewer) {
       updState = { phase: 'latest', version: cur || ver };
     } else {
@@ -2441,8 +2722,27 @@ function chatMsgNode(role, content, iso){
   }
   const body = document.createElement('div');
   body.className = 'msg-body';
-  if(role === 'assistant') body.innerHTML = mdLite(content);
-  else body.innerHTML = escapeHtml(content).replace(/\n/g,'<br>');
+  if(role === 'assistant'){
+    body.innerHTML = mdLite(content);
+    const ics = extractIcsFromText(content);
+    if(ics){
+      const act = document.createElement('div');
+      act.className = 'msg-actions';
+      const wBtn = document.createElement('button');
+      wBtn.className = 'msg-act-btn primary';
+      wBtn.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-calendar"/></svg><span>' + escapeHtml(t('coach_writeCal')) + '</span>';
+      wBtn.onclick = (ev) => { ev.stopPropagation(); writeIcsToCalendar(ics); };
+      const dBtn = document.createElement('button');
+      dBtn.className = 'msg-act-btn';
+      dBtn.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span>' + escapeHtml(t('coach_downloadIcs')) + '</span>';
+      dBtn.onclick = (ev) => { ev.stopPropagation(); downloadIcsContent(ics, 'training-plan-' + Date.now()); };
+      act.appendChild(wBtn);
+      act.appendChild(dBtn);
+      body.appendChild(act);
+    }
+  } else {
+    body.innerHTML = escapeHtml(content).replace(/\n/g,'<br>');
+  }
   div.appendChild(head); div.appendChild(body);
   // 右键导出菜单
   div.addEventListener('contextmenu', (e) => {
@@ -2468,14 +2768,17 @@ function thinkingNode(){
     escapeHtml(t('coach_ai')) + '</div><div class="msg-body"><span class="dots"><i></i><i></i><i></i></span></div>';
   return div;
 }
-// ===== 消息右键导出菜单 =====
+// ===== 消息右键导出菜单 & 日历接入 =====
+let _msgCtxTarget = null;
+
 function showMsgCtxMenu(x, y, role, content, iso){
   const menu = document.getElementById('msgCtxMenu');
   const time = msgTime(iso);
   const label = role === 'assistant' ? t('coach_ai') : t('coach_you');
-  menu.innerHTML = `<button class="ctx-item" onclick="ctxCopy(${role === 'assistant' ? 1 : 0}, ${JSON.stringify(content).slice(0, 5000)})"><svg class="ic" aria-hidden="true"><use href="#i-clipboard"/></svg>${t('ctx_copy')}</button>`+
-    `<button class="ctx-item" onclick="ctxExportTxt(${role === 'assistant' ? 1 : 0}, ${JSON.stringify(content).slice(0, 5000)}, ${JSON.stringify(label)}, ${JSON.stringify(time)})"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>${t('ctx_exportTxt')}</button>`+
-    `<button class="ctx-item" onclick="ctxExportImg(${role === 'assistant' ? 1 : 0}, ${JSON.stringify(content).slice(0, 5000)}, ${JSON.stringify(label)}, ${JSON.stringify(time)})"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>${t('ctx_exportImg')}</button>`;
+  _msgCtxTarget = { role, content, iso, time, label };
+  menu.innerHTML = `<button class="ctx-item" onclick="ctxDoAction('copy')"><svg class="ic" aria-hidden="true"><use href="#i-clipboard"/></svg>${t('ctx_copy')}</button>`+
+    `<button class="ctx-item" onclick="ctxDoAction('exportTxt')"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>${t('ctx_exportTxt')}</button>`+
+    `<button class="ctx-item" onclick="ctxDoAction('exportImg')"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>${t('ctx_exportImg')}</button>`;
   menu.style.left = Math.min(x, window.innerWidth - 180) + 'px';
   menu.style.top = Math.min(y, window.innerHeight - 130) + 'px';
   menu.classList.add('show');
@@ -2483,26 +2786,64 @@ function showMsgCtxMenu(x, y, role, content, iso){
   const close = () => { menu.classList.remove('show'); document.removeEventListener('click', close); };
   setTimeout(() => document.addEventListener('click', close), 0);
 }
-function ctxCopy(role, content){
-  navigator.clipboard.writeText(content).then(() => toast(t('api_copied'), true)).catch(()=>{});
+
+function ctxDoAction(action){
+  const target = _msgCtxTarget;
+  const menu = document.getElementById('msgCtxMenu');
+  if(menu) menu.classList.remove('show');
+  if(!target) return;
+  if(action === 'copy') ctxCopy(target.content);
+  else if(action === 'exportTxt') ctxExportTxt(target.content, target.label, target.time);
+  else if(action === 'exportImg') ctxExportImg(target.content, target.label, target.time);
 }
-function ctxExportTxt(role, content, label, time){
+
+function copyToClipboard(text){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    return navigator.clipboard.writeText(text);
+  }
+  return new Promise((resolve, reject) => {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      if(ok) resolve(); else reject(new Error('copy command failed'));
+    } catch(err) { reject(err); }
+  });
+}
+
+function ctxCopy(content){
+  copyToClipboard(content).then(() => toast(t('api_copied'), true)).catch(()=>{ toast(t('copy_fail'), false); });
+}
+
+function ctxExportTxt(content, label, time){
   const txt = '--- ' + label + ' | ' + time + ' ---\n\n' + content + '\n';
-  const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+  downloadBlob(new Blob([txt], { type: 'text/plain;charset=utf-8' }), 'strava-coach-' + Date.now() + '.txt');
+}
+
+function downloadBlob(blob, filename){
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'strava-coach-' + Date.now() + '.txt';
-  document.body.appendChild(a); a.click(); a.remove();
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
-function ctxExportImg(role, content, label, time){
+
+function ctxExportImg(content, label, time){
   // 用 canvas 绘制消息为图片
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   const pad = 30, lineH = 24, fontSize = 14;
-  const lines = content.split('\n');
-  const maxLines = Math.min(lines.length, 50);
-  canvas.width = 600;
+  const lines = String(content||'').split('\n');
+  const maxLines = Math.min(lines.length, 60);
+  canvas.width = 640;
   canvas.height = pad * 2 + maxLines * lineH + 40;
   // 背景
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -2518,17 +2859,125 @@ function ctxExportImg(role, content, label, time){
   ctx.fillStyle = isDark ? '#e5e5e5' : '#333';
   ctx.font = fontSize + 'px sans-serif';
   for(let i = 0; i < maxLines; i++){
-    const line = lines[i].slice(0, 70);
+    const line = lines[i].slice(0, 72);
     ctx.fillText(line, pad, pad + 28 + i * lineH + 18);
   }
   // 下载
   canvas.toBlob(blob => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'strava-coach-' + Date.now() + '.png';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    if(!blob) return;
+    downloadBlob(blob, 'strava-coach-' + Date.now() + '.png');
   });
+}
+
+// ===== 日历与 ICS 批量解析与写入 =====
+function extractIcsFromText(text){
+  if(!text) return null;
+  const match = text.match(/BEGIN:VCALENDAR[\s\S]*?END:VCALENDAR/i);
+  return match ? match[0] : null;
+}
+
+function icsUnescape(s){
+  // iCalendar 文本值转义还原（顺序要紧：反斜杠自身必须最后处理，避免二次还原）
+  return String(s)
+    .replace(/\\n/gi, ' ')
+    .replace(/\\,/g, ',')
+    .replace(/\\;/g, ';')
+    .replace(/\\\\/g, '\\')
+    .trim();
+}
+
+function icsUnfold(text){
+  // RFC 5545 折行还原：CRLF/TAB + 单空格(制表符)是续行，去掉换行与前导空白
+  return String(text).replace(/\r?\n[ \t]/g, '');
+}
+
+function parseIcsPlans(icsText){
+  if(!icsText) return [];
+  const events = [];
+  const blocks = icsUnfold(icsText).split(/BEGIN:VEVENT/i).slice(1);
+  for(const block of blocks){
+    const dMatch = block.match(/DTSTART(?:;VALUE=DATE)?:?(\d{4})(\d{2})(\d{2})/i);
+    const sMatch = block.match(/SUMMARY:(.+?)(?:\r?\n|$)/i);
+    const descMatch = block.match(/DESCRIPTION:(.+?)(?:\r?\n|$)/i);
+    if(dMatch && sMatch){
+      const date = `${dMatch[1]}-${dMatch[2]}-${dMatch[3]}`;
+      const summary = icsUnescape(sMatch[1]);
+      const desc = descMatch ? icsUnescape(descMatch[1]) : '';
+      const content = summary + (desc ? (' (' + desc + ')') : '');
+      events.push({ date, content });
+    }
+  }
+  return events;
+}
+
+async function writeIcsToCalendar(icsText){
+  const plans = parseIcsPlans(icsText);
+  if(!plans.length){ toast(t('coach_calNoEvents'), false); return; }
+  await ensureApiToken();
+  try{
+    const d = await apiPost('/api/coach/plans', { session_id: coachSessionId || 0, items: plans });
+    calPlans = (d && d.plans) || calPlans;
+    renderCal();
+    toast(t('coach_calWritten', { n: plans.length }), true);
+    openCalModal();
+  }catch(e){
+    toast(t('coach_calWriteFail') + (e.message || e), false);
+  }
+}
+
+function downloadIcsContent(icsText, name){
+  const blob = new Blob([icsText], { type: 'text/calendar;charset=utf-8' });
+  downloadBlob(blob, (name || 'training-plan') + '.ics');
+}
+
+function icsEscape(s){
+  // 导出方向的反向转义：, ; 与换行在 iCalendar 文本值里必须转义，否则外部日历 App 解析错乱
+  return String(s == null ? '' : s)
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+}
+
+function icsFold(line){
+  // RFC 5545：单行超过 75 字节需折行（CRLF + 单空格续行）
+  const bytes = new TextEncoder().encode(line);
+  if(bytes.length <= 75) return [line];
+  const out = [];
+  let cur = '', curBytes = 0, limit = 75;
+  for(const ch of line){
+    const n = new TextEncoder().encode(ch).length;
+    if(curBytes + n > limit){ out.push(cur); cur = ch; curBytes = n; limit = 74; }
+    else { cur += ch; curBytes += n; }
+  }
+  if(cur) out.push(cur);
+  return out;
+}
+
+function exportCalIcs(){
+  if(!calPlans || !calPlans.length){
+    toast(t('cal_exportEmpty'), false);
+    return;
+  }
+  let ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Strava Panel//Training Plan//CN',
+    'CALSCALE:GREGORIAN'
+  ];
+  for(const p of calPlans){
+    if(!p.date) continue;
+    const cleanDate = p.date.replace(/-/g, '');
+    const uid = (p.id || Date.now()) + '-' + cleanDate + '@stravapanel';
+    ics.push('BEGIN:VEVENT');
+    ics.push('UID:' + uid);
+    ics.push('DTSTART;VALUE=DATE:' + cleanDate);
+    ics.push(...icsFold('SUMMARY:' + icsEscape(p.content || t('coach_calWorkoutDefault'))));
+    ics.push('STATUS:' + (p.status === 'done' ? 'COMPLETED' : 'CONFIRMED'));
+    ics.push('END:VEVENT');
+  }
+  ics.push('END:VCALENDAR');
+  downloadIcsContent(ics.join('\r\n') + '\r\n', 'strava-training-' + Date.now());
 }
 function sessLabel(sess){
   if(!sess || !sess.title) return t('coach_untitled');
@@ -2551,6 +3000,7 @@ function renderSessions(){
 }
 async function loadCoach(){
   await ensureApiToken();
+  loadCoachSports();
   try{
     const qs = coachSessionId != null ? ('?session_id=' + coachSessionId) : '';
     const d = await apiGet('/api/coach/history' + qs);
@@ -2561,11 +3011,11 @@ async function loadCoach(){
     savedModelId = (d.llm && d.llm.model) || '';
     if(coachSessionId == null && d.session_id != null) coachSessionId = d.session_id;
     renderSessions();
-    renderChat(d.messages);
+    // 默认(未选择会话)显示空白新会话;历史会话通过「会话」下拉选择后加载
+    renderChat(coachSessionId != null ? d.messages : []);
     renderModelPick();
-    setCoachView(coachCurView);
     loadCal();
-  }catch(e){}
+  }catch(e){ console.error('loadCoach failed', e); }
 }
 async function switchSession(id){
   document.querySelectorAll('.pop-anchor .pop-list').forEach(p=>p.classList.remove('show'));
@@ -2576,8 +3026,10 @@ async function switchSession(id){
 function newCoachSession(){
   document.querySelectorAll('.pop-anchor .pop-list').forEach(p=>p.classList.remove('show'));
   coachSessionId = null;
+  coachModelPick = '';
   renderSessions();
   renderChat([]);
+  renderModelPick();
   loadCal();
 }
 function toggleCoachPop(id, ev){
@@ -2589,6 +3041,7 @@ function toggleCoachPop(id, ev){
     pop.classList.add('show');
     if(id === 'planPop') renderPlanPop();
     if(id === 'modelPop') renderCoachModelPop();
+    if(id === 'sportPop') renderSportPop();
   }
 }
 function renderCoachModelPop(){
@@ -2702,12 +3155,12 @@ function renderCal(){
   const box = document.getElementById('calPlans');
   if(!grid) return;
   const y = calCursor.getFullYear(), m = calCursor.getMonth();
-  title.textContent = y + ' 年 ' + (m+1) + ' 月';
+  title.textContent = t('cal_year_month', { y: y, m: m+1 });
   const first = new Date(y, m, 1);
   const startDow = first.getDay();
   const daysInMonth = new Date(y, m+1, 0).getDate();
   const todayIso = isoDate(new Date());
-  const dows = ['日','一','二','三','四','五','六'];
+  const dows = currentLang === 'zh' ? ['日','一','二','三','四','五','六'] : ['Su','Mo','Tu','We','Th','Fr','Sa'];
   let html = dows.map(d => '<div class="cal-dow">'+d+'</div>').join('');
   for(let i = 0; i < startDow; i++) html += '<div class="cal-cell empty"></div>';
   for(let d = 1; d <= daysInMonth; d++){
@@ -2726,7 +3179,7 @@ function renderCal(){
     '<div class="plan-item" style="position:relative">'+
     '<div class="pi-date">'+p.date.slice(5)+(p.status==='done'?' ✓':'')+'</div>'+
     '<div class="pi-content">'+escapeHtml(p.content)+'</div>'+
-    '<button class="pi-del" onclick="calDeletePlan('+p.id+')" title="删除"><svg class="ic"><use href="#i-trash"/></svg></button>'+
+    '<button class="pi-del" onclick="calDeletePlan('+p.id+')" title="'+escapeHtml(t('cal_delete'))+'"><svg class="ic"><use href="#i-trash"/></svg></button>'+
     '</div>').join('') || '<div class="pop-empty">'+escapeHtml(t('cal_empty'))+'</div>';
 }
 function calNav(dir){
@@ -2742,7 +3195,7 @@ async function calCellClick(iso){
       const d = await apiPut('/api/coach/plans', { id: existing.id, content: existing.content, status: newStatus });
       calPlans = (d && d.plans) || calPlans;
       renderCal();
-    } catch(e){}
+    } catch(e){ console.error('togglePlan failed', e); toast(t('coach_calWriteFail') + (e.message || e), false); }
     return;
   }
   const content = prompt(iso + ' — ' + t('cal_planPrompt'));
@@ -2751,7 +3204,7 @@ async function calCellClick(iso){
     const d = await apiPost('/api/coach/plans', { session_id: coachSessionId || 0, date: iso, content: content.trim() });
     calPlans = (d && d.plans) || [];
     renderCal();
-  } catch(e){}
+  } catch(e){ console.error('addPlan failed', e); toast(t('coach_calWriteFail') + (e.message || e), false); }
 }
 async function calAddPlan(){
   const content = prompt(isoDate(new Date()) + ' — ' + t('cal_planPrompt'));
@@ -2760,21 +3213,26 @@ async function calAddPlan(){
     const d = await apiPost('/api/coach/plans', { session_id: coachSessionId || 0, date: isoDate(new Date()), content: content.trim() });
     calPlans = (d && d.plans) || [];
     renderCal();
-  } catch(e){}
+  } catch(e){ console.error('calAddPlan failed', e); toast(t('coach_calWriteFail') + (e.message || e), false); }
 }
 async function calDeletePlan(id){
   if(!await appConfirm(t('cal_delete'), t('cal_deleteConfirm'), true)) return;
-  const d = await apiDelete('/api/coach/plans', { id });
-  calPlans = d.plans || [];
-  renderCal();
+  try {
+    const d = await apiDelete('/api/coach/plans', { id });
+    calPlans = d.plans || [];
+    renderCal();
+  } catch(e){ console.error('calDeletePlan failed', e); toast(t('cal_deleteFail') + (e.message || e), false); }
 }
 
 // ---- 计划弹层:本周 / 月度 / 赛前(时间感知:以今天为起点) ----
 function planDateCtx(){
   const now = new Date();
   const WD = ['日','一','二','三','四','五','六'];
+  const WD_EN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const iso = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
-  const zh = (now.getMonth()+1) + '月' + now.getDate() + '日 周' + WD[now.getDay()];
+  const zh = currentLang === 'zh'
+    ? ((now.getMonth()+1) + '月' + now.getDate() + '日 周' + WD[now.getDay()])
+    : (iso + ' (' + WD_EN[now.getDay()] + ')');
   // 本周日(周一为一周起点;周日当天即今天)
   const sunday = new Date(now); sunday.setDate(now.getDate() + (7 - now.getDay()) % 7);
   const sunIso = sunday.getFullYear() + '-' + String(sunday.getMonth()+1).padStart(2,'0') + '-' + String(sunday.getDate()).padStart(2,'0');
@@ -2856,7 +3314,7 @@ async function loadLlmConfig(){
     settingsModels = Array.isArray(c.models) ? c.models.slice() : [];
     defaultModelId = c.model || '';
     renderModelCards();
-  }catch(e){}
+  }catch(e){ console.error('loadLlmConfig failed', e); }
 }
 // ---- 模型库卡片(设置 → 模型) ----
 let settingsModels = [];   // [{id, short, context}]
@@ -3023,9 +3481,178 @@ function exportJson(){ window.open(`${API}/api/export?fmt=json&token=${encodeURI
 
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+// ===== 运动方式选择（训练建议按运动过滤）=====
+const SPORT_OPTIONS = [
+  { id: 'Ride', zh: '骑行', en: 'Cycling' },
+  { id: 'Run', zh: '跑步', en: 'Running' },
+  { id: 'Walk', zh: '步行', en: 'Walking' },
+  { id: 'Hike', zh: '徒步', en: 'Hiking' },
+  { id: 'Swim', zh: '游泳', en: 'Swimming' },
+  { id: 'VirtualRide', zh: '室内骑行', en: 'Indoor Cycling' },
+  { id: 'Workout', zh: '综合训练', en: 'Workout' },
+];
+let coachSportsSel = ['Ride'];
+function sportLabel(s){ return currentLang === 'en' ? (SPORT_OPTIONS.find(x=>x.id===s)?.en || s) : (SPORT_OPTIONS.find(x=>x.id===s)?.zh || s); }
+function updateSportLabel(){
+  const el = document.getElementById('curSportLabel');
+  if(!el) return;
+  el.textContent = coachSportsSel.length ? coachSportsSel.map(sportLabel).join('+') : t('coach_sports');
+}
+function renderSportPop(){
+  const pop = document.getElementById('sportPop');
+  if(!pop) return;
+  pop.innerHTML = '<div class="sport-checks">' + SPORT_OPTIONS.map(o =>
+    '<label><input type="checkbox" value="'+o.id+'"'+(coachSportsSel.includes(o.id)?' checked':'')+' onchange="onSportToggle(this)"><span>'+escapeHtml(currentLang==='en'?o.en:o.zh)+'</span></label>'
+  ).join('') + '</div>' +
+  '<button class="pop-item" onclick="saveSports()" style="justify-content:center;color:var(--viz);font-weight:600"><span>'+escapeHtml(t('coach_sportsSave'))+'</span></button>';
+}
+function onSportToggle(cb){
+  const id = cb.value;
+  if(cb.checked){ if(!coachSportsSel.includes(id)) coachSportsSel.push(id); }
+  else coachSportsSel = coachSportsSel.filter(x=>x!==id);
+  if(!coachSportsSel.length){ cb.checked = true; coachSportsSel = [id]; toast(t('coach_sportsNeedOne'), false); }
+  updateSportLabel();
+}
+async function saveSports(){
+  await ensureApiToken();
+  try{
+    const d = await apiPost('/api/config', { coach_sports: coachSportsSel.join(',') });
+    if(d.ok){ toast(t('coach_sportsSaved'), true); document.querySelectorAll('.pop-anchor .pop-list').forEach(p=>p.classList.remove('show')); }
+    else toast(t('coach_sportsSaveFail') + ' ' + shortErr(d.error), false);
+  }catch(e){ toast(t('coach_sportsSaveFail') + ' ' + shortErr(e.message), false); }
+}
+async function loadCoachSports(){
+  try{
+    const d = await apiGet('/api/config');
+    if(d.coach_sports) coachSportsSel = String(d.coach_sports).split(',').map(s=>s.trim()).filter(Boolean);
+    if(!coachSportsSel.length) coachSportsSel = ['Ride'];
+    updateSportLabel();
+  }catch(e){ console.error('loadCoachSports failed', e); }
+}
+
+// ===== 出行计划（移植自 Hermes skill: cycling/outdoor-trip-planner）=====
+let tripDests = [];
+function tripFmtDate(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function tripInit(){
+  const dateEl = document.getElementById('tripDate'), trainDate = document.getElementById('tripTrainDate');
+  const today = new Date();
+  if(dateEl && !dateEl.value) dateEl.value = tripFmtDate(today);
+  if(trainDate && !trainDate.value) trainDate.value = tripFmtDate(today);
+  tripUpdateDateInfo();
+  tripLoadDests();
+}
+async function tripLoadDests(){
+  await ensureApiToken();
+  try{
+    const d = await apiGet('/api/trip/destinations');
+    tripDests = d.destinations || [];
+    const sel = document.getElementById('tripDestSel');
+    if(sel){
+      sel.innerHTML = tripDests.map((x,i)=>'<option value="'+i+'">'+escapeHtml(x.name)+'</option>').join('');
+      if(tripDests.length) tripDestChanged();
+    }
+  }catch(e){ console.error('tripLoadDests failed', e); }
+}
+function tripDestChanged(){
+  const i = Number(document.getElementById('tripDestSel').value);
+  const x = tripDests[i];
+  if(!x) return;
+  document.getElementById('tripLat').value = x.lat;
+  document.getElementById('tripLon').value = x.lon;
+  document.getElementById('tripTo').value = x.rail.split('→')[1]?.split(' ')[0] || x.name;
+  const meta = document.getElementById('tripDestMeta');
+  if(meta) meta.innerHTML = '<div>📍 '+escapeHtml(x.rail)+' · '+t('trip_alt')+' ~'+x.alt+'m</div>'+
+    '<div>🚴 '+escapeHtml(x.ride)+'</div><div>🥾 '+escapeHtml(x.hike)+'</div>';
+}
+function tripPickWeekend(){
+  const d = new Date();
+  const day = d.getDay();               // 0=周日
+  const toSat = (6 - day + 7) % 7 || 7; // 下一个周六
+  d.setDate(d.getDate() + toSat);
+  document.getElementById('tripDate').value = tripFmtDate(d);
+  document.getElementById('tripTrainDate').value = tripFmtDate(d);
+  tripUpdateDateInfo();
+}
+function tripUpdateDateInfo(){
+  const v = document.getElementById('tripDate').value;
+  const info = document.getElementById('tripDateInfo');
+  if(!info) return;
+  if(!v){ info.textContent=''; return; }
+  const d = new Date(v+'T00:00:00');
+  const dow = currentLang==='en' ? ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()] : ['周日','周一','周二','周三','周四','周五','周六'][d.getDay()];
+  info.textContent = v + ' ' + dow;
+}
+async function tripLoadWeather(){
+  await ensureApiToken();
+  const box = document.getElementById('tripWeatherBox');
+  const lat = Number(document.getElementById('tripLat').value), lon = Number(document.getElementById('tripLon').value);
+  if(!Number.isFinite(lat) || !Number.isFinite(lon)){ toast(t('trip_badCoord'), false); return; }
+  box.innerHTML = '<div class="tt" style="padding:10px;color:var(--text-3)">'+escapeHtml(t('trip_loading'))+'</div>';
+  try{
+    const d = await apiGet('/api/trip/weather', 'lat='+lat+'&lon='+lon+'&days=7');
+    if(d.error){ box.innerHTML = '<div class="tt" style="color:var(--err)">'+escapeHtml(d.error)+'</div>'; return; }
+    tripRenderWeather(d);
+  }catch(e){ box.innerHTML = '<div class="tt" style="color:var(--err)">'+escapeHtml(t('trip_fail')+shortErr(e.message))+'</div>'; }
+}
+function tripRenderWeather(d){
+  const box = document.getElementById('tripWeatherBox');
+  const sel = document.getElementById('tripDate').value;
+  const rows = (d.days||[]).map(day=>{
+    const isSel = day.day === sel;
+    const icon = (d.wmo && d.wmo[day.worst]) || '';
+    const rain = day.rainMax;
+    const rainCls = rain >= 50 ? 'bad' : rain >= 30 ? '' : 'ok';
+    return '<tr'+(isSel?' style="background:var(--hover)"':'')+'>'+
+      '<td>'+day.day+(isSel?' ◀':'')+'</td>'+
+      '<td>'+escapeHtml(icon)+'</td>'+
+      '<td>'+Math.round(day.tMin)+'~'+Math.round(day.tMax)+d.unit.temp+'</td>'+
+      '<td class="'+rainCls+'">'+rain+'%</td></tr>';
+  }).join('');
+  box.innerHTML = '<table class="trip-table"><tr><th>'+t('trip_date')+'</th><th>'+t('trip_weather')+'</th><th>'+t('trip_temp')+'</th><th>'+t('trip_rain')+'</th></tr>'+rows+'</table>'+
+    '<div class="tt" style="margin-top:6px;font-size:11px;color:var(--text-3)">'+escapeHtml(t('trip_weatherNote'))+'</div>';
+}
+async function tripLoadTrains(){
+  await ensureApiToken();
+  const box = document.getElementById('tripTrainBox');
+  const from = document.getElementById('tripFrom').value.trim();
+  const to = document.getElementById('tripTo').value.trim();
+  const date = document.getElementById('tripTrainDate').value;
+  const type = document.getElementById('tripTrainType').value;
+  if(!from || !to || !date){ toast(t('trip_fillTrain'), false); return; }
+  box.innerHTML = '<div class="tt" style="padding:10px;color:var(--text-3)">'+escapeHtml(t('trip_loading'))+'</div>';
+  try{
+    const d = await apiGet('/api/trip/trains', 'from='+encodeURIComponent(from)+'&to='+encodeURIComponent(to)+'&date='+date+'&type='+type);
+    if(d.error){ box.innerHTML = '<div class="tt" style="color:var(--err)">'+escapeHtml(d.error)+'</div>'; return; }
+    tripRenderTrains(d);
+  }catch(e){ box.innerHTML = '<div class="tt" style="color:var(--err)">'+escapeHtml(t('trip_fail')+shortErr(e.message))+'</div>'; }
+}
+function tripRenderTrains(d){
+  const box = document.getElementById('tripTrainBox');
+  if(!d.trains || !d.trains.length){ box.innerHTML = '<div class="tt" style="padding:8px;color:var(--text-3)">'+escapeHtml(t('trip_noTrains'))+'</div>'; return; }
+  const seat = v => (!v || v==='--' || v==='') ? '<span class="no">—</span>' : (v==='无' ? '<span class="bad">无</span>' : (v==='有' ? '<span class="ok">有</span>' : v));
+  const rows = d.trains.map(tn=>{
+    const s = tn.seats;
+    return '<tr><td><b>'+escapeHtml(tn.trainCode)+'</b></td>'+
+      '<td>'+escapeHtml(tn.from)+' → '+escapeHtml(tn.to)+'</td>'+
+      '<td>'+escapeHtml(tn.depart)+'-'+escapeHtml(tn.arrive)+'</td>'+
+      '<td>'+escapeHtml(tn.duration)+'</td>'+
+      '<td>'+seat(s.swz!==''&&s.swz!=='--'?s.swz:s.tz)+'</td>'+
+      '<td>'+seat(s.zy)+'</td><td>'+seat(s.ze)+'</td>'+
+      '<td>'+seat(s.rw!==''&&s.rw!=='--'?s.rw:s.dw)+'</td>'+
+      '<td class="'+(tn.canBuy?'ok':'bad')+'">'+(tn.canBuy?t('trip_canBuy'):t('trip_soldOut'))+'</td></tr>';
+  }).join('');
+  box.innerHTML = '<div class="tt" style="margin:6px 0;font-size:12px">'+escapeHtml(d.from+' → '+d.to+' · '+d.date+' · '+d.count+t('trip_trainsUnit'))+'</div>'+
+    '<div style="overflow-x:auto"><table class="trip-table"><tr><th>'+t('trip_train')+'</th><th>'+t('trip_stations')+'</th><th>'+t('trip_time')+'</th><th>'+t('trip_dur')+'</th><th>'+t('trip_bizSeat')+'</th><th>'+t('trip_firstSeat')+'</th><th>'+t('trip_secondSeat')+'</th><th>'+t('trip_softSleep')+'</th><th>'+t('trip_status')+'</th></tr>'+rows+'</table></div>';
+}
+function tripSwapStations(){
+  const f = document.getElementById('tripFrom'), t2 = document.getElementById('tripTo');
+  const tmp = f.value; f.value = t2.value; t2.value = tmp;
+}
+
 // ===== Init =====
 initTheme();
 applyI18n();
+FitUI.init();
 renderCompareUI();
 refreshStatus();
 switchNav(currentNav);

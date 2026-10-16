@@ -1,0 +1,255 @@
+/* FIT 工具自验证（开发用，不参与打包）
+ * 用法：
+ *   npm install fit-file-parser --no-save   # 独立裁判，仅测试需要
+ *   node scripts/fit-selftest.mjs
+ * 覆盖：CRC16 / 解析 / 大端 / 压缩时间戳 / 删除功率·心率 / 拆分 / 合并 / GPX·TCX / 概览
+ */
+// FIT 工具自验证：以第三方解析器 fit-file-parser 为独立裁判
+import { readFitMessages, fitTimestampToUnixMilliseconds } from 'fit-file-parser';
+const _m = await import(new URL('../www/fit.js', import.meta.url));
+const FIT = _m.FIT || _m.default;
+
+let pass = 0, fail = 0;
+const ok = (c, msg, extra) => {
+  if (c) { pass++; console.log('  PASS ' + msg); }
+  else { fail++; console.log('  FAIL ' + msg + (extra !== undefined ? '  → ' + JSON.stringify(extra) : '')); }
+};
+
+// ---- 合成一个结构完整的 FIT：file_id + lap + session + record×N ----
+function buildFit(opts = {}) {
+  const hdrSize = 12, body = [];
+  const defs = new Map();
+  const pushDef = (local, global, fields, dev = []) => {
+    let h = local & 0x0F; h |= 0x40; if (dev.length) h |= 0x20;
+    body.push(h, 0, 0);
+    body.push(global & 0xFF, (global >> 8) & 0xFF);
+    body.push(fields.length);
+    for (const f of fields) body.push(f.num, f.size, f.base);
+    if (dev.length) { body.push(dev.length); for (const f of dev) body.push(f.num, f.size, f.base); }
+    defs.set(local, { global, fields, dev });
+  };
+  const w = (v, n) => { for (let i = 0; i < n; i++) body.push(Math.floor(v / Math.pow(2, i * 8)) & 0xFF); };
+  const wr = (s, n) => { const b = Buffer.from(s, 'latin1'); for (let i = 0; i < Math.min(b.length, n - 1); i++) body.push(b[i]); body.push(0); };
+  const S32 = v => { const b = Buffer.alloc(4); b.writeInt32LE(v, 0); body.push(...b); };
+
+  const HR = opts.withHr !== false, PW = opts.withPw !== false;
+  const recFields = [
+    { num: 253, size: 4, base: 4 },
+    { num: 0, size: 4, base: 5 }, { num: 1, size: 4, base: 5 },
+    { num: 2, size: 2, base: 4 }, { num: 5, size: 4, base: 4 }, { num: 6, size: 2, base: 4 },
+  ];
+  if (HR) recFields.push({ num: 3, size: 1, base: 2 });
+  recFields.push({ num: 4, size: 1, base: 2 });
+  if (PW) recFields.push({ num: 7, size: 2, base: 4 });
+
+  pushDef(0, 0, [   // file_id
+    { num: 0, size: 1, base: 0 }, { num: 1, size: 2, base: 4 },
+    { num: 2, size: 2, base: 4 }, { num: 3, size: 4, base: 12 },
+    { num: 4, size: 4, base: 4 }, { num: 5, size: 2, base: 2 },
+  ]);
+  body.push(0x00);
+  body.push(4); w(1, 2); w(2697, 2); w(12345678, 4); w(opts.time || 1000000000, 4); w(2140, 2);
+
+  pushDef(1, 20, recFields);                    // record
+  pushDef(2, 19, [                                // lap
+    { num: 253, size: 4, base: 4 }, { num: 2, size: 4, base: 4 },
+    { num: 7, size: 4, base: 4 }, { num: 8, size: 4, base: 4 },
+    { num: 9, size: 4, base: 4 }, { num: 15, size: 2, base: 4 }, { num: 24, size: 1, base: 0 },
+  ]);
+  pushDef(3, 18, [                                // session
+    { num: 253, size: 4, base: 4 }, { num: 2, size: 4, base: 4 },
+    { num: 5, size: 1, base: 0 }, { num: 7, size: 4, base: 4 },
+    { num: 8, size: 4, base: 4 }, { num: 9, size: 4, base: 4 },
+    { num: 14, size: 2, base: 4 }, { num: 16, size: 2, base: 4 },
+    { num: 17, size: 2, base: 4 }, { num: 26, size: 2, base: 4 },
+  ]);
+
+  const N = opts.points ?? 5;
+  const base = opts.time || 1000000000;
+  const step = opts.step ?? 1;
+  const gapAt = opts.gapAt;
+  const gapLen = opts.gapLen ?? 1000;
+  let t = base;
+  for (let i = 0; i < N; i++) {
+    if (gapAt != null && i === gapAt) t += gapLen;
+    body.push(0x01);
+    w(t, 4); S32(400000000 + i * 1000); S32(1170000000 + i * 1000);
+    w(250 + i, 2); w(i * 1000, 4); w(50000, 2);
+    if (HR) body.push(120 + i);
+    body.push(85);
+    if (PW) w(200 + i * 10, 2);
+    t += step;
+  }
+  const lastT = t - step;
+  body.push(0x02); w(lastT, 4); w(base, 4); w(lastT - base, 4); w((lastT - base) * 1000, 4); w(N * 1000, 4); w(85, 2); body.push(9);
+  body.push(0x03); w(lastT, 4); w(base, 4); body.push(2); w(lastT - base, 4); w((lastT - base) * 1000, 4); w(N * 1000, 4);
+  w(190, 2); w(95, 2); w(0, 2); w(150, 2);
+
+  const total = hdrSize + body.length + 2, out = new Uint8Array(total);
+  out[0] = hdrSize; out[1] = 0x20;
+  const dv = new DataView(out.buffer);
+  dv.setUint16(2, 2140, true); dv.setUint32(4, body.length, true);
+  out[8] = 0x2E; out[9] = 0x46; out[10] = 0x49; out[11] = 0x54;
+  for (let i = 0; i < body.length; i++) out[hdrSize + i] = body[i];
+  dv.setUint16(hdrSize + body.length, FIT.crc16(out, 0, hdrSize + body.length), true);
+  return out;
+}
+
+const readByOracle = (u8) => readFitMessages(new Uint8Array(u8), { mode: 'list' });
+const fieldsOf = (r3, gmn) => r3.messages.filter(m => m.globalMessageNumber === gmn);
+const val = (m, num) => { const f = m.fields.find(x => x.fieldNumber === num); return f ? decode(f.bytes, f.baseType, f.size) : undefined; };
+function decode(bytes, baseType, size) {
+  if (baseType === 7) return null;
+  let v = 0; for (let i = 0; i < size; i++) v += bytes[i] * Math.pow(2, i * 8);
+  if (size < 8) { const sp = Math.pow(2, size * 8); v = v % sp; if ([1, 3, 5, 14].includes(baseType) && v >= sp / 2) v -= sp; }
+  return v;
+}
+
+console.log('\n[1] 基础解析 + CRC');
+const f1 = buildFit();
+const r1 = readByOracle(f1);
+const m1 = FIT.parse(f1);
+ok(m1.crcOk, '自校验 CRC 通过');
+ok(r1.issues.filter(i => i.code === 'invalid_crc').length === 0, '独立解析器无 invalid_crc');
+ok(fieldsOf(r1, 20).length === 5, '独立解析器读到 5 条 record', fieldsOf(r1, 20).length);
+ok(m1.messages.filter(x => x.type === 'data' && x.global === 20).length === 5, '我的解析器读到 5 条 record');
+const rec0 = fieldsOf(r1, 20)[0];
+ok(val(rec0, 253) === 1000000000, 'record.timestamp 正确', val(rec0, 253));
+ok(val(rec0, 0) === 400000000, 'record.position_lat 正确', val(rec0, 0));
+ok(val(rec0, 2) === 250, 'record.altitude 正确', val(rec0, 2));
+ok(val(rec0, 3) === 120, 'record.heart_rate 正确', val(rec0, 3));
+ok(val(rec0, 7) === 200, 'record.power 正确', val(rec0, 7));
+
+console.log('\n[2] CRC 抗错');
+const t = Uint8Array.from(f1); t[40] ^= 0xFF;
+ok(FIT.parse(t).crcOk === false, '篡改 1 字节 → CRC 失败');
+let threw = false; try { readByOracle(t); } catch (e) { threw = e.code === 'invalid_crc'; }
+ok(threw, '独立解析器也判定 invalid_crc');
+
+console.log('\n[3] 时间基准');
+for (const ts of [0, 1000000000, 4000000000]) {
+  ok(fitTimestampToUnixMilliseconds(ts) === FIT.fitToUnix(ts) * 1000, `时间戳换算 ts=${ts}`);
+}
+
+// ================= 工具测试 =================
+console.log('\n[4] 工具：删除功率/心率');
+const fStrip = buildFit({ points: 6 });
+const stripped = FIT.stripFields(fStrip, { power: true, heartRate: true });
+const rStrip = readByOracle(stripped.bytes);
+const stripRecs = fieldsOf(rStrip, 20);
+ok(FIT.parse(stripped.bytes).crcOk, '输出 CRC 正确');
+ok(stripRecs.length === 6, '采样点数量不变 (6)', stripRecs.length);
+ok(stripRecs.every(r => r.fields.find(f => f.fieldNumber === 7) === undefined), 'power 字段已从定义消息移除');
+ok(stripRecs.every(r => r.fields.find(f => f.fieldNumber === 3) === undefined), 'heart_rate 字段已从定义消息移除');
+ok(stripRecs.every(r => val(r, 253) != null), '每条采样都仍有 timestamp');
+const ts0 = val(stripRecs[0], 253), ts5 = val(stripRecs[5], 253);
+ok(ts0 === 1000000000 && ts5 === 1000000005, '时间戳未被破坏', [ts0, ts5]);
+ok(val(stripRecs[0], 4) === 85, 'cadence 保留');
+ok(val(stripRecs[0], 0) === 400000000, '经纬度保留');
+
+console.log('\n[5] 工具：拆分（按时间断点）');
+const fSplit = buildFit({ points: 10, gapAt: 5, gapLen: 1000 });   // 第 6 个点前有 1000 秒断点
+const parts = FIT.split(fSplit, { mode: 'gap', gapSeconds: 600 });
+ok(parts.length >= 2, `按 600s 断点拆分 → ${parts.length} 份`, parts.length);
+ok(parts.every(b => FIT.parse(b).crcOk), '每个分片 CRC 正确');
+ok(parts.every(b => readByOracle(b).issues.filter(i => i.code === 'invalid_crc').length === 0), '独立解析器接受每个分片');
+const partRecs = parts.map(b => fieldsOf(readByOracle(b), 20).length);
+ok(partRecs.reduce((a,b)=>a+b,0) === 10, '分片采样点总数 = 原文件 (10)', partRecs);
+
+console.log('\n[6] 工具：合并');
+const cA = buildFit({ points: 5, time: 1000000000 });
+const cB = buildFit({ points: 5, time: 1000000100 });
+const combined = FIT.combine([cA, cB]);
+const rC = readByOracle(combined.bytes);
+ok(FIT.parse(combined.bytes).crcOk, '合并后 CRC 正确');
+ok(fieldsOf(rC, 20).length === 10, '合并后采样点 = 5+5 = 10', fieldsOf(rC, 20).length);
+const cTs = fieldsOf(rC, 20).map(r => val(r, 253));
+ok(cTs.every((v, i) => i === 0 || v > cTs[i-1]), '时间戳严格递增（无重叠）', cTs);
+ok(cTs[5] >= cTs[4] + 1, '第二段起点在第一段结束后', [cTs[4], cTs[5]]);
+
+console.log('\n[7] 工具：转换 GPX/TCX');
+const gpx = FIT.toGpx(fSplit, '测试骑行');
+ok(gpx.includes('<gpx'), 'GPX 根元素正确');
+ok((gpx.match(/<trkpt /g) || []).length === 10, 'GPX 含 10 个轨迹点', (gpx.match(/<trkpt /g) || []).length);
+ok(gpx.includes('<gpxtpx:hr>120</gpxtpx:hr>'), 'GPX 含心率扩展');
+ok(gpx.includes('<power>200</power>'), 'GPX 含功率');
+const tcx = FIT.toTcx(fSplit, '测试骑行');
+ok(tcx.includes('<TrainingCenterDatabase'), 'TCX 根元素正确');
+ok((tcx.match(/<Trackpoint>/g) || []).length === 10, 'TCX 含 10 个轨迹点');
+
+console.log('\n[8] 文件概览');
+const sum = FIT.summarize(fSplit);
+ok(sum.points === 10, '概览采样点数', sum.points);
+ok(sum.has.power && sum.has.hr && sum.has.cadence, '概览识别到功率/心率/踏频');
+ok(sum.duration === 1009, '概览时长(秒，含1000秒断点)', sum.duration);
+ok(sum.maxGap === 1001, '概览最大时间断点(秒)', sum.maxGap);
+
+// ================= 压缩时间戳 + 大端 =================
+// 这两条路径是本轮修复的真 bug（旧实现运算符优先级错、完全忽略大端标志），
+// 必须有回归覆盖。
+console.log('\n[9] 压缩时间戳头');
+function buildCompressed(){
+  const hdr=12, body=[];
+  const s32=v=>{const b=Buffer.alloc(4);b.writeInt32LE(v,0);body.push(...b);};
+  const w=(v,n)=>{for(let i=0;i<n;i++)body.push(Math.floor(v/Math.pow(256,i))&0xFF);};
+  // 定义 A（普通）：local0 global20 [timestamp(253), lat(0), lon(1), hr(3)]
+  body.push(0x00|0x40,0,0); body.push(20,0); body.push(4);
+  body.push(253,4,4); body.push(0,4,5); body.push(1,4,5); body.push(3,1,2);
+  // 定义 B（压缩）：local1 global20 [lat, lon, hr] —— 不含 253
+  body.push(0x01|0x40,0,0); body.push(20,0); body.push(3);
+  body.push(0,4,5); body.push(1,4,5); body.push(3,1,2);
+  const base=1000000000;
+  body.push(0x00); w(base,4); s32(400000000); s32(1170000000); body.push(120);   // 播种累积器
+  for(let i=1;i<=5;i++){
+    const ch=0x80|((1&0x3)<<5)|((i*2)&0x1F);
+    body.push(ch); s32(400000000+i*1000); s32(1170000000+i*1000); body.push(120+i);
+  }
+  const total=hdr+body.length+2, out=new Uint8Array(total);
+  out[0]=hdr;out[1]=0x20;const dv=new DataView(out.buffer);
+  dv.setUint16(2,2140,true);dv.setUint32(4,body.length,true);
+  out[8]=0x2E;out[9]=0x46;out[10]=0x49;out[11]=0x54;
+  for(let i=0;i<body.length;i++)out[hdr+i]=body[i];
+  dv.setUint16(hdr+body.length, FIT.crc16(out,0,hdr+body.length), true);
+  return out;
+}
+const cf=buildCompressed();
+const cp=FIT.parse(cf);
+ok(cp.crcOk,'压缩文件 CRC 正确');
+const crecs=cp.messages.filter(m=>m.type==='data'&&m.global===20);
+ok(crecs.length===6,'读到 6 条 record（1 普通 + 5 压缩）', crecs.length);
+const cts=crecs.map(r=>r.data[253]);
+ok(cts[0]===1000000000 && cts[5]===1000000010,'压缩偏移经累积器还原为完整时间戳', cts);
+ok(crecs[1].data[3]===121,'压缩消息其余字段正确', crecs[1].data[3]);
+ok(crecs[1].fields.some(f=>f.num===253),'压缩消息字段表补入 timestamp(253)');
+FIT.tagDefs(cp);
+const reCmp=FIT.serialize(cp.messages.filter(m=>m.type==='data'));
+const rp=FIT.parse(reCmp);
+ok(rp.crcOk,'压缩→普通 重序列化 CRC 正确');
+const rrecs=rp.messages.filter(m=>m.type==='data'&&m.global===20);
+ok(rrecs.length===6 && rrecs[0].data[253]===1000000000 && rrecs[5].data[253]===1000000010,'重序列化后时间戳保持', rrecs.map(r=>r.data[253]));
+const rOracle = readByOracle(reCmp);
+ok(rOracle.issues.filter(i=>i.code==='invalid_crc').length===0,'独立解析器接受重序列化结果');
+ok(fieldsOf(rOracle,20).length===6,'独立解析器同样读到 6 条 record', fieldsOf(rOracle,20).length);
+
+console.log('\n[10] 大端定义消息');
+function buildBigEndian(){
+  const hdr=12, body=[];
+  const wBE=(v,n)=>{for(let i=0;i<n;i++)body.push(Math.floor(v/Math.pow(256,n-1-i))&0xFF);};
+  body.push(0x00|0x40,0,1); body.push(0,20); body.push(2); body.push(253,4,4); body.push(3,1,2);
+  body.push(0x00); wBE(1000000000,4); body.push(150);
+  const total=hdr+body.length+2,out=new Uint8Array(total);
+  out[0]=hdr;out[1]=0x20;const dv=new DataView(out.buffer);
+  dv.setUint16(2,2140,true);dv.setUint32(4,body.length,true);
+  out[8]=0x2E;out[9]=0x46;out[10]=0x49;out[11]=0x54;
+  for(let i=0;i<body.length;i++)out[hdr+i]=body[i];
+  dv.setUint16(hdr+body.length,FIT.crc16(out,0,hdr+body.length),true);
+  return out;
+}
+const bp=FIT.parse(buildBigEndian());
+const brec=bp.messages.find(m=>m.type==='data'&&m.global===20);
+ok(brec && brec.data[253]===1000000000,'大端 timestamp 正确解析', brec&&brec.data[253]);
+ok(brec && brec.data[3]===150,'大端 hr 正确', brec&&brec.data[3]);
+
+
+console.log('\n=== ' + pass + ' 通过 / ' + fail + ' 失败 ===');
+process.exit(fail ? 1 : 0);

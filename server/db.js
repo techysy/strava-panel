@@ -320,7 +320,12 @@ export class StravaDB {
   getActivities(typeFilter = null, limit = 200, startDate = null, endDate = null) {
     let q = 'SELECT * FROM activities WHERE 1=1';
     const params = [];
-    if (typeFilter) { q += ' AND type=?'; params.push(typeFilter); }
+    if (Array.isArray(typeFilter)) {
+      if (typeFilter.length) {
+        q += ` AND type IN (${typeFilter.map(() => '?').join(',')})`;
+        params.push(...typeFilter);
+      }
+    } else if (typeFilter) { q += ' AND type=?'; params.push(typeFilter); }
     if (startDate) { q += ' AND start_date >= ?'; params.push(startDate); }
     if (endDate) { q += ' AND start_date <= ?'; params.push(endDate + 'T23:59:59'); }
     q += ' ORDER BY start_date DESC LIMIT ?';
@@ -328,16 +333,16 @@ export class StravaDB {
     return this.db.prepare(q).all(...params).map(wrapRow);
   }
 
-  getRides(startDate = null, endDate = null, limit = 100000) {
-    return this.getActivities('Ride', limit, startDate, endDate);
+  getRides(startDate = null, endDate = null, limit = 100000, types = ['Ride']) {
+    return this.getActivities(types, limit, startDate, endDate);
   }
 
   count() {
     return this.db.prepare('SELECT COUNT(*) n, COUNT(DISTINCT id) d FROM activities').get().n;
   }
 
-  stats(startDate = null, endDate = null) {
-    /** 统计骑行数据, 支持日期范围过滤 */
+  stats(startDate = null, endDate = null, types = ['Ride']) {
+    /** 统计训练数据, 支持日期范围过滤与运动类型列表(如 ['Ride','Run']) */
     let q = `SELECT COUNT(*) total_rides,
                     SUM(distance) total_distance,
                     SUM(moving_time) total_moving_time,
@@ -351,8 +356,13 @@ export class StravaDB {
                     SUM(CASE WHEN average_heartrate IS NOT NULL THEN 1 ELSE 0 END) hr_count,
                     SUM(CASE WHEN average_watts IS NOT NULL THEN 1 ELSE 0 END) pw_count,
                     SUM(CASE WHEN average_cadence IS NOT NULL OR max_cadence IS NOT NULL THEN 1 ELSE 0 END) cad_count
-             FROM activities WHERE type='Ride'`;
+             FROM activities WHERE 1=1`;
     const params = [];
+    const typeList = Array.isArray(types) ? types : [types];
+    if (typeList.length) {
+      q += ` AND type IN (${typeList.map(() => '?').join(',')})`;
+      params.push(...typeList);
+    }
     if (startDate) { q += ' AND start_date >= ?'; params.push(startDate); }
     if (endDate) { q += ' AND start_date <= ?'; params.push(endDate + 'T23:59:59'); }
     const r = this.db.prepare(q).get(...params);
@@ -422,9 +432,9 @@ export class StravaDB {
       .map(([k, v]) => ({ day: k, ...bucketOut(v) }));
   }
 
-  weekly(startDate = null, endDate = null) {
+  weekly(startDate = null, endDate = null, types = ['Ride']) {
     /** 按 ISO 周聚合; 范围内每周都返回 (无骑行则为 0)。 */
-    const rows = this.getRides(startDate, endDate, 100000);
+    const rows = this.getRides(startDate, endDate, 100000, types);
     const weeks = new Map();
     for (const a of rows) {
       const d = String(a.start_date || '').slice(0, 10);
@@ -622,6 +632,30 @@ export class StravaDB {
     const r = this.db.prepare('INSERT INTO coach_plans(session_id,date,content,status,created_at,updated_at) VALUES(?,?,?,?,?,?)')
       .run(Number(sessionId) || 0, String(date), String(content), String(status), now, now);
     return Number(r.lastInsertRowid);
+  }
+
+  addPlansBatch(sessionId, items) {
+    /** 批量添加训练计划 */
+    if (!Array.isArray(items) || !items.length) return 0;
+    const now = localIsoNow();
+    const ins = this.db.prepare('INSERT INTO coach_plans(session_id,date,content,status,created_at,updated_at) VALUES(?,?,?,?,?,?)');
+    const sid = Number(sessionId) || 0;
+    let count = 0;
+    // node:sqlite 的 DatabaseSync 没有 better-sqlite3 的 transaction() 助手，
+    // 这里手工开显式事务，保证整批要么全写入、要么全回滚。
+    this.db.exec('BEGIN');
+    try {
+      for (const r of items) {
+        if (!r || !r.date || !r.content) continue;
+        ins.run(sid, String(r.date), String(r.content), String(r.status || 'planned'), now, now);
+        count++;
+      }
+      this.db.exec('COMMIT');
+    } catch (err) {
+      try { this.db.exec('ROLLBACK'); } catch { /* 回滚失败时保留原始错误 */ }
+      throw err;
+    }
+    return count;
   }
 
   updatePlan(id, content, status) {

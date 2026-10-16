@@ -21,6 +21,8 @@ scripts/.build_num
 desktop/build/
 desktop/dist/
 desktop/node_modules/
+/node_modules/
+/package-lock.json
 desktop/resources/python-x64/
 desktop/resources/python-arm64/
 cli/app/
