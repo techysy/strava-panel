@@ -41,6 +41,10 @@
 - **表格单元里字面 `<br>` 显示**：LLM 在表格单元格用 `<br>` 换行，mdLite 先整体转义导致显示成文本。转义后定向还原（跳过代码块，`<script>` 注入仍被转义，已验证）。
 - **设置 → 偏好（新子页）**：运动员运动方式勾选（骑行/跑步/步行/徒步/游泳/室内骑行/力量训练/综合训练），与训练建议页「运动方式」弹窗共用同一 `coach_sports` 状态，双向同步。
 
+### 修复（偏好页布局 + 运动时间偏好）
+- **偏好勾选布局错乱**：全局 `input{width:100%;padding:10px}` 把复选框撑满整行、文字竖排。已将 checkbox/radio 从全局输入框样式隔离（`width:auto;accent-color`），并重排为 chip 网格（两列、选中态描边高亮），运动方式/运动时间分组展示。
+- **新增「运动时间」偏好**：设置 → 偏好勾选常练时间段（清晨/上午/午间/下午/傍晚/夜间），存 `coach_times`；教练提示词注入「训练时间段偏好」硬规则 —— 具体课表优先落在所选窗口内（如上午+傍晚 → 08:00-21:00），未勾选时不注入。真实 COACH_SYSTEM 渲染验证 5/5 通过。
+
 ### 致命修复（功能此前完全不可用）
 - **「写入训练日历」批量接口 100% 崩溃**：`db.addPlansBatch` 用了 `this.db.transaction()`，但项目是 `node:sqlite` 的 `DatabaseSync`，**无此方法**（那是 better-sqlite3 的 API）。任何批量写入都返回 `this.db.transaction is not a function`。改用显式 `BEGIN`/`COMMIT`/`ROLLBACK`，并验证中途抛错时已写入行一并回滚、事务状态干净可继续写。
 - **训练建议页加载即抛错**：`loadCoach()` 调用了从未定义的 `setCoachView()`，异常被 `catch(e){}` 静默吞掉，导致后续 `loadCal()` 根本不执行（日历数据不加载）。已删除该调用与残留的 `coachCurView`，并把静默 catch 改为 `console.error`。

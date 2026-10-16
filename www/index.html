@@ -148,9 +148,15 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .trip-dest-meta{font-size:11.5px;color:var(--text-3);margin-top:6px;line-height:1.7}
 .trip-gear{font-size:12px;line-height:1.9;color:var(--text-2)}
 .trip-gear summary{cursor:pointer;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
-.sport-checks{display:flex;flex-direction:column;gap:2px;min-width:150px}
-.sport-checks label{display:flex;align-items:center;gap:6px;font-size:12.5px;padding:4px 6px;border-radius:7px;cursor:pointer}
-.sport-checks label:hover{background:var(--hover)}
+/* 偏好勾选组：chip 网格（设置页两列，弹窗内单列自适应） */
+.sport-checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:8px}
+.sport-checks label,.pref-chip{display:flex;align-items:center;gap:7px;padding:9px 12px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface);font-size:13px;cursor:pointer;transition:all .15s;user-select:none}
+.sport-checks label:hover,.pref-chip:hover{border-color:var(--border-strong);background:var(--hover)}
+.sport-checks label.on,.pref-chip.on{border-color:var(--accent);background:rgba(var(--accent-rgb),.07);font-weight:600}
+.sport-checks label .sub,.pref-chip .sub{font-size:11px;color:var(--text-3);font-weight:400;margin-left:auto}
+.pref-section{margin-top:18px}
+.pref-section h3{margin:0 0 8px;font-size:13.5px;display:flex;align-items:center;gap:6px}
+.pref-section .cap{font-size:12px;color:var(--text-3);margin:0 0 10px}
 #tab-dash .log-view{flex:1;max-height:none}
 
 /* buttons */
@@ -268,6 +274,8 @@ select{width:auto;padding:8px 12px;border:1px solid var(--border);border-radius:
 /* forms */
 label{display:block;font-size:13px;font-weight:600;color:var(--text-2);margin:14px 0 6px}
 input,textarea{width:100%;padding:10px 13px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text);font-size:14px;outline:none;transition:border-color .15s,box-shadow .15s,background .15s}
+/* 复选框不参与全局输入框样式（否则 width:100% 把布局撑坏） */
+input[type=checkbox],input[type=radio]{width:auto;flex:none;padding:0;margin:0;accent-color:var(--accent);cursor:pointer}
 input:focus,textarea:focus{border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.14)}
 input::placeholder{color:var(--text-3);opacity:.8}
 .pw-wrap{position:relative}
@@ -814,9 +822,17 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
       <div class="subpanel" id="sub-prefs">
         <div class="panel">
           <h2><svg class="ic" aria-hidden="true"><use href="#i-bike"/></svg><span data-i18n="prefs_title">运动员偏好</span></h2>
-          <p class="hint" style="margin-bottom:8px" data-i18n="prefs_hint">勾选你实际进行的运动方式。AI 教练只会推荐所选运动内的训练，训练数据摘要也按此过滤；训练建议页顶部的「运动方式」与此同步。</p>
-          <div class="sport-checks" id="prefsSportChecks" style="max-width:280px"></div>
-          <div class="row" style="margin-top:12px;display:flex;gap:8px;align-items:center">
+          <div class="pref-section">
+            <h3><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span data-i18n="prefs_sportTitle">运动方式</span></h3>
+            <p class="cap" data-i18n="prefs_hint">勾选你实际进行的运动方式。AI 教练只会推荐所选运动内的训练，训练数据摘要也按此过滤；训练建议页顶部的「运动方式」与此同步。</p>
+            <div class="sport-checks" id="prefsSportChecks"></div>
+          </div>
+          <div class="pref-section">
+            <h3><svg class="ic" aria-hidden="true"><use href="#i-clock"/></svg><span data-i18n="prefs_timeTitle">运动时间</span></h3>
+            <p class="cap" data-i18n="prefs_timeHint">你通常在什么时间段训练？教练排课会优先安排在这些窗口内。</p>
+            <div class="sport-checks" id="prefsTimeChecks"></div>
+          </div>
+          <div class="row" style="margin-top:20px;display:flex;gap:8px;align-items:center">
             <button class="btn" onclick="savePrefs()" data-i18n="prefs_save">保存偏好</button>
             <span class="hint" id="prefsMsg"></span>
           </div>
@@ -1095,7 +1111,7 @@ const I18N = {
     coach_plan_week_q:'现在是 {today}。请制定本周训练计划,只安排从现在起到本周日({end})的课表,不要包含已过去的日期;若今天已是晚间则课表从明天开始;给出每天的具体内容、时长、强度(心率/功率区间)与恢复安排。',
     coach_plan_month_q:'现在是 {today}。请制定本月剩余训练计划(今天到 {end}),按周划分重点,只安排今天及之后的日期,若今天已是晚间则从明天开始;给出每周里程/爬升目标与关键课。',
     coach_plan_race_q:'现在是 {today},我将参加「{name}」,比赛日期 {race}(距今 {days} 天)。请从今天起制定赛前周期计划:按基础/强化/减量/赛前激活分阶段(标注每阶段起止日期,不得早于今天,若今天已是晚间则从明天开始),含最后一次大强度课与休息日建议。',
-    sub_prefs:'偏好', prefs_title:'运动员偏好', prefs_hint:'勾选你实际进行的运动方式。AI 教练只会推荐所选运动内的训练，训练数据摘要也按此过滤；训练建议页顶部的「运动方式」与此同步。', prefs_save:'保存偏好',
+    sub_prefs:'偏好', prefs_title:'运动员偏好', prefs_sportTitle:'运动方式', prefs_timeTitle:'运动时间', prefs_timeHint:'你通常在什么时间段训练？教练排课会优先安排在这些窗口内。', prefs_hint:'勾选你实际进行的运动方式。AI 教练只会推荐所选运动内的训练，训练数据摘要也按此过滤；训练建议页顶部的「运动方式」与此同步。', prefs_save:'保存偏好',
     sub_sess:'会话', sess_mgmt:'会话管理', sess_mgmtHint:'为每个会话重命名、选择辅助模型(留空用默认配置)。训练建议页的「会话」下拉同步此处。',
     sess_rename_ph:'重命名…', sess_renamed:'已重命名', sess_modelSet:'辅助模型已设置',
     pw_unit_w:'瓦特 (W)', pw_unit_wkg:'瓦特 / 公斤 (W/kg)',
@@ -1205,7 +1221,7 @@ const I18N = {
     coach_plan_week_q:'It is now {today}. Build a training plan for THIS week covering only now through Sunday ({end}) — never past dates; if it is already evening, start from tomorrow. Give each day’s workout, duration, intensity (HR/power zones) and recovery.',
     coach_plan_month_q:'It is now {today}. Build a training plan for the rest of this month (today → {end}), split by weekly focus, only today and later; if it is already evening, start from tomorrow. Give weekly distance/elevation targets and key sessions.',
     coach_plan_race_q:'It is now {today}; I will race “{name}” on {race} ({days} days from now). Build a race-prep plan starting today (if it is already evening, start tomorrow): base / build / taper / activation phases with concrete date ranges (never before today), including the last hard session and rest days.',
-    sub_prefs:'Prefs', prefs_title:'Athlete Preferences', prefs_hint:'Pick the sports you actually do. The AI coach only recommends workouts within the selected sports, and the training digest is filtered the same way; the Sports selector on the Coach tab stays in sync with this page.', prefs_save:'Save preferences',
+    sub_prefs:'Prefs', prefs_title:'Athlete Preferences', prefs_sportTitle:'Sports', prefs_timeTitle:'Training Times', prefs_timeHint:'When do you usually train? The coach schedules sessions inside these windows first.', prefs_hint:'Pick the sports you actually do. The AI coach only recommends workouts within the selected sports, and the training digest is filtered the same way; the Sports selector on the Coach tab stays in sync with this page.', prefs_save:'Save preferences',
     sub_sess:'Sessions', sess_mgmt:'Session Management', sess_mgmtHint:'Rename each session and pick an auxiliary model (empty = use the default). The Coach tab Sessions dropdown syncs here.',
     sess_rename_ph:'Rename…', sess_renamed:'Renamed', sess_modelSet:'Aux model set',
     pw_unit_w:'Watts (W)', pw_unit_wkg:'Watts / kg (W/kg)',
@@ -3515,17 +3531,27 @@ const SPORT_OPTIONS = [
   { id: 'Workout', zh: '综合训练', en: 'Workout' },
 ];
 let coachSportsSel = ['Ride'];
+let coachTimeSel = [];   // 偏好的训练时间段（空 = 不限）
+const TIME_OPTIONS = [
+  { id: 'early',  zh: '清晨 5~8 点',  en: 'Early 5-8am',  hours: [5, 8] },
+  { id: 'morning', zh: '上午 8~12 点', en: 'Morning 8-12', hours: [8, 12] },
+  { id: 'noon',   zh: '午间 12~14 点', en: 'Noon 12-2pm', hours: [12, 14] },
+  { id: 'afternoon', zh: '下午 14~18 点', en: 'Afternoon 2-6pm', hours: [14, 18] },
+  { id: 'evening', zh: '傍晚 18~21 点', en: 'Evening 6-9pm', hours: [18, 21] },
+  { id: 'night',  zh: '夜间 21~23 点', en: 'Night 9-11pm', hours: [21, 23] },
+];
 function sportLabel(s){ return currentLang === 'en' ? (SPORT_OPTIONS.find(x=>x.id===s)?.en || s) : (SPORT_OPTIONS.find(x=>x.id===s)?.zh || s); }
 function updateSportLabel(){
   const el = document.getElementById('curSportLabel');
   if(!el) return;
   el.textContent = coachSportsSel.length ? coachSportsSel.map(sportLabel).join('+') : t('coach_sports');
 }
+function timeLabel(id){ const o = TIME_OPTIONS.find(x=>x.id===id); return o ? (currentLang==='en'?o.en:o.zh) : id; }
 function renderSportPop(){
   const pop = document.getElementById('sportPop');
   if(!pop) return;
   pop.innerHTML = '<div class="sport-checks">' + SPORT_OPTIONS.map(o =>
-    '<label><input type="checkbox" value="'+o.id+'"'+(coachSportsSel.includes(o.id)?' checked':'')+' onchange="onSportToggle(this)"><span>'+escapeHtml(currentLang==='en'?o.en:o.zh)+'</span></label>'
+    '<label'+(coachSportsSel.includes(o.id)?' class="on"':'')+'><input type="checkbox" value="'+o.id+'"'+(coachSportsSel.includes(o.id)?' checked':'')+' onchange="onSportToggle(this)"><span>'+escapeHtml(currentLang==='en'?o.en:o.zh)+'</span></label>'
   ).join('') + '</div>' +
   '<button class="pop-item" onclick="saveSports()" style="justify-content:center;color:var(--viz);font-weight:600"><span>'+escapeHtml(t('coach_sportsSave'))+'</span></button>';
 }
@@ -3539,7 +3565,7 @@ function onSportToggle(cb){
 async function saveSports(){
   await ensureApiToken();
   try{
-    const d = await apiPost('/api/config', { coach_sports: coachSportsSel.join(',') });
+    const d = await apiPost('/api/config', { coach_sports: coachSportsSel.join(','), coach_times: coachTimeSel.join(',') });
     if(d.ok){ toast(t('coach_sportsSaved'), true); document.querySelectorAll('.pop-anchor .pop-list').forEach(p=>p.classList.remove('show')); }
     else toast(t('coach_sportsSaveFail') + ' ' + shortErr(d.error), false);
   }catch(e){ toast(t('coach_sportsSaveFail') + ' ' + shortErr(e.message), false); }
@@ -3549,17 +3575,31 @@ async function loadCoachSports(){
     const d = await apiGet('/api/config');
     if(d.coach_sports) coachSportsSel = String(d.coach_sports).split(',').map(s=>s.trim()).filter(Boolean);
     if(!coachSportsSel.length) coachSportsSel = ['Ride'];
+    coachTimeSel = Array.isArray(d.coach_times) ? d.coach_times : String(d.coach_times||'').split(',').map(s=>s.trim()).filter(Boolean);
+    coachTimeSel = coachTimeSel.filter(id => TIME_OPTIONS.some(o=>o.id===id));
     updateSportLabel();
     renderPrefsChecks();   // 设置页与教练页弹窗共用同一状态
   }catch(e){ console.error('loadCoachSports failed', e); }
 }
 // ---- 设置 → 偏好（与教练页「运动方式」弹窗同一 coachSportsSel 状态）----
 function renderPrefsChecks(){
-  const box = document.getElementById('prefsSportChecks');
-  if(!box) return;
-  box.innerHTML = SPORT_OPTIONS.map(o =>
-    '<label><input type="checkbox" value="'+o.id+'"'+(coachSportsSel.includes(o.id)?' checked':'')+' onchange="onPrefsToggle(this)"><span>'+escapeHtml(currentLang==='en'?o.en:o.zh)+'</span></label>'
+  const sbox = document.getElementById('prefsSportChecks');
+  if(!sbox) return;
+  sbox.innerHTML = SPORT_OPTIONS.map(o =>
+    '<label'+(coachSportsSel.includes(o.id)?' class="on"':'')+'><input type="checkbox" value="'+o.id+'"'+(coachSportsSel.includes(o.id)?' checked':'')+' onchange="onPrefsToggle(this)"><span>'+escapeHtml(currentLang==='en'?o.en:o.zh)+'</span></label>'
   ).join('');
+  const tbox = document.getElementById('prefsTimeChecks');
+  if(tbox){
+    tbox.innerHTML = TIME_OPTIONS.map(o =>
+      '<label'+(coachTimeSel.includes(o.id)?' class="on"':'')+'><input type="checkbox" value="'+o.id+'"'+(coachTimeSel.includes(o.id)?' checked':'')+' onchange="onPrefTimeToggle(this)"><span>'+escapeHtml(currentLang==='en'?o.en:o.zh)+'</span></label>'
+    ).join('');
+  }
+}
+function onPrefTimeToggle(cb){
+  const id = cb.value;
+  if(cb.checked){ if(!coachTimeSel.includes(id)) coachTimeSel.push(id); }
+  else coachTimeSel = coachTimeSel.filter(x=>x!==id);
+  renderPrefsChecks();
 }
 function onPrefsToggle(cb){
   const id = cb.value;

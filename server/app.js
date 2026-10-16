@@ -159,6 +159,7 @@ function saveConfig(cfg) {
     `intervals_athlete_id=${cfg.intervals_athlete_id || ''}`,
     `intervals_api_key=${cfg.intervals_api_key || ''}`,
     `coach_sports=${cfg.coach_sports || 'Ride'}`,
+    `coach_times=${cfg.coach_times || ''}`,
     `coach_home_city=${cfg.coach_home_city || ''}`,
   ];
   fs.writeFileSync(CONF_FILE, lines.join('\n') + '\n', 'utf8');
@@ -804,6 +805,17 @@ function coachSports() {
   const list = raw.split(',').map(s => s.trim()).filter(Boolean);
   return list.length ? list : ['Ride'];
 }
+// 训练时间段偏好 → 24h 制小时区间（供提示词注入）
+const TIME_WINDOWS = {
+  early: [5, 8], morning: [8, 12], noon: [12, 14],
+  afternoon: [14, 18], evening: [18, 21], night: [21, 23],
+};
+function coachTimes() {
+  /** 用户勾选的训练时间段（coach_times，逗号分隔的 id），空 = 不限。 */
+  const raw = String(loadConfig().coach_times || '');
+  const list = raw.split(',').map(s => s.trim()).filter(id => TIME_WINDOWS[id]);
+  return list;
+}
 
 function buildTrainingDigest() {
   /** 汇总近期训练数据为紧凑文本,作为教练系统提示的上下文。 */
@@ -864,6 +876,19 @@ const COACH_SYSTEM = (digest, lang, now = new Date(), sports = ['Ride']) => {
   const sportRule = lang === 'en'
     ? `【SPORT DISCIPLINE — HARD RULE】This athlete's selected sports are: ${sports.join(', ')}. ONLY recommend and schedule training within these sports. NEVER suggest workouts from any other sport (e.g. if the athlete is a cyclist, do NOT prescribe running workouts as main sessions). Cross-training may only be mentioned if the user explicitly asks for it. If the user requests a plan, every session must belong to a selected sport.`
     : `【运动方式 — 硬性规则】该运动员选择的运动方式为：${sports.join(', ')}（${sportNames.join('、')}）。只允许在这些运动方式内推荐和安排训练,绝不推荐其他运动的训练(例如运动员是骑行者,就不要把跑步排进课表)。交叉训练仅在用户主动要求时才可提及。生成任何课表时,每一课都必须属于所选运动。`;
+  // 训练时间段偏好：用户勾选了具体窗口时才注入
+  const timeSel = coachTimes();
+  let timeRulePref = '';
+  if (timeSel.length) {
+    const enName = { early: 'early morning 5-8am', morning: 'morning 8am-12pm', noon: 'noon 12-2pm', afternoon: 'afternoon 2-6pm', evening: 'evening 6-9pm', night: 'night 9-11pm' };
+    const zhName = { early: '清晨 5~8 点', morning: '上午 8~12 点', noon: '午间 12~14 点', afternoon: '下午 14~18 点', evening: '傍晚 18~21 点', night: '夜间 21~23 点' };
+    const wins = timeSel.map(id => TIME_WINDOWS[id]);
+    const lo = Math.min(...wins.map(w => w[0]));
+    const hi = Math.max(...wins.map(w => w[1]));
+    timeRulePref = lang === 'en'
+      ? `【TRAINING TIME WINDOWS】The athlete prefers training at: ${timeSel.map(id => enName[id]).join(', ')}. When suggesting concrete sessions, schedule them within these windows (roughly ${String(lo).padStart(2,'0')}:00-${String(hi).padStart(2,'0')}:00 local time) unless the user explicitly asks otherwise.`
+      : `【训练时间段偏好】该运动员偏好的训练时间段为：${timeSel.map(id => zhName[id]).join('、')}。给出具体课表时,训练安排应落在这些时间窗口内(当地约 ${p2(lo)}:00-${p2(hi)}:00),除非用户明确要求其他时间。`;
+  }
   const roleLine = lang === 'en'
     ? `You are the built-in coach of Strava Panel for this ${sportNames.join('+').toLowerCase() || 'endurance'} athlete. Below is the athlete's training data aggregated from the local database:`
     : `你是 Strava Panel 内置的${sportNames.join('+') || '耐力'}教练。以下是该运动员从本地数据库汇总的训练数据:`;
@@ -876,6 +901,7 @@ const COACH_SYSTEM = (digest, lang, now = new Date(), sports = ['Ride']) => {
     '',
     '规则: 基于上述真实数据回答,不要编造数据;数据不足时明确说明并给出需要补充的信息。',
     sportRule,
+    timeRulePref,
     timeRule,
     calRule,
     '给出具体的、可执行的训练建议(强度用心率/功率/踏频/体感描述)。回答保持简洁,用 markdown 轻量排版(可用标题、表格、列表)。',
@@ -1354,6 +1380,7 @@ async function handleGet(req, res, rawPath, qs) {
       intervals_athlete_id: cfg.intervals_athlete_id || 'i221776',
       intervals_api_key: cfg.intervals_api_key || '',
       coach_sports: cfg.coach_sports || 'Ride',
+      coach_times: cfg.coach_times || '',
       coach_home_city: cfg.coach_home_city || '',
     });
     return;
@@ -1456,7 +1483,7 @@ async function handlePost(req, res, rawPath, qs) {
       }
       await syncSerial(async () => {
         const cfg = loadConfig();
-        for (const k of ['client_id', 'client_secret', 'refresh_token', 'redirect_uri', 'intervals_athlete_id', 'intervals_api_key', 'coach_sports', 'coach_home_city']) {
+        for (const k of ['client_id', 'client_secret', 'refresh_token', 'redirect_uri', 'intervals_athlete_id', 'intervals_api_key', 'coach_sports', 'coach_times', 'coach_home_city']) {
           if (data[k] !== undefined) cfg[k] = String(data[k]).trim();
         }
         saveConfig(cfg);
