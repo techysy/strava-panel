@@ -171,6 +171,9 @@ console.log('\n[7] 工具：转换 GPX/TCX');
 const gpx = FIT.toGpx(fSplit, '测试骑行');
 ok(gpx.includes('<gpx'), 'GPX 根元素正确');
 ok((gpx.match(/<trkpt /g) || []).length === 10, 'GPX 含 10 个轨迹点', (gpx.match(/<trkpt /g) || []).length);
+// 坐标精度回归：fixture lat=400000000 半圆 → 400000000·180/2^31 ≈ 33.5282°（曾错 32400 倍）
+const gLat = +(gpx.match(/<trkpt lat="([\d.-]+)"/) || [])[1];
+ok(gLat != null && Math.abs(gLat - 33.5282) < 0.001, 'GPX 纬度半圆→度换算正确 ≈33.5282', gLat);
 ok(gpx.includes('<gpxtpx:hr>120</gpxtpx:hr>'), 'GPX 含心率扩展');
 ok(gpx.includes('<power>200</power>'), 'GPX 含功率');
 const tcx = FIT.toTcx(fSplit, '测试骑行');
@@ -252,4 +255,55 @@ ok(brec && brec.data[3]===150,'大端 hr 正确', brec&&brec.data[3]);
 
 
 console.log('\n=== ' + pass + ' 通过 / ' + fail + ' 失败 ===');
+// ---- [11] 无效哨兵值（0xFFFFFFFF 等）→ null + GPS 距离兜底 + 字节级往返 ----
+// 真机码表文件常见：停表瞬间 record.distance 写 0xFFFFFFFF（uint32 无效哨兵）。
+// 旧实现当真实值用 → 42949.67 km。修复后应解析为 null 并由 GPS 轨迹兜底距离。
+function buildSentinel() {
+  const hdr=12, body=[];
+  const w=(v,n)=>{for(let i=0;i<n;i++)body.push(Math.floor(v/Math.pow(2,i*8))&0xFF);};
+  const S32=v=>{const b=Buffer.alloc(4);b.writeInt32LE(v,0);body.push(...b);};
+  body.push(0x00|0x40,0,0); body.push(20,0); body.push(4);
+  body.push(253,4,4); body.push(0,4,5); body.push(1,4,5); body.push(5,4,4);
+  const base=1000000000;
+  // 3 点沿经线间隔 0.001°（≈111.2m/段）；末点 distance 写无效哨兵
+  const dists=[0,11120,0xFFFFFFFF];
+  for(let i=0;i<3;i++){
+    body.push(0x00);
+    w(base+i,4);
+    S32(Math.round((30+i*0.001)*Math.pow(2,31)/180));   // 度 → 半圆 = deg·2^31/180
+    S32(Math.round(120*Math.pow(2,31)/180));
+    w(dists[i],4);
+  }
+  const total=hdr+body.length+2,out=new Uint8Array(total);
+  out[0]=hdr;out[1]=0x20;const dv=new DataView(out.buffer);
+  dv.setUint16(2,2140,true);dv.setUint32(4,body.length,true);
+  out[8]=0x2E;out[9]=0x46;out[10]=0x49;out[11]=0x54;
+  for(let i=0;i<body.length;i++)out[hdr+i]=body[i];
+  dv.setUint16(hdr+body.length,FIT.crc16(out,0,hdr+body.length),true);
+  return out;
+}
+const sf=buildSentinel();
+const sp=FIT.parse(sf);
+const srecs=sp.messages.filter(m=>m.type==="data"&&m.global===20);
+ok(srecs.length===3,"哨兵文件读到 3 条 record",srecs.length);
+ok(srecs[0].data[5]===0&&srecs[1].data[5]===11120,"前两点 distance 正常",[srecs[0].data[5],srecs[1].data[5]]);
+ok(srecs[2].data[5]===null,"末点 distance=0xFFFFFFFF 解析为 null",srecs[2].data[5]);
+const ssum=FIT.summarize(sf);
+ok(ssum.distanceKm!=null&&ssum.distanceKm>0.2&&ssum.distanceKm<0.25,"distance 无效时回退 GPS 轨迹 ≈0.222km",ssum.distanceKm);
+ok(!(ssum.distanceKm>1000),"不再出现天文数字距离",ssum.distanceKm);
+FIT.tagDefs(sp);
+const srt=FIT.serialize(sp.messages);
+ok(Buffer.from(srt).equals(Buffer.from(sf)),"parse→serialize 字节级一致（哨兵往返）");
+
+// ---- [12] TCX DistanceMeters 为累计值（修复单步增量误当累计）----
+const tf2=buildFit({points:5});
+const tcx2=FIT.toTcx(tf2,"t");
+// 注意：TCX 的 Lap/Activity 汇总里也有一个 DistanceMeters（总距离），Trackpoint 的在后
+const dmAll=[...tcx2.matchAll(/<DistanceMeters>([\d.]+)<\/DistanceMeters>/g)].map(m=>+m[1]);
+ok(dmAll[0]===40,"TCX Lap 汇总距离=40m",dmAll[0]);
+const dm=dmAll.slice(1);
+ok(dm.length===5,"TCX 5 个 Trackpoint DistanceMeters",dm.length);
+ok(dm[0]===0&&dm[4]===40,"TCX 累计距离 0→40m",dm);
+ok(dm.every((v,i)=>i===0||v>dm[i-1]),"TCX 累计距离单调递增",dm);
+
 process.exit(fail ? 1 : 0);

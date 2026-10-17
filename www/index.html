@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
 <title>Strava Panel</title>
+<link rel="stylesheet" href="/static/leaflet.css">
 <style>
 :root{
   color-scheme:light;
@@ -110,17 +111,49 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .fit-drop b{display:block;font-size:13.5px;margin-bottom:3px}
 .fit-drop span{font-size:12px;color:var(--text-3)}
 .fit-empty{padding:16px;text-align:center;color:var(--text-3);font-size:12.5px}
-.fit-list{margin-top:10px;display:flex;flex-direction:column;gap:6px;max-height:230px;overflow-y:auto}
-.fit-file{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface)}
+/* 文件列表：1/3 宽卡片网格（窄屏降为 2/1 列） */
+.fit-list{margin-top:10px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:300px;overflow-y:auto}
+@media (max-width:900px){.fit-list{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:600px){.fit-list{grid-template-columns:1fr}}
+.fit-file{position:relative;display:flex;flex-direction:column;gap:6px;padding:10px 12px 8px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface);transition:border-color .15s}
+.fit-file:hover{border-color:var(--border-strong)}
 .ff-main{flex:1;min-width:0}
-.ff-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ff-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:20px}
 .ff-meta{font-size:11.5px;color:var(--text-3);margin-top:2px}
-.ff-tags{margin-top:4px;display:flex;gap:4px;flex-wrap:wrap}
+.ff-tags{margin-top:6px;display:flex;gap:4px;flex-wrap:wrap}
 .ff-tags b{font-size:10px;font-weight:600;padding:1px 6px;border-radius:5px;background:var(--tertiary);color:var(--text-2)}
 .ff-tags b.t-pw{color:#f97316} .ff-tags b.t-hr{color:#ec4899} .ff-tags b.t-cad{color:#3b82f6} .ff-tags b.t-geo{color:#10b981}
 .ff-tags b.t-bad{color:#ef4444;background:rgba(239,68,68,.12)}
 .ff-time{font-size:11px;color:var(--text-3);white-space:nowrap}
-.ff-del{width:22px;height:22px;border-radius:6px;border:0;background:transparent;color:var(--text-3);cursor:pointer;font-size:16px;line-height:1;flex:none}
+.ff-del{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:6px;border:0;background:transparent;color:var(--text-3);cursor:pointer;font-size:16px;line-height:1}
+/* GPX 已导入文件卡片 */
+.trip-gpxfile{display:flex;align-items:center;gap:10px;margin-top:8px;padding:8px 12px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface)}
+.trip-gpxfile .ic{width:18px;height:18px;color:var(--viz);flex:none}
+.trip-gpxfile .gf-main{flex:1;min-width:0}
+.trip-gpxfile .gf-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trip-gpxfile .gf-meta{font-size:11.5px;color:var(--text-3);margin-top:2px}
+.trip-gpxfile .btn{padding:4px 10px;font-size:12px}
+.trip-gpxfile .gf-del{width:24px;height:24px;border-radius:6px;border:0;background:transparent;color:var(--text-3);cursor:pointer;font-size:16px;line-height:1;flex:none}
+.trip-gpxfile .gf-del:hover{color:var(--err);background:var(--hover)}
+/* 已导入后拖放区收缩为「替换」形态 */
+.fit-drop.has-file{padding:10px 12px}
+.fit-drop.has-file .ic{width:18px;height:18px;margin-bottom:2px}
+.fit-drop.has-file b{font-size:12px}
+.fit-drop.has-file span{display:none}
+/* 轨迹小地图（Leaflet 本地库；瓦片为运行时数据请求） */
+.tm-wrap{position:relative;margin-top:10px;border:1px solid var(--border-subtle);border-radius:12px;overflow:hidden;background:var(--tertiary)}
+.tm-map{width:100%;height:260px;background:var(--tertiary)}
+.tm-map.tall{height:340px}
+.tm-unavailable{padding:18px;text-align:center;color:var(--text-3);font-size:12px}
+.tm-tiles{position:absolute;top:8px;right:8px;z-index:500;display:flex;gap:2px;padding:3px;border-radius:9px;background:var(--surface);box-shadow:var(--shadow-sm)}
+.tm-tiles button{padding:3px 9px;border:0;border-radius:7px;background:transparent;color:var(--text-3);font-size:11px;font-weight:600;cursor:pointer}
+.tm-tiles button:hover{color:var(--text)}
+.tm-tiles button.on{background:var(--tertiary);color:var(--text)}
+.tm-icon{display:flex;align-items:center;justify-content:center}
+.tm-icon b{width:20px;height:20px;border-radius:50%;background:#10b981;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.tm-icon.tm-e b{background:#ef4444}
+.tm-icon.tm-wp i{width:12px;height:12px;border-radius:50%;background:var(--viz);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.leaflet-container{font:inherit;background:var(--tertiary)}
 .ff-del:hover{background:rgba(239,68,68,.14);color:#ef4444}
 .fit-tools{margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
 .fit-tool{border:1px solid var(--border-subtle);border-radius:12px;padding:12px;background:var(--surface);display:flex;flex-direction:column;gap:8px}
@@ -148,6 +181,32 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .trip-dest-meta{font-size:11.5px;color:var(--text-3);margin-top:6px;line-height:1.7}
 .trip-gear{font-size:12px;line-height:1.9;color:var(--text-2)}
 .trip-gear summary{cursor:pointer;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
+/* 目的地地理编码候选 */
+.trip-geo{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.trip-geo button{text-align:left;background:var(--tertiary);border:1px solid var(--border-subtle);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--text);cursor:pointer;transition:all .15s}
+.trip-geo button:hover{border-color:var(--accent);background:var(--hover)}
+.trip-geo .gname{font-weight:600}
+.trip-geo .gmeta{color:var(--text-3);font-size:11px;margin-left:6px}
+/* 路线概览统计块 */
+.trip-summary{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.trip-sum{flex:1 1 104px;border:1px solid var(--border-subtle);border-radius:10px;padding:8px 10px;background:var(--tertiary)}
+.trip-sum .k{font-size:11px;color:var(--text-3);display:block;margin-bottom:2px}
+.trip-sum .v{font-size:15px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+.trip-sum .v small{font-size:11px;font-weight:600;color:var(--text-3)}
+.trip-profile{margin-top:10px}
+.trip-profile svg,.trip-hourly svg{display:block;width:100%}
+.trip-hourly{position:relative;margin-top:6px}
+.trip-daybar{display:flex;gap:4px;flex-wrap:wrap;margin:8px 0 2px}
+.trip-daybar button{padding:4px 10px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--tertiary);color:var(--text-2);font-size:11.5px;cursor:pointer;transition:all .15s}
+.trip-daybar button:hover{border-color:var(--border-strong);color:var(--text)}
+.trip-daybar button.active{border-color:var(--viz);color:var(--viz);font-weight:600}
+/* 高铁表排序（复用骑行表指示器视觉） */
+.trip-table th.sortable{cursor:pointer;user-select:none;position:relative;padding-right:18px}
+.trip-table th.sortable:hover{color:var(--text)}
+.trip-table th.sortable::after{content:"";position:absolute;right:5px;top:50%;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;transform:translateY(-50%);opacity:0;transition:opacity .15s}
+.trip-table th.sortable:hover::after{opacity:.35;border-bottom:4px solid var(--text-3)}
+.trip-table th.sortable.desc::after{opacity:1;border-bottom:0;border-top:5px solid var(--viz)}
+.trip-table th.sortable.asc::after{opacity:1;border-top:0;border-bottom:5px solid var(--viz)}
 /* 偏好勾选组：chip 网格（设置页两列，弹窗内单列自适应） */
 .sport-checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:8px}
 .sport-checks label,.pref-chip{display:flex;align-items:center;gap:7px;padding:9px 12px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface);font-size:13px;cursor:pointer;transition:all .15s;user-select:none}
@@ -653,14 +712,14 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
     <div class="view" id="tab-power">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <div class="seg" id="pwRangeSeg" style="margin-bottom:0">
-          <button id="pwRg7d" onclick="setPwRange('7d')" data-i18n="rg_7d">近7天</button>
+          <button id="pwRg7d" class="active" onclick="setPwRange('7d')" data-i18n="rg_7d">近7天</button>
           <button id="pwRg42d" onclick="setPwRange('42d')" data-i18n="rg_42d">近42天</button>
           <button id="pwRg1m" onclick="setPwRange('1m')" data-i18n="rg_1m">近1月</button>
           <button id="pwRg3m" onclick="setPwRange('3m')" data-i18n="rg_3m">近3月</button>
           <button id="pwRg6m" onclick="setPwRange('6m')" data-i18n="rg_6m">近6月</button>
           <button id="pwRgYtd" onclick="setPwRange('ytd')" data-i18n="rg_ytd">本年度</button>
           <button id="pwRg12m" onclick="setPwRange('12m')" data-i18n="rg_12m">近1年</button>
-          <button id="pwRgAll" class="active" onclick="setPwRange('all')" data-i18n="rg_all">所有</button>
+          <button id="pwRgAll" onclick="setPwRange('all')" data-i18n="rg_all">所有</button>
         </div>
         <div class="mode-seg" id="pwUnitSeg">
           <button class="seg-btn on" id="btnUnitW" onclick="setPwUnit('w')" data-i18n="pw_unit_w">瓦特 (W)</button>
@@ -895,6 +954,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         <input type="file" id="fitInput" accept=".fit" multiple hidden>
 
         <div class="fit-list" id="fitFileList"></div>
+        <div class="tm-wrap" id="fitMapWrap" style="display:none"><div class="tm-map" id="fitMap"></div></div>
 
         <div class="fit-tools" id="fitPanel" style="display:none">
           <div class="fit-tool" id="fitToolStrip">
@@ -953,7 +1013,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
           <div class="trip-card">
             <h3><svg class="ic" aria-hidden="true"><use href="#i-calendar"/></svg><span data-i18n="trip_dateCard">出行日期</span></h3>
             <div class="row">
-              <label><span data-i18n="trip_date">日期</span><input type="date" id="tripDate"></label>
+              <label><span data-i18n="trip_date">日期</span><input type="date" id="tripDate" onchange="tripUpdateDateInfo();if(tripWeatherData)tripRenderWeather()"></label>
               <button class="btn" onclick="tripPickWeekend()" data-i18n="trip_nextWeekend">下周末</button>
               <span class="tt" id="tripDateInfo" style="font-size:12px;color:var(--text-3)"></span>
             </div>
@@ -963,12 +1023,40 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
             <div class="row">
               <label><span data-i18n="trip_dest">目的地</span>
                 <select id="tripDestSel" onchange="tripDestChanged()"></select></label>
+              <label><span data-i18n="trip_searchDest">搜索任意地点</span><input type="text" id="tripGeoInput" style="width:130px" placeholder="如：峨眉山 / Kangding" onkeydown="if(event.key==='Enter')tripGeoSearch()"></label>
+              <button class="btn" onclick="tripGeoSearch()" data-i18n="trip_searchBtn">搜索</button>
+            </div>
+            <div class="trip-geo" id="tripGeoResults" style="display:none"></div>
+            <div class="row">
               <label>lat<input type="text" id="tripLat" class="num" value="32.653"></label>
               <label>lon<input type="text" id="tripLon" class="num" value="103.599"></label>
               <button class="btn" onclick="tripLoadWeather()" data-i18n="trip_queryWeather">查天气</button>
             </div>
             <div class="trip-dest-meta" id="tripDestMeta"></div>
             <div id="tripWeatherBox"></div>
+          </div>
+          <div class="trip-card">
+            <h3><svg class="ic" aria-hidden="true"><use href="#i-route"/></svg><span data-i18n="trip_gpxCard">路线与行程（GPX）</span></h3>
+            <div class="fit-drop" id="tripGpxDrop" style="padding:16px">
+              <svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>
+              <b data-i18n="trip_gpxDropTitle">拖入 .gpx 路线文件</b>
+              <span data-i18n="trip_gpxDropSub">或点击选择 · 文件仅在浏览器内解析，不上传</span>
+            </div>
+            <input type="file" id="tripGpxInput" accept=".gpx" hidden>
+            <div class="trip-gpxfile" id="tripGpxFile" style="display:none">
+              <svg class="ic" aria-hidden="true"><use href="#i-file"/></svg>
+              <div class="gf-main"><div class="gf-name" id="tripGpxName"></div><div class="gf-meta" id="tripGpxMeta"></div></div>
+              <button class="btn" onclick="tripGpxReplace()" data-i18n="trip_gpxReplace">重选</button>
+              <button class="gf-del" onclick="tripGpxRemove()" title="移除">×</button>
+            </div>
+            <div class="row">
+              <label><span data-i18n="trip_speed">匀速 (km/h)</span><input type="number" id="tripSpeed" class="num" value="20" min="1" max="120" step="0.5" onchange="tripSpeedChanged()"></label>
+              <label><span data-i18n="trip_startTime">开始时间</span><input type="time" id="tripStartTime" value="08:00" onchange="tripSpeedChanged()"></label>
+              <button class="btn" id="tripRouteWxBtn" onclick="tripLoadRouteWeather()" style="display:none" data-i18n="trip_routeWeather">沿途天气</button>
+            </div>
+            <div id="tripGpxInfo"></div>
+            <div class="tm-wrap" id="tripMapWrap" style="display:none"><div class="tm-map tall" id="tripMap"></div></div>
+            <div id="tripRouteWxBox"></div>
           </div>
           <div class="trip-card">
             <h3><svg class="ic" aria-hidden="true"><use href="#i-route"/></svg><span data-i18n="trip_trainCard">高铁余票</span></h3>
@@ -978,6 +1066,9 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
               <label><span data-i18n="trip_date">日期</span><input type="date" id="tripTrainDate"></label>
               <label><span data-i18n="trip_type">车型</span>
                 <select id="tripTrainType"><option value="GD">G/D</option><option value="" data-i18n="trip_typeAll">全部</option><option value="G">G</option><option value="D">D</option><option value="C">C</option></select></label>
+            </div>
+            <div class="row">
+              <label><span data-i18n="trip_timeRange">出发时间范围</span><input type="time" id="tripDepFrom" style="width:110px" onchange="tripRenderTrains()"> — <input type="time" id="tripDepTo" style="width:110px" onchange="tripRenderTrains()"></label>
               <button class="btn" onclick="tripLoadTrains()" data-i18n="trip_queryTrains">查余票</button>
             </div>
             <div class="row"><button class="btn" onclick="tripSwapStations()" data-i18n="trip_swap">⇄ 互换（查返程）</button></div>
@@ -1016,8 +1107,11 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 <div id="msgCtxMenu" class="ctx-menu"></div>
 
 <!-- FIT 工具：解析内核 + UI（独立文件，便于单独测试） -->
+<script src="/static/leaflet.js"></script>
+<script src="/static/trackmap.js"></script>
 <script src="/static/fit.js"></script>
 <script src="/static/fit-ui.js"></script>
+<script src="/static/gpx.js"></script>
 <script>
 // ===== i18n =====
 const I18N = {
@@ -1078,6 +1172,20 @@ const I18N = {
     trip_weather:'天气', trip_temp:'温度', trip_rain:'降雨概率', trip_weatherNote:'仅显示 6~18 点运动窗口聚合；选中的出行日期高亮。',
     trip_noTrains:'未查到符合条件的车次', trip_canBuy:'可购', trip_soldOut:'售罄', trip_trainsUnit:' 趟',
     trip_train:'车次', trip_stations:'站点', trip_time:'时刻', trip_dur:'历时', trip_bizSeat:'商务/特等', trip_firstSeat:'一等', trip_secondSeat:'二等', trip_softSleep:'软卧', trip_status:'状态',
+    trip_searchDest:'搜索任意地点', trip_searchBtn:'搜索', trip_geoEmpty:'未找到匹配的地点', trip_recentDests:'最近使用',
+    trip_gpxCard:'路线与行程（GPX）', trip_gpxDropTitle:'拖入 .gpx 路线文件', trip_gpxDropSub:'或点击选择 · 文件仅在浏览器内解析，不上传',
+    trip_gpxReplace:'重选', trip_gpxReplaceHint:'点击或拖入以替换当前路线',
+    trip_speed:'匀速 (km/h)', trip_startTime:'开始时间', trip_routeWeather:'沿途天气', trip_gpxOnly:'请先加载 GPX 文件',
+    trip_gpxParseFail:'GPX 解析失败：', trip_gpxNoPoints:'GPX 中没有轨迹点',
+    trip_sumDist:'总距离', trip_sumGain:'累计爬升', trip_sumEle:'海拔范围', trip_sumEta:'预计用时', trip_sumFinish:'预计到达',
+    trip_noEle:'该 GPX 无高程数据',
+    trip_tlDist:'里程', trip_tlEta:'预计时刻', trip_wind:'风', trip_gust:'阵风',
+    trip_routeWxNote:'按匀速 {v} km/h 从 {t} 出发推算各采样点到达时刻；天气取自 Open-Meteo 逐时预报（最近 {d} 天）。',
+    trip_outOfRange:'出行日期超出逐时预报范围，时间线按最近两天预报推算，仅供参考。',
+    trip_timeRange:'出发时间范围', trip_arrive:'到达',
+    trip_hourlyChart:'逐时天气', trip_hourlyNote:'温度折线 + 降雨概率柱；竖线间为运动窗口（开始时间起按匀速推算用时；未加载 GPX 时为 6~18 点）。悬停查看该小时详情。',
+    trip_noHourly:'无逐时数据',
+    map_street:'街道', map_light:'浅色', map_sat:'卫星', map_unavailable:'地图库未加载',
 
     fit_durH:'小时', fit_durM:'分', fit_durS:'秒', fit_tagCad:'踏频', fit_tagGeo:'轨迹', fit_tagPoints:'点', fit_noDist:'无距离', fit_tagCrcBad:'CRC 异常', fit_remove:'移除',
     nav_coach:'训练建议', coach_title:'AI 训练建议', coach_noLlm:'尚未配置模型', coach_gotoSettings:'前往 设置 → 模型',
@@ -1188,6 +1296,20 @@ const I18N = {
     trip_weather:'Weather', trip_temp:'Temp', trip_rain:'Rain prob.', trip_weatherNote:'Aggregated over the 6-18 workout window; the selected trip date is highlighted.',
     trip_noTrains:'No trains match the filters', trip_canBuy:'Bookable', trip_soldOut:'Sold out', trip_trainsUnit:' trains',
     trip_train:'Train', trip_stations:'Stations', trip_time:'Times', trip_dur:'Duration', trip_bizSeat:'Business', trip_firstSeat:'1st', trip_secondSeat:'2nd', trip_softSleep:'Soft sleeper', trip_status:'Status',
+    trip_searchDest:'Search any place', trip_searchBtn:'Search', trip_geoEmpty:'No matching place found', trip_recentDests:'Recent',
+    trip_gpxCard:'Route & trip (GPX)', trip_gpxDropTitle:'Drop a .gpx route file', trip_gpxDropSub:'or click to choose · parsed in your browser, never uploaded',
+    trip_gpxReplace:'Replace', trip_gpxReplaceHint:'Click or drop to replace the current route',
+    trip_speed:'Speed (km/h)', trip_startTime:'Start time', trip_routeWeather:'Route weather', trip_gpxOnly:'Load a GPX file first',
+    trip_gpxParseFail:'GPX parse failed: ', trip_gpxNoPoints:'No track points in the GPX',
+    trip_sumDist:'Distance', trip_sumGain:'Elev. gain', trip_sumEle:'Elev. range', trip_sumEta:'Est. time', trip_sumFinish:'Est. finish',
+    trip_noEle:'This GPX has no elevation data',
+    trip_tlDist:'Dist.', trip_tlEta:'ETA', trip_wind:'Wind', trip_gust:'Gust',
+    trip_routeWxNote:'Sampling times estimated at {v} km/h from {t}; weather from Open-Meteo hourly forecast (next {d} days).',
+    trip_outOfRange:'The trip date is beyond the hourly forecast window; the timeline uses the next two days and is indicative only.',
+    trip_timeRange:'Departure window', trip_arrive:'Arrive',
+    trip_hourlyChart:'Hourly weather', trip_hourlyNote:'Temperature line + rain-probability bars; the vertical band is the workout window (from the start time, using the constant-speed duration; 6-18 without a GPX). Hover for hourly detail.',
+    trip_noHourly:'No hourly data',
+    map_street:'Street', map_light:'Light', map_sat:'Satellite', map_unavailable:'Map library not loaded',
 
     fit_durH:'h', fit_durM:'min', fit_durS:'s', fit_tagCad:'Cadence', fit_tagGeo:'Track', fit_tagPoints:'pts', fit_noDist:'no distance', fit_tagCrcBad:'CRC bad', fit_remove:'Remove',
     nav_coach:'Coach', coach_title:'AI Training Coach', coach_noLlm:'Model not configured', coach_gotoSettings:'Go to Settings → Model',
@@ -1268,6 +1390,7 @@ function setLang(lang){
   refreshStatus();
   reRenderChart();
   reRenderPowerCurve();
+  if(typeof reRenderTrip === 'function') reRenderTrip();
 }
 
 // ===== Theme =====
@@ -1293,6 +1416,7 @@ function applyTheme(mode){
   updateThemeBtn();
   reRenderChart();
   reRenderPowerCurve();
+  if(typeof reRenderTrip === 'function') reRenderTrip();
 }
 function setThemeMode(mode){
   localStorage.setItem('sp-theme', mode === 'system' ? 'system' : mode);
@@ -1355,7 +1479,7 @@ function switchNav(nav){
   document.getElementById('tab-'+nav).classList.add('active');
   if(nav==='dash'){ loadInfo(); loadLogDates(); }
   if(nav==='data'){ loadData(); }
-  if(nav==='rides'){ loadActivities(); }   // 最近骑行表格：打开视图才懒加载
+  if(nav==='rides'){ sortKey='date'; sortDir=-1; page=1; loadActivities(); }   // 最近骑行：进入时恢复默认(最近时间在前)排序
   if(nav==='power'){ loadPowerCurve(); }   // 功率曲线：打开视图才懒加载
   if(nav==='coach'){ loadCoach(); }
   if(nav==='fit'){ /* FIT 工具无网络请求，切 tab 无需额外加载 */ }
@@ -1693,8 +1817,8 @@ async function loadData(){
 }
 // ===== 功率曲线 =====
 let powerCurveData = null;  // 缓存最近一次功率曲线数据（主题切换后重绘）
-let powerCurveCompareOn = localStorage.getItem('sp-pw-compare') === '1';
-let pwRange = 'all';  // 功率曲线时间范围: 7d/42d/1m/3m/6m/ytd/12m/all
+let powerCurveCompareOn = localStorage.getItem('sp-pw-compare') !== '0';   // 默认开启对比历史最佳
+let pwRange = '7d';  // 功率曲线时间范围: 7d/42d/1m/3m/6m/ytd/12m/all，默认最近7天
 let pwUnit = localStorage.getItem('sp-pw-unit') || 'w'; // w | wkg
 
 function setPwUnit(u){
@@ -1731,11 +1855,26 @@ function togglePowerCompare(){
   renderPowerCurve();
 }
 function reRenderPowerCurve(){ if(powerCurveData) renderPowerCurve(); }
-// 时长格式化: 5→5s, 60→1min, 3600→1h, 7200→2h
+// 时长格式化: 5→5s, 170→2m50s, 3600→1h, 7200→2h（整数化，不吐浮点尾巴）
 function fmtDuration(sec){
+  sec = Math.round(sec);
   if(sec < 60) return sec + 's';
-  if(sec < 3600) return (sec/60) + 'm';
-  return (sec/3600) + 'h';
+  if(sec < 3600){
+    const m = Math.floor(sec/60), s = sec % 60;
+    return s ? m + 'm' + s + 's' : m + 'm';
+  }
+  const h = Math.floor(sec/3600), m = Math.round((sec % 3600) / 60);
+  return m ? h + 'h' + String(m).padStart(2,'0') + 'm' : h + 'h';
+}
+// 在时长数组里找「最接近 target」的下标；容差 = max(2s, 10%)，找不到返回 -1。
+// 用于功率曲线锚点：数据粒度未必整秒对齐（Intervals.icu 各周期粒度不同），精确 indexOf 会丢锚点。
+function nearestDurIndex(durs, target){
+  let best = -1, bd = Infinity;
+  for(let i = 0; i < durs.length; i++){
+    const dd = Math.abs(durs[i] - target);
+    if(dd < bd){ bd = dd; best = i; }
+  }
+  return (best >= 0 && bd <= Math.max(2, target * 0.1)) ? best : -1;
 }
 function renderPowerCurve(){
   const d = powerCurveData;
@@ -1798,13 +1937,17 @@ function renderPowerCurve(){
     }
     return `<polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"${dashed ? ' stroke-dasharray="6 4"' : ''}/>`;
   };
-  // 数据点圆圈: 仅保留 5 个生理关键锚点(1s冲刺, 5s最大无氧, 1m无氧容量, 5m摄氧量, 20m阈值FTP), 彻底消除密集扎堆
+  // 常见功率时间锚点（对数轴上均匀舒展）：1s 冲刺 / 5s 最大无氧 / 15s / 30s /
+  // 1m 无氧容量 / 2m / 5m 摄氧量 / 10m / 20m 阈值FTP / 30m / 60m 有氧耐力。
+  // 圆点与 hover 命中区都只落在这些锚点上（数据粒度非整秒时用最近邻匹配），
+  // 不再对 200+ 原始采样点逐个放命中区（那是「悬停出现 2.83m 这种怪值」的根因）。
+  const ANCHOR_DURS = [1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600];
+  const anchorIdxOf = (durs, target) => nearestDurIndex(durs, target);
   const drawDots = (data, color) => {
-    const anchorDurs = [1, 5, 60, 300, 1200];
-    return anchorDurs.map(dur => {
-      const idx = data.durations.indexOf(dur);
+    return ANCHOR_DURS.map(target => {
+      const idx = anchorIdxOf(data.durations, target);
       if(idx < 0 || data.watts[idx] <= 0) return '';
-      const x = xOf(dur).toFixed(1), y = yOf(valOf(data.watts[idx])).toFixed(1);
+      const x = xOf(data.durations[idx]).toFixed(1), y = yOf(valOf(data.watts[idx])).toFixed(1);
       return `<circle cx="${x}" cy="${y}" r="3.5" fill="${C.surface}" stroke="${color}" stroke-width="2"/>`;
     }).join('');
   };
@@ -1831,7 +1974,7 @@ function renderPowerCurve(){
   });
 
   // FTP 估算线: 优先取接口返回的 eftp, 否则取 20min best × 0.95
-  const idx20 = curve.durations.indexOf(1200);
+  const idx20 = nearestDurIndex(curve.durations, 1200);
   const rawFtp = curve.eftp || (idx20 >= 0 && curve.watts[idx20] > 0 ? Math.round(curve.watts[idx20] * 0.95) : 0);
   let ftpLine = '', ftpText = '';
   if(rawFtp > 0){
@@ -1842,10 +1985,12 @@ function renderPowerCurve(){
     ftpText = `<text x="${w-padR}" y="${fy-6}" text-anchor="end" font-size="11" font-weight="700" fill="${C.brand}">FTP ${ftpDisplay} ${uLabel}</text>`;
   }
 
-  // 命中区: 鼠标 hover 节点
-  const hits = curve.durations.map((dur, i) => {
-    const x = xOf(dur).toFixed(1), y = yOf(valOf(curve.watts[i])).toFixed(1);
-    return `<circle class="pwhit" data-i="${i}" cx="${x}" cy="${y}" r="12" fill="transparent"/>`;
+  // 命中区: 仅锚点（常见功率时间），hover 显示锚点时长 + 该时长最佳功率
+  const hits = ANCHOR_DURS.map(target => {
+    const idx = anchorIdxOf(curve.durations, target);
+    if(idx < 0 || curve.watts[idx] <= 0) return '';
+    const x = xOf(curve.durations[idx]).toFixed(1), y = yOf(valOf(curve.watts[idx])).toFixed(1);
+    return `<circle class="pwhit" data-t="${target}" cx="${x}" cy="${y}" r="14" fill="transparent"/>`;
   }).join('');
 
   const allArea = showAll ? drawArea(all, 'url(#allGrad)') : '';
@@ -1872,37 +2017,38 @@ function renderPowerCurve(){
     ${defs}${hGrid}${vGrid}${allArea}${curveArea}${ftpLine}${ftpText}${allLine}${curveLine}${allDots}${curveDots}${xLabels}${hits}
   </svg><div class="ctip" id="${tipId}"></div></div>`;
 
-  // hover 交互
+  // hover 交互：锚点命中区 → 显示「锚点时长 · 当前周期最佳 · 历史最佳」
   const tip = host.querySelector('#' + tipId);
   const curveDurArr = curve.durations, curveWattsArr = curve.watts;
   const allDurArr = showAll ? all.durations : [], allWattsArr = showAll ? all.watts : [];
   host.querySelectorAll('.pwhit').forEach(hit=>{
-    hit.addEventListener('mouseenter', (ev)=>{
-      const i = +hit.dataset.i;
-      const dur = curveDurArr[i], watts = curveWattsArr[i];
+    const place = (target)=>{
+      const i = anchorIdxOf(curveDurArr, target);
+      if(i < 0) return null;
+      const nodeX = xOf(curveDurArr[i]), nodeY = yOf(valOf(curveWattsArr[i]));
+      tip.style.left = Math.min(Math.max(nodeX, 80), w - 80) + 'px';
+      tip.style.top = Math.max(8, nodeY - 32) + 'px';
+      return i;
+    };
+    hit.addEventListener('mouseenter', ()=>{
+      const target = +hit.dataset.t;
+      const i = place(target);
+      if(i == null) return;
+      const watts = curveWattsArr[i];
       const wkgVal = (watts / weight).toFixed(2);
-      let txt = `${fmtDuration(dur)} · ${watts}W (${wkgVal} W/kg)`;
+      let txt = `${fmtDuration(target)} · ${Math.round(watts)}W (${wkgVal} W/kg)`;
       if(showAll){
-        const ri = allDurArr.indexOf(dur);
+        const ri = anchorIdxOf(allDurArr, target);
         if(ri >= 0){
           const rw = allWattsArr[ri];
           const rwWkg = (rw / weight).toFixed(2);
-          txt += ` · ${t('pw_all')} ${rw}W (${rwWkg} W/kg)`;
+          txt += ` · ${t('pw_all')} ${Math.round(rw)}W (${rwWkg} W/kg)`;
         }
       }
       tip.textContent = txt;
       tip.style.opacity = '1';
-      const nodeX = xOf(dur), nodeY = yOf(valOf(watts));
-      tip.style.left = Math.min(Math.max(nodeX, 80), w - 80) + 'px';
-      tip.style.top = Math.max(8, nodeY - 32) + 'px';
     });
-    hit.addEventListener('mousemove', (ev)=>{
-      const i = +hit.dataset.i;
-      const dur = curveDurArr[i], watts = curveWattsArr[i];
-      const nodeX = xOf(dur), nodeY = yOf(valOf(watts));
-      tip.style.left = Math.min(Math.max(nodeX, 80), w - 80) + 'px';
-      tip.style.top = Math.max(8, nodeY - 32) + 'px';
-    });
+    hit.addEventListener('mousemove', ()=>{ place(+hit.dataset.t); });
     hit.addEventListener('mouseleave', ()=>{ tip.style.opacity = '0'; });
   });
 
@@ -1912,7 +2058,7 @@ function renderPowerCurve(){
   const durMap = {'5s': 5, '1min': 60, '5min': 300, '20min': 1200};
   statIds.forEach(s => {
     const dur = durMap[s];
-    const idx = curData.durations.indexOf(dur);
+    const idx = nearestDurIndex(curData.durations, dur);   // 粒度非整秒时最近邻，避免精确匹配丢值
     const el = document.getElementById('pw' + s);
     const refEl = document.getElementById('ref' + s);
     if(el) {
@@ -1926,7 +2072,7 @@ function renderPowerCurve(){
     // 开启对比时在卡片下方小字展示历史最佳参考
     if(refEl){
       if(showAll && all && all.durations){
-        const allIdx = all.durations.indexOf(dur);
+        const allIdx = nearestDurIndex(all.durations, dur);
         if(allIdx >= 0 && all.watts[allIdx] > 0){
           const aw = isWkg ? (all.watts[allIdx] / weight).toFixed(2) : all.watts[allIdx];
           refEl.textContent = t('pw_ref_all', { v: aw + ' ' + uLabel });
@@ -1937,7 +2083,7 @@ function renderPowerCurve(){
   });
 
   // 估算 FTP: 取当前周期的 20min 估算或 eFTP
-  const curIdx20 = curData.durations.indexOf(1200);
+  const curIdx20 = nearestDurIndex(curData.durations, 1200);
   const curFtp = curData.eftp || (curIdx20 >= 0 && curData.watts[curIdx20] > 0 ? Math.round(curData.watts[curIdx20] * 0.95) : 0);
   const ftpEl = document.getElementById('pwFtp');
   const refFtpEl = document.getElementById('refFtp');
@@ -1950,7 +2096,7 @@ function renderPowerCurve(){
   }
   if(refFtpEl){
     if(showAll && all && all.durations){
-      const allIdx20 = all.durations.indexOf(1200);
+      const allIdx20 = nearestDurIndex(all.durations, 1200);
       const allFtp = all.eftp || (allIdx20 >= 0 && all.watts[allIdx20] > 0 ? Math.round(all.watts[allIdx20] * 0.95) : 0);
       if(allFtp > 0){
         const af = isWkg ? (allFtp / weight).toFixed(2) : allFtp;
@@ -2140,6 +2286,7 @@ window.addEventListener('resize', ()=>{
   clearTimeout(chartResizeTimer);
   chartResizeTimer = setTimeout(()=>{
     if(lastChart && document.getElementById('tab-data').classList.contains('active')) renderMonthly(lastChart.series, lastChart.key, lastChart.prev);
+    if(currentNav === 'trip'){ tripRenderGpx(); if(tripWeatherData) tripRenderHourlyChart(); }
   }, 150);
 });
 
@@ -3618,39 +3765,115 @@ async function savePrefs(){
   }catch(e){ if(msg) msg.textContent = t('coach_sportsSaveFail') + shortErr(e.message); toast(t('coach_sportsSaveFail'), false); }
 }
 
-// ===== 出行计划（移植自 Hermes skill: cycling/outdoor-trip-planner）=====
-let tripDests = [];
+// ===== 出行计划（移植自 Hermes skill: cycling/outdoor-trip-planner，扩展：地理编码 / GPX 行程 / 逐时天气 / 余票筛选排序）=====
+let tripDests = [];           // 服务端预设目的地
+let tripRecentDests = [];     // 自定义/最近使用（localStorage sp-trip-dests，≤8 条）
+let tripGpx = null;           // GPX.parse 结果
+let tripWeatherData = null;   // /api/trip/weather 响应缓存（含逐时）
+let tripHourlyDay = null;     // 逐时图表当前选中日
+let tripTrainData = null;     // /api/trip/trains 响应缓存
+let tripTrainSort = { key: 'depart', dir: 1 };   // 默认出发时刻升序；新查询时重置
 function tripFmtDate(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function tripInit(){
   const dateEl = document.getElementById('tripDate'), trainDate = document.getElementById('tripTrainDate');
   const today = new Date();
   if(dateEl && !dateEl.value) dateEl.value = tripFmtDate(today);
   if(trainDate && !trainDate.value) trainDate.value = tripFmtDate(today);
+  // 匀速/开始时间：恢复持久化值
+  const sp = document.getElementById('tripSpeed'), st = document.getElementById('tripStartTime');
+  if(sp && !sp.dataset.init){ sp.value = localStorage.getItem('sp-trip-speed') || '20'; sp.dataset.init = '1'; }
+  if(st && !st.dataset.init){ st.value = localStorage.getItem('sp-trip-start') || '08:00'; st.dataset.init = '1'; }
   tripUpdateDateInfo();
   tripLoadDests();
+  tripGpxBind();
+}
+// ---- 目的地：预设 + 最近使用 ----
+function tripLoadRecentDests(){
+  try{ tripRecentDests = JSON.parse(localStorage.getItem('sp-trip-dests') || '[]'); if(!Array.isArray(tripRecentDests)) tripRecentDests = []; }
+  catch(e){ tripRecentDests = []; }
+}
+function tripRememberDest(x){
+  tripLoadRecentDests();
+  const key = x.name + '|' + Number(x.lat).toFixed(2) + '|' + Number(x.lon).toFixed(2);
+  tripRecentDests = tripRecentDests.filter(d => (d.name + '|' + Number(d.lat).toFixed(2) + '|' + Number(d.lon).toFixed(2)) !== key);
+  tripRecentDests.unshift(x);
+  if(tripRecentDests.length > 8) tripRecentDests.length = 8;
+  try{ localStorage.setItem('sp-trip-dests', JSON.stringify(tripRecentDests)); }catch(e){}
 }
 async function tripLoadDests(){
   await ensureApiToken();
+  tripLoadRecentDests();
   try{
     const d = await apiGet('/api/trip/destinations');
     tripDests = d.destinations || [];
-    const sel = document.getElementById('tripDestSel');
-    if(sel){
-      sel.innerHTML = tripDests.map((x,i)=>'<option value="'+i+'">'+escapeHtml(x.name)+'</option>').join('');
-      if(tripDests.length) tripDestChanged();
-    }
-  }catch(e){ console.error('tripLoadDests failed', e); }
+    tripRenderDestSel();
+    if(tripDests.length && !document.getElementById('tripLat').value) tripDestChanged();
+  }catch(e){ console.error('tripLoadDests failed', e); tripRenderDestSel(); }
+}
+function tripRenderDestSel(){
+  const sel = document.getElementById('tripDestSel');
+  if(!sel) return;
+  const prev = sel.value;
+  let html = '';
+  if(tripRecentDests.length) html += '<optgroup label="'+escapeHtml(t('trip_recentDests'))+'">'
+    + tripRecentDests.map((x,i)=>'<option value="r'+i+'">'+escapeHtml(x.name)+'</option>').join('') + '</optgroup>';
+  if(tripDests.length) html += '<optgroup label="'+escapeHtml(t('trip_dest'))+'">'
+    + tripDests.map((x,i)=>'<option value="p'+i+'">'+escapeHtml(x.name)+'</option>').join('') + '</optgroup>';
+  sel.innerHTML = html || '<option value="">-</option>';
+  if(prev && sel.querySelector('option[value="'+prev+'"]')) sel.value = prev;
 }
 function tripDestChanged(){
-  const i = Number(document.getElementById('tripDestSel').value);
-  const x = tripDests[i];
+  const v = String(document.getElementById('tripDestSel').value || '');
+  let x = null, isPreset = false;
+  if(v[0] === 'p'){ x = tripDests[Number(v.slice(1))]; isPreset = !!x; }
+  else if(v[0] === 'r'){ x = tripRecentDests[Number(v.slice(1))]; }
   if(!x) return;
   document.getElementById('tripLat').value = x.lat;
   document.getElementById('tripLon').value = x.lon;
-  document.getElementById('tripTo').value = x.rail.split('→')[1]?.split(' ')[0] || x.name;
   const meta = document.getElementById('tripDestMeta');
-  if(meta) meta.innerHTML = '<div>📍 '+escapeHtml(x.rail)+' · '+t('trip_alt')+' ~'+x.alt+'m</div>'+
-    '<div>🚴 '+escapeHtml(x.ride)+'</div><div>🥾 '+escapeHtml(x.hike)+'</div>';
+  if(isPreset){
+    document.getElementById('tripTo').value = x.rail.split('→')[1]?.split(' ')[0] || x.name;
+    if(meta) meta.innerHTML = '<div>📍 '+escapeHtml(x.rail)+' · '+t('trip_alt')+' ~'+x.alt+'m</div>'+
+      '<div>🚴 '+escapeHtml(x.ride)+'</div><div>🥾 '+escapeHtml(x.hike)+'</div>';
+  } else {
+    document.getElementById('tripTo').value = x.name;
+    if(meta) meta.innerHTML = '<div>📍 '+escapeHtml([x.admin1, x.country].filter(Boolean).join(' · '))
+      + (x.elevation != null ? ' · '+t('trip_alt')+' ~'+Math.round(x.elevation)+'m' : '')+'</div>';
+  }
+}
+// ---- 地理编码搜索（任意地点）----
+async function tripGeoSearch(){
+  await ensureApiToken();
+  const name = document.getElementById('tripGeoInput').value.trim();
+  const box = document.getElementById('tripGeoResults');
+  if(!name){ box.style.display = 'none'; return; }
+  box.style.display = 'flex';
+  box.innerHTML = '<div class="tt" style="color:var(--text-3);font-size:12px;padding:4px">'+escapeHtml(t('trip_loading'))+'</div>';
+  try{
+    const d = await apiGet('/api/trip/geocode', 'name='+encodeURIComponent(name)+'&count=8&language='+(currentLang==='en'?'en':'zh'));
+    if(d.error){ box.innerHTML = '<div class="tt" style="color:var(--err);font-size:12px;padding:4px">'+escapeHtml(d.error)+'</div>'; return; }
+    const rs = d.results || [];
+    if(!rs.length){ box.innerHTML = '<div class="tt" style="color:var(--text-3);font-size:12px;padding:4px">'+escapeHtml(t('trip_geoEmpty'))+'</div>'; return; }
+    box.innerHTML = rs.map((r,i)=>'<button type="button" onclick="tripGeoPick('+i+')"><span class="gname">'+escapeHtml(r.name)+'</span>'
+      +'<span class="gmeta">'+escapeHtml([r.admin1, r.country].filter(Boolean).join(' · '))
+      +(r.elevation != null ? ' · '+Math.round(r.elevation)+'m' : '')+'</span></button>').join('');
+    box._results = rs;
+  }catch(e){ box.innerHTML = '<div class="tt" style="color:var(--err);font-size:12px;padding:4px">'+escapeHtml(t('trip_fail')+shortErr(e.message))+'</div>'; }
+}
+function tripGeoPick(i){
+  const box = document.getElementById('tripGeoResults');
+  const r = (box._results || [])[i];
+  if(!r) return;
+  document.getElementById('tripLat').value = r.lat;
+  document.getElementById('tripLon').value = r.lon;
+  document.getElementById('tripTo').value = r.name;
+  const meta = document.getElementById('tripDestMeta');
+  if(meta) meta.innerHTML = '<div>📍 '+escapeHtml(r.name+' · '+[r.admin1, r.country].filter(Boolean).join(' · '))
+    + (r.elevation != null ? ' · '+t('trip_alt')+' ~'+Math.round(r.elevation)+'m' : '')+'</div>';
+  tripRememberDest(r);
+  tripRenderDestSel();
+  const sel = document.getElementById('tripDestSel');
+  if(sel) sel.value = 'r0';
 }
 function tripPickWeekend(){
   const d = new Date();
@@ -3670,6 +3893,203 @@ function tripUpdateDateInfo(){
   const dow = currentLang==='en' ? ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()] : ['周日','周一','周二','周三','周四','周五','周六'][d.getDay()];
   info.textContent = v + ' ' + dow;
 }
+// ---- GPX 路线与行程 ----
+function tripGpxBind(){
+  const drop = document.getElementById('tripGpxDrop'), input = document.getElementById('tripGpxInput');
+  if(!drop || !input || drop.dataset.bound) return;
+  drop.dataset.bound = '1';
+  drop.addEventListener('click', () => input.click());
+  input.addEventListener('change', e => { if(e.target.files[0]) tripGpxFile(e.target.files[0]); input.value = ''; });
+  ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files && e.dataTransfer.files[0]; if(f) tripGpxFile(f); });
+}
+async function tripGpxFile(file){
+  const info = document.getElementById('tripGpxInfo');
+  if(!/\.gpx$/i.test(file.name)){ toast(t('trip_gpxParseFail')+file.name, false); return; }
+  try{
+    const text = await file.text();
+    tripGpx = GPX.parse(text);
+    tripGpx.fileName = file.name;
+    tripRenderGpx();
+    if(tripWeatherData) tripRenderWeather();   // 运动窗口随 ETA 更新
+  }catch(e){
+    tripGpx = null;
+    info.innerHTML = '<div class="tt" style="color:var(--err);margin-top:8px">'+escapeHtml(t('trip_gpxParseFail')+(e.message==='no track points' ? t('trip_gpxNoPoints') : e.message))+'</div>';
+    document.getElementById('tripRouteWxBtn').style.display = 'none';
+    const mw = document.getElementById('tripMapWrap'); if(mw) mw.style.display = 'none';
+    tripRenderGpxFileCard();
+  }
+}
+// 已导入文件卡片：让用户清楚当前加载的是哪个文件、什么规模
+function tripRenderGpxFileCard(){
+  const card = document.getElementById('tripGpxFile');
+  const drop = document.getElementById('tripGpxDrop');
+  if(!card) return;
+  if(!tripGpx){
+    card.style.display = 'none';
+    if(drop){ drop.classList.remove('has-file'); drop.querySelector('b').textContent = t('trip_gpxDropTitle'); }
+    return;
+  }
+  card.style.display = 'flex';
+  document.getElementById('tripGpxName').textContent = tripGpx.fileName || 'route.gpx';
+  const parts = [tripGpx.points.length + ' ' + t('fit_tagPoints'), tripGpx.distanceKm.toFixed(1) + ' km'];
+  if(tripGpx.hasEle) parts.push('↑' + Math.round(tripGpx.elevGain) + ' m');
+  document.getElementById('tripGpxMeta').textContent = parts.join(' · ');
+  if(drop){ drop.classList.add('has-file'); drop.querySelector('b').textContent = t('trip_gpxReplaceHint'); }
+}
+function tripGpxReplace(){ document.getElementById('tripGpxInput').click(); }
+function tripGpxRemove(){
+  tripGpx = null;
+  tripRenderGpx();
+  tripRenderGpxFileCard();
+  const rw = document.getElementById('tripRouteWxBox'); if(rw) rw.innerHTML = '';
+}
+function tripSpeedChanged(){
+  localStorage.setItem('sp-trip-speed', document.getElementById('tripSpeed').value);
+  localStorage.setItem('sp-trip-start', document.getElementById('tripStartTime').value);
+  tripRenderGpx();
+  if(tripWeatherData) tripRenderWeather();
+}
+// 行程窗口：开始小时 + 用时小时（无 GPX/无效速度 → 默认 6~18）
+function tripWorkoutWindow(){
+  const st = (document.getElementById('tripStartTime')?.value || '08:00');
+  const [sh, sm] = st.split(':').map(Number);
+  const startH = (sh || 0) + (sm || 0) / 60;
+  if(tripGpx){
+    const mins = GPX.etaMinutes(tripGpx.distanceKm, document.getElementById('tripSpeed')?.value);
+    if(mins != null && mins > 0) return [startH, startH + mins / 60];
+  }
+  return [Math.max(0, startH - 6), Math.min(24, startH + 10)];   // 无 GPX：以开始时间为中心的宽窗口
+}
+function tripEtaText(){
+  if(!tripGpx) return null;
+  const speed = Number(document.getElementById('tripSpeed')?.value);
+  const mins = GPX.etaMinutes(tripGpx.distanceKm, speed);
+  if(mins == null) return null;
+  const st = document.getElementById('tripStartTime')?.value || '08:00';
+  const [sh, sm] = st.split(':').map(Number);
+  const fin = new Date(); fin.setHours(sh || 0, (sm || 0) + Math.round(mins), 0, 0);
+  const hhmm = String(fin.getHours()).padStart(2,'0')+':'+String(fin.getMinutes()).padStart(2,'0');
+  const hh = Math.floor(mins/60), mm = Math.round(mins%60);
+  return { durText: (hh ? hh+'h ' : '') + mm+'min', finish: hhmm, mins };
+}
+function tripRenderGpx(){
+  const info = document.getElementById('tripGpxInfo');
+  const btn = document.getElementById('tripRouteWxBtn');
+  if(!tripGpx){
+    btn.style.display = 'none';
+    info.innerHTML = '';   // 移除后清空摘要/剖面，不留陈旧内容
+    const mw = document.getElementById('tripMapWrap'); if(mw) mw.style.display = 'none';
+    return;
+  }
+  const g = tripGpx, eta = tripEtaText();
+  btn.style.display = '';
+  const sum = (k, v, unit) => '<div class="trip-sum"><span class="k">'+escapeHtml(t(k))+'</span><span class="v">'+v+(unit?' <small>'+unit+'</small>':'')+'</span></div>';
+  let html = '<div class="trip-summary">'
+    + sum('trip_sumDist', g.distanceKm.toFixed(1), 'km')
+    + (g.hasEle ? sum('trip_sumGain', Math.round(g.elevGain), 'm') + sum('trip_sumEle', Math.round(g.minEle)+'~'+Math.round(g.maxEle), 'm') : '')
+    + (eta ? sum('trip_sumEta', eta.durText) + sum('trip_sumFinish', eta.finish) : '')
+    + '</div>';
+  // 海拔剖面
+  const prof = g.hasEle ? GPX.profile(g, 200) : [];
+  if(prof.length){
+    const C = chartColors();
+    const w = Math.max(300, info.clientWidth || 520), h = 90, padL = 34, padR = 8, padT = 8, padB = 16;
+    const iw = w-padL-padR, ih = h-padT-padB;
+    const es = prof.map(p=>p.ele);
+    let eMin = Math.min(...es), eMax = Math.max(...es);
+    if(eMax - eMin < 10){ const mid = (eMax+eMin)/2; eMin = mid-5; eMax = mid+5; }
+    const X = i => padL + iw * i/(prof.length-1);
+    const Y = e => padT + ih - (e-eMin)/(eMax-eMin)*ih;
+    const line = prof.map((p,i)=>X(i).toFixed(1)+','+Y(p.ele).toFixed(1)).join(' ');
+    const area = `M${X(0).toFixed(1)},${(padT+ih).toFixed(1)} L${line.split(' ').join(' L')} L${X(prof.length-1).toFixed(1)},${(padT+ih).toFixed(1)} Z`;
+    html += '<div class="trip-profile"><svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'" role="img" aria-label="elevation profile">'
+      + '<path d="'+area+'" fill="'+C.viz+'" opacity="0.18"/>'
+      + '<polyline points="'+line+'" fill="none" stroke="'+C.viz+'" stroke-width="1.6" stroke-linejoin="round"/>'
+      + '<text x="'+(padL-4)+'" y="'+(padT+8)+'" text-anchor="end" font-size="9" fill="'+C.muted+'">'+Math.round(eMax)+'m</text>'
+      + '<text x="'+(padL-4)+'" y="'+(padT+ih)+'" text-anchor="end" font-size="9" fill="'+C.muted+'">'+Math.round(eMin)+'m</text>'
+      + '<text x="'+padL+'" y="'+(h-4)+'" font-size="9" fill="'+C.muted+'">0 km</text>'
+      + '<text x="'+(w-padR)+'" y="'+(h-4)+'" text-anchor="end" font-size="9" fill="'+C.muted+'">'+g.distanceKm.toFixed(1)+' km</text>'
+      + '</svg></div>';
+  } else if(!g.hasEle){
+    html += '<div class="tt" style="margin-top:8px;color:var(--text-3);font-size:11.5px">'+escapeHtml(t('trip_noEle'))+'</div>';
+  }
+  info.innerHTML = html;
+  tripRenderGpxFileCard();
+  // 轨迹小地图（Leaflet）：GPX 点直接上地图，起终点 S/E 标记
+  const wrap = document.getElementById('tripMapWrap');
+  if(wrap){
+    if(typeof TrackMap !== 'undefined' && TrackMap.available() && g.points && g.points.length){
+      wrap.style.display = '';
+      TrackMap.show('tripMap', g.points);
+    } else wrap.style.display = 'none';
+  }
+}
+// ---- 沿途天气（GPX 采样 × ETA）----
+async function tripLoadRouteWeather(){
+  if(!tripGpx){ toast(t('trip_gpxOnly'), false); return; }
+  await ensureApiToken();
+  const box = document.getElementById('tripRouteWxBox');
+  if(!box) return;
+  box.innerHTML = '<div class="tt" style="padding:10px;color:var(--text-3)">'+escapeHtml(t('trip_loading'))+'</div>';
+  const speed = Number(document.getElementById('tripSpeed')?.value);
+  const start = document.getElementById('tripStartTime')?.value || '08:00';
+  const tripDate = document.getElementById('tripDate').value || tripFmtDate(new Date());
+  const pts = GPX.sample(tripGpx, 8);
+  const ptsParam = pts.map(p => p.lat.toFixed(4)+','+p.lon.toFixed(4)).join(';');
+  try{
+    const d = await apiGet('/api/trip/routeweather', 'pts='+encodeURIComponent(ptsParam));
+    if(d.error){ box.innerHTML = '<div class="tt" style="color:var(--err)">'+escapeHtml(d.error)+'</div>'; return; }
+    // 各采样点 ETA 时刻 → 就近取该点逐时数据
+    const [sh, sm] = start.split(':').map(Number);
+    const outOfRange = [];
+    const rows = pts.map((p, i) => {
+      const mins = GPX.etaMinutes(p.distKm, speed);
+      const when = new Date(tripDate+'T00:00:00');
+      when.setHours((sh||0), (sm||0) + (mins != null ? Math.round(mins) : 0));
+      const hourStr = tripFmtDate(when)+'T'+String(when.getHours()).padStart(2,'0')+':00';
+      const hp = (d.points[i] && d.points[i].hourly) || [];
+      let best = null, bestDiff = Infinity;
+      for(const hrow of hp){
+        const diff = Math.abs(Date.parse(hrow.time) - Date.parse(hourStr));
+        if(diff < bestDiff){ bestDiff = diff; best = hrow; }
+      }
+      if(!best || bestDiff > 24*3600*1000) outOfRange.push(i);
+      return { distKm: p.distKm, when, hourStr, wx: best, exact: bestDiff <= 30*60*1000 };
+    });
+    const wmo = d.wmo || {};
+    const trs = rows.map(r=>{
+      const w = r.wx;
+      const hhmm = String(r.when.getHours()).padStart(2,'0')+':'+String(r.when.getMinutes()).padStart(2,'0');
+      const dateNote = r.when.getDate() !== new Date(tripDate+'T00:00:00').getDate() ? '('+tripFmtDate(r.when).slice(5)+') ' : '';
+      return '<tr'+(r.exact?'':' style="opacity:.65"')+'><td>'+r.distKm.toFixed(1)+' km</td>'
+        + '<td>'+dateNote+hhmm+'</td>'
+        + '<td>'+escapeHtml(w ? (wmo[w.code]||w.code) : '—')+'</td>'
+        + '<td>'+(w && w.temp != null ? Math.round(w.temp)+'°C' : '—')+'</td>'
+        + '<td class="'+(w && w.rainProb >= 50 ? 'bad' : '')+'">'+(w && w.rainProb != null ? w.rainProb+'%' : '—')+'</td>'
+        + '<td>'+(w && w.wind != null ? Math.round(w.wind)+' km/h '+tripWindDir(w.windDir) : '—')+'</td></tr>';
+    }).join('');
+    box.innerHTML = '<div class="tt" style="margin:10px 0 2px;font-size:11.5px;color:var(--text-3)">'
+      + escapeHtml(t('trip_routeWxNote', { v: speed, t: start, d: 2 })) + '</div>'
+      + (outOfRange.length ? '<div class="tt" style="color:var(--warn,#f59e0b);font-size:11.5px;margin-bottom:4px">⚠ '+escapeHtml(t('trip_outOfRange'))+'</div>' : '')
+      + '<div style="overflow-x:auto"><table class="trip-table"><tr><th>'+t('trip_tlDist')+'</th><th>'+t('trip_tlEta')+'</th><th>'+t('trip_weather')+'</th><th>'+t('trip_temp')+'</th><th>'+t('trip_rain')+'</th><th>'+t('trip_wind')+'</th></tr>'+trs+'</table></div>';
+    // 采样点标到地图上（tooltip 显示里程+预计时刻+天气）
+    if(typeof TrackMap !== 'undefined' && TrackMap.available() && tripGpx){
+      const hhmm = d2 => String(d2.getHours()).padStart(2,'0')+':'+String(d2.getMinutes()).padStart(2,'0');
+      TrackMap.show('tripMap', tripGpx.points, { markers: rows.map((r,i)=>({
+        lat: pts[i].lat, lon: pts[i].lon, kind: 'wp',
+        label: r.distKm.toFixed(1)+' km · '+hhmm(r.when)+' · '+(r.wx ? ((d.wmo[r.wx.code]||'')+' '+Math.round(r.wx.temp)+'°C') : ''),
+      })) });
+    }
+  }catch(e){ box.innerHTML = '<div class="tt" style="color:var(--err)">'+escapeHtml(t('trip_fail')+shortErr(e.message))+'</div>'; }
+}
+function tripWindDir(deg){
+  if(deg == null || !Number.isFinite(deg)) return '';
+  const dirs = currentLang==='en' ? ['N','NE','E','SE','S','SW','W','NW'] : ['北','东北','东','东南','南','西南','西','西北'];
+  return dirs[Math.round(((deg % 360) / 45)) % 8];
+}
+// ---- 天气：逐时图表 + 每日聚合表 ----
 async function tripLoadWeather(){
   await ensureApiToken();
   const box = document.getElementById('tripWeatherBox');
@@ -3679,26 +4099,117 @@ async function tripLoadWeather(){
   try{
     const d = await apiGet('/api/trip/weather', 'lat='+lat+'&lon='+lon+'&days=7');
     if(d.error){ box.innerHTML = '<div class="tt" style="color:var(--err)">'+escapeHtml(d.error)+'</div>'; return; }
-    tripRenderWeather(d);
+    tripWeatherData = d;
+    // 默认选中出行日期（若在预报范围内），否则第一天
+    const sel = document.getElementById('tripDate').value;
+    const days = [...new Set((d.hourly||[]).map(h=>h.time.slice(0,10)))];
+    tripHourlyDay = days.includes(sel) ? sel : (days[0] || null);
+    tripRenderWeather();
   }catch(e){ box.innerHTML = '<div class="tt" style="color:var(--err)">'+escapeHtml(t('trip_fail')+shortErr(e.message))+'</div>'; }
 }
-function tripRenderWeather(d){
+function tripRenderWeather(){
+  const d = tripWeatherData;
+  if(!d) return;
   const box = document.getElementById('tripWeatherBox');
+  const days = [...new Set((d.hourly||[]).map(h=>h.time.slice(0,10)))];
+  if(!days.includes(tripHourlyDay)) tripHourlyDay = days[0] || null;
+  // 日期选择条
+  const daybar = days.length ? '<div class="trip-daybar">'+days.map(dy=>
+    '<button type="button" class="'+(dy===tripHourlyDay?'active':'')+'" onclick="tripHourlyDay=\''+dy+'\';tripRenderWeather()">'+dy.slice(5)+'</button>').join('')+'</div>' : '';
+  // 每日聚合表（原样式）
   const sel = document.getElementById('tripDate').value;
   const rows = (d.days||[]).map(day=>{
     const isSel = day.day === sel;
     const icon = (d.wmo && d.wmo[day.worst]) || '';
     const rain = day.rainMax;
     const rainCls = rain >= 50 ? 'bad' : rain >= 30 ? '' : 'ok';
-    return '<tr'+(isSel?' style="background:var(--hover)"':'')+'>'+
+    return '<tr onclick="tripHourlyDay=\''+day.day+'\';tripRenderWeather()" style="cursor:pointer'+(isSel?';background:var(--hover)':'')+'">'+
       '<td>'+day.day+(isSel?' ◀':'')+'</td>'+
       '<td>'+escapeHtml(icon)+'</td>'+
       '<td>'+Math.round(day.tMin)+'~'+Math.round(day.tMax)+d.unit.temp+'</td>'+
       '<td class="'+rainCls+'">'+rain+'%</td></tr>';
   }).join('');
-  box.innerHTML = '<table class="trip-table"><tr><th>'+t('trip_date')+'</th><th>'+t('trip_weather')+'</th><th>'+t('trip_temp')+'</th><th>'+t('trip_rain')+'</th></tr>'+rows+'</table>'+
+  const table = '<table class="trip-table"><tr><th>'+t('trip_date')+'</th><th>'+t('trip_weather')+'</th><th>'+t('trip_temp')+'</th><th>'+t('trip_rain')+'</th></tr>'+rows+'</table>'+
     '<div class="tt" style="margin-top:6px;font-size:11px;color:var(--text-3)">'+escapeHtml(t('trip_weatherNote'))+'</div>';
+  box.innerHTML = '<div class="tt" style="font-size:12px;font-weight:600;color:var(--text-2);margin-top:4px">'+escapeHtml(t('trip_hourlyChart'))+'</div>'
+    + daybar + '<div class="trip-hourly" id="tripHourlyChart"></div>'
+    + '<div class="tt" style="font-size:11px;color:var(--text-3);margin:2px 0 4px">'+escapeHtml(t('trip_hourlyNote'))+'</div>' + table;
+  tripRenderHourlyChart();
 }
+function tripRenderHourlyChart(){
+  const d = tripWeatherData;
+  const host = document.getElementById('tripHourlyChart');
+  if(!host) return;
+  const hours = (d.hourly||[]).filter(h=>h.time.slice(0,10) === tripHourlyDay);
+  if(!hours.length){ host.innerHTML = '<div class="tt" style="color:var(--text-3);font-size:12px;padding:8px">'+escapeHtml(t('trip_noHourly'))+'</div>'; return; }
+  const C = chartColors();
+  const w = Math.max(320, host.clientWidth || 560), h = 190;
+  const padL = 34, padR = 30, padT = 12, padB = 24;
+  const iw = w-padL-padR, ih = h-padT-padB;
+  const slot = iw / hours.length;
+  // 温度轴（含 5% 余量）
+  const temps = hours.map(x=>x.temp).filter(v=>v!=null);
+  let tMin = Math.min(...temps), tMax = Math.max(...temps);
+  if(!Number.isFinite(tMin)){ tMin = 0; tMax = 10; }
+  if(tMax - tMin < 4){ const mid = (tMax+tMin)/2; tMin = mid-2; tMax = mid+2; }
+  const tPad = (tMax-tMin)*0.08; tMin -= tPad; tMax += tPad;
+  const TY = v => padT + ih - (v-tMin)/(tMax-tMin)*ih;
+  // 运动窗口
+  const [wStart, wEnd] = tripWorkoutWindow();
+  let band = '';
+  const bx1 = padL + slot*Math.max(0, wStart), bx2 = padL + slot*Math.min(24, wEnd);
+  if(bx2 > bx1) band = '<rect x="'+bx1.toFixed(1)+'" y="'+padT+'" width="'+(bx2-bx1).toFixed(1)+'" height="'+ih+'" fill="'+C.viz+'" opacity="0.07"/>';
+  // 降雨概率柱（底部 30% 高度区）
+  const rainH = ih * 0.3;
+  const bars = hours.map((x,i)=>{
+    const p = Math.max(0, Math.min(100, x.rainProb || 0));
+    const bh = p/100*rainH;
+    return '<rect x="'+(padL+slot*i+slot*0.18).toFixed(1)+'" y="'+(padT+ih-bh).toFixed(1)+'" width="'+(slot*0.64).toFixed(1)+'" height="'+bh.toFixed(1)+'" fill="#3b82f6" opacity="0.5" rx="1"/>';
+  }).join('');
+  // 温度折线 + 点
+  const line = hours.map((x,i)=>x.temp!=null ? (padL+slot*i+slot/2).toFixed(1)+','+TY(x.temp).toFixed(1) : null).filter(Boolean).join(' ');
+  const dots = hours.map((x,i)=>x.temp!=null ? '<circle cx="'+(padL+slot*i+slot/2).toFixed(1)+'" cy="'+TY(x.temp).toFixed(1)+'" r="2" fill="'+C.brand+'"/>' : '').join('');
+  // 网格 + 轴
+  let grid = '';
+  [0,0.5,1].forEach(f=>{
+    const gy = (padT+ih-f*ih).toFixed(1);
+    grid += '<line x1="'+padL+'" y1="'+gy+'" x2="'+(w-padR)+'" y2="'+gy+'" stroke="'+C.border+'" stroke-width="1"/>'
+      + '<text x="'+(padL-5)+'" y="'+gy+'" text-anchor="end" dominant-baseline="middle" font-size="9.5" fill="'+C.muted+'">'+Math.round(tMin+f*(tMax-tMin))+'°</text>';
+  });
+  const xlab = hours.map((x,i)=>{
+    const hr = Number(x.time.slice(11,13));
+    if(hr % 3 !== 0) return '';
+    return '<text x="'+(padL+slot*i+slot/2).toFixed(1)+'" y="'+(h-8)+'" text-anchor="middle" font-size="9.5" fill="'+C.muted+'">'+hr+'</text>';
+  }).join('');
+  // 风轴提示（右侧最大风速刻度）
+  const winds = hours.map(x=>x.wind).filter(v=>v!=null);
+  const wMax = winds.length ? Math.max(...winds) : 0;
+  const windNote = wMax > 0 ? '<text x="'+(w-padR+5)+'" y="'+padT+4+'" font-size="9" fill="'+C.muted+'">'+t('trip_wind')+'≤'+Math.round(wMax)+'</text>' : '';
+  const hits = hours.map((x,i)=>'<rect class="thit" data-i="'+i+'" x="'+(padL+slot*i).toFixed(1)+'" y="'+padT+'" width="'+slot.toFixed(1)+'" height="'+ih+'" fill="transparent"/>').join('');
+  host.innerHTML = '<div class="chart-wrap"><svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'" style="display:block" role="img" aria-label="hourly weather">'
+    + band + grid + bars + '<polyline points="'+line+'" fill="none" stroke="'+C.brand+'" stroke-width="1.8" stroke-linejoin="round"/>' + dots + xlab + windNote + hits
+    + '</svg><div class="ctip" id="tripHourlyTip"></div></div>';
+  // hover tooltip
+  const tip = host.querySelector('#tripHourlyTip');
+  host.querySelectorAll('.thit').forEach(hit=>{
+    hit.addEventListener('mouseenter', ()=>{
+      const x = hours[+hit.dataset.i];
+      if(!x || !tip) return;
+      const parts = [x.time.slice(11,16)];
+      if(x.temp != null) parts.push(Math.round(x.temp)+'°C');
+      parts.push((d.wmo && d.wmo[x.code]) || x.code || '');
+      if(x.rainProb != null) parts.push(t('trip_rain')+' '+x.rainProb+'%');
+      if(x.wind != null) parts.push(t('trip_wind')+' '+Math.round(x.wind)+(x.gust!=null ? ' '+t('trip_gust')+' '+Math.round(x.gust) : '')+' km/h '+tripWindDir(x.windDir));
+      tip.textContent = parts.join(' · ');
+      tip.style.opacity = '1';
+      const cx = padL + slot*(+hit.dataset.i) + slot/2;
+      tip.style.left = Math.min(Math.max(cx, 110), w-110)+'px';
+      tip.style.top = (padT+2)+'px';
+    });
+    hit.addEventListener('mouseleave', ()=>{ if(tip) tip.style.opacity = '0'; });
+  });
+}
+// ---- 高铁余票：时间范围过滤 + 排序 ----
 async function tripLoadTrains(){
   await ensureApiToken();
   const box = document.getElementById('tripTrainBox');
@@ -3711,30 +4222,60 @@ async function tripLoadTrains(){
   try{
     const d = await apiGet('/api/trip/trains', 'from='+encodeURIComponent(from)+'&to='+encodeURIComponent(to)+'&date='+date+'&type='+type);
     if(d.error){ box.innerHTML = '<div class="tt" style="color:var(--err)">'+escapeHtml(d.error)+'</div>'; return; }
-    tripRenderTrains(d);
+    tripTrainData = d;
+    tripTrainSort = { key: 'depart', dir: 1 };   // 新查询恢复默认排序：出发时刻升序
+    tripRenderTrains();
   }catch(e){ box.innerHTML = '<div class="tt" style="color:var(--err)">'+escapeHtml(t('trip_fail')+shortErr(e.message))+'</div>'; }
 }
-function tripRenderTrains(d){
+function tripSortBy(k){
+  if(tripTrainSort.key === k) tripTrainSort.dir = -tripTrainSort.dir;
+  else tripTrainSort = { key: k, dir: 1 };   // 时刻类列默认升序
+  tripRenderTrains();
+}
+const TRIP_TRAIN_COLS = {
+  depart: (t) => t.depart || '',                       // "HH:MM" 字符串序 == 时间序
+  arrive: (t) => t.arrive || '',
+  dur:    (t) => { const [hh, mm] = String(t.duration||'0:0').split(':').map(Number); return (hh||0)*60+(mm||0); },
+};
+function tripRenderTrains(){
+  const d = tripTrainData;
   const box = document.getElementById('tripTrainBox');
-  if(!d.trains || !d.trains.length){ box.innerHTML = '<div class="tt" style="padding:8px;color:var(--text-3)">'+escapeHtml(t('trip_noTrains'))+'</div>'; return; }
+  if(!box) return;
+  if(!d || !d.trains || !d.trains.length){ box.innerHTML = '<div class="tt" style="padding:8px;color:var(--text-3)">'+escapeHtml(t('trip_noTrains'))+'</div>'; return; }
+  // 出发时间范围过滤（空=不限；"HH:MM" 可直接字符串比较）
+  const rf = (document.getElementById('tripDepFrom')?.value || '').trim();
+  const rt = (document.getElementById('tripDepTo')?.value || '').trim();
+  let list = d.trains.filter(tn => (!rf || tn.depart >= rf) && (!rt || tn.depart <= rt));
+  // 排序
+  const get = TRIP_TRAIN_COLS[tripTrainSort.key] || TRIP_TRAIN_COLS.depart;
+  list = list.slice().sort((a,b)=>{ const va = get(a), vb = get(b); return va < vb ? -tripTrainSort.dir : va > vb ? tripTrainSort.dir : 0; });
+  const th = (k, label) => '<th class="sortable'+(tripTrainSort.key===k ? (tripTrainSort.dir===1?' asc':' desc') : '')+'" onclick="tripSortBy(\''+k+'\')">'+label+'</th>';
   const seat = v => (!v || v==='--' || v==='') ? '<span class="no">—</span>' : (v==='无' ? '<span class="bad">无</span>' : (v==='有' ? '<span class="ok">有</span>' : v));
-  const rows = d.trains.map(tn=>{
+  const rows = list.map(tn=>{
     const s = tn.seats;
     return '<tr><td><b>'+escapeHtml(tn.trainCode)+'</b></td>'+
       '<td>'+escapeHtml(tn.from)+' → '+escapeHtml(tn.to)+'</td>'+
-      '<td>'+escapeHtml(tn.depart)+'-'+escapeHtml(tn.arrive)+'</td>'+
+      '<td>'+escapeHtml(tn.depart)+'</td><td>'+escapeHtml(tn.arrive)+'</td>'+
       '<td>'+escapeHtml(tn.duration)+'</td>'+
       '<td>'+seat(s.swz!==''&&s.swz!=='--'?s.swz:s.tz)+'</td>'+
       '<td>'+seat(s.zy)+'</td><td>'+seat(s.ze)+'</td>'+
       '<td>'+seat(s.rw!==''&&s.rw!=='--'?s.rw:s.dw)+'</td>'+
       '<td class="'+(tn.canBuy?'ok':'bad')+'">'+(tn.canBuy?t('trip_canBuy'):t('trip_soldOut'))+'</td></tr>';
   }).join('');
-  box.innerHTML = '<div class="tt" style="margin:6px 0;font-size:12px">'+escapeHtml(d.from+' → '+d.to+' · '+d.date+' · '+d.count+t('trip_trainsUnit'))+'</div>'+
-    '<div style="overflow-x:auto"><table class="trip-table"><tr><th>'+t('trip_train')+'</th><th>'+t('trip_stations')+'</th><th>'+t('trip_time')+'</th><th>'+t('trip_dur')+'</th><th>'+t('trip_bizSeat')+'</th><th>'+t('trip_firstSeat')+'</th><th>'+t('trip_secondSeat')+'</th><th>'+t('trip_softSleep')+'</th><th>'+t('trip_status')+'</th></tr>'+rows+'</table></div>';
+  box.innerHTML = '<div class="tt" style="margin:6px 0;font-size:12px">'+escapeHtml(d.from+' → '+d.to+' · '+d.date+' · '+list.length+(list.length!==d.count ? '/'+d.count : '')+t('trip_trainsUnit'))+'</div>'+
+    (list.length
+      ? '<div style="overflow-x:auto"><table class="trip-table"><tr><th>'+t('trip_train')+'</th><th>'+t('trip_stations')+'</th>'+th('depart',t('trip_time'))+th('arrive',t('trip_arrive'))+th('dur',t('trip_dur'))+'<th>'+t('trip_bizSeat')+'</th><th>'+t('trip_firstSeat')+'</th><th>'+t('trip_secondSeat')+'</th><th>'+t('trip_softSleep')+'</th><th>'+t('trip_status')+'</th></tr>'+rows+'</table></div>'
+      : '<div class="tt" style="padding:8px;color:var(--text-3)">'+escapeHtml(t('trip_noTrains'))+'</div>');
 }
 function tripSwapStations(){
   const f = document.getElementById('tripFrom'), t2 = document.getElementById('tripTo');
   const tmp = f.value; f.value = t2.value; t2.value = tmp;
+}
+// 主题/语言切换后用缓存数据重绘（SVG 颜色取计算后的 CSS 变量）
+function reRenderTrip(){
+  if(tripWeatherData) tripRenderWeather();
+  tripRenderGpx();
+  if(tripTrainData) tripRenderTrains();
 }
 
 // ===== Init =====

@@ -66,6 +66,16 @@ const FIT = (() => {
     16: { name: 'uint64z', size: 8, read: v => v },
   };
 
+  // ---- FIT 无效值哨兵（Profile 规范）----
+  // 全 1 位模式表示「字段存在但无值」：uint8=0xFF, uint16=0xFFFF, uint32=0xFFFFFFFF,
+  // sint8=0x7F, sint16=0x7FFF, sint32=0x7FFFFFFF；*z 类型以 0 为无效。
+  // 实测码表文件常见：record 的 distance/speed 等字段在停表瞬间写 0xFFFFFFFF。
+  // 若当真实值用会得到天文数字（如 distance=0xFFFFFFFF cm ≈ 42949.67 km）。
+  const INVALID_Z = new Set([10, 11, 12, 16]);   // *z 类型以 0 为无效
+  // 无符号:全 1(0xFF/0xFFFF/0xFFFFFFFF)；有符号:最大正值(0x7F/0x7FFF/0x7FFFFFFF)
+  const invMask = (base, size) => size >= 8 ? Number.MAX_SAFE_INTEGER
+    : (SIGNED.has(base) ? Math.pow(2, size * 8 - 1) - 1 : Math.pow(2, size * 8) - 1);
+
   function readValue(view, off, size, baseType, little = true) {
     // string 单独处理：值按 NUL 截断，但字段在记录中始终占满声明的 size 字节，
     // 消费长度必须按 size 计，否则后续字段全部错位。
@@ -88,6 +98,13 @@ const FIT = (() => {
       const span = Math.pow(2, size * 8);
       raw = v % span;
       if (SIGNED.has(baseType) && raw >= span / 2) raw -= span;
+    }
+    // 无效哨兵 → null：调用方一律按「字段缺失」处理（距离/速度/心率等不会被天文数字污染）。
+    // 写回时 serialize 会把 null 还原为哨兵，保证 parse→serialize 字节级往返一致。
+    // 仅整数基类型参与（float 在本工具中从不消费，保持原始位模式往返更稳）。
+    if (size < 8 && baseType !== 7 && baseType !== 8 && baseType !== 9) {
+      const invalid = INVALID_Z.has(baseType) ? (raw === 0) : (raw === invMask(baseType, size));
+      if (invalid) return { value: null, size };
     }
     return { value: raw, size };
   }
@@ -270,9 +287,18 @@ const FIT = (() => {
       const slot = byKey.get(m.__defKey);
       if (!slot) continue;
       body.push(slot.local & 0x0F);          // 数据记录头：bit6=0
-      for (const f of m.fields) writeSized(body, m.data[f.num] === undefined ? 0 : m.data[f.num], f.base, f.size);
+      for (const f of m.fields) {
+        const val = m.data[f.num];
+        // undefined(字段无值)→0 保持旧行为；null(解析自无效哨兵)→写回哨兵，往返字节一致
+        const out = val === undefined ? 0 : (val === null ? (INVALID_Z.has(f.base) ? 0 : invMask(f.base, f.size)) : val);
+        writeSized(body, out, f.base, f.size);
+      }
       if (m.dev && m.dev.length) {
-        for (const f of m.dev) writeSized(body, (m.devData && m.devData[f.num] !== undefined) ? m.devData[f.num] : 0, f.base, f.size);
+        for (const f of m.dev) {
+          const dv0 = m.devData ? m.devData[f.num] : undefined;
+          const out = dv0 === undefined ? 0 : (dv0 === null ? (INVALID_Z.has(f.base) ? 0 : invMask(f.base, f.size)) : dv0);
+          writeSized(body, out, f.base, f.size);
+        }
       }
     }
 
@@ -297,6 +323,35 @@ const FIT = (() => {
       if (m.type === 'data') m.__defKey = defKey(m.global, m.fields, m.dev);
     }
     return parsed;
+  }
+
+  // ---- 大圆距离（米）：record.distance 缺失/无效时由 GPS 轨迹兜底 ----
+  const EARTH_R = 6371008.8;
+  function haversineM(aLat, aLon, bLat, bLon) {
+    const rad = Math.PI / 180;
+    const dLat = (bLat - aLat) * rad, dLon = (bLon - aLon) * rad;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * rad) * Math.cos(bLat * rad) * Math.sin(dLon / 2) ** 2;
+    return 2 * EARTH_R * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+  const SEMI_ = Math.pow(2, 31) / 180;   // 半圆/度（FIT: 180° = 2^31 半圆）
+  // records 为已按时间排序的 record 消息数组；返回累计里程（米），无轨迹返回 null
+  function gpsDistanceM(records) {
+    let dist = 0, prev = null;
+    for (const r of records) {
+      const la = r.data[REC.position_lat], lo = r.data[REC.position_long];
+      if (la == null || lo == null) continue;
+      const lat = la / SEMI_, lon = lo / SEMI_;
+      if (prev) dist += haversineM(prev[0], prev[1], lat, lon);
+      prev = [lat, lon];
+    }
+    return prev ? dist : null;
+  }
+  // 优先 record.distance 累计字段，缺失/无效（null）时回退 GPS 轨迹
+  function distanceMeters(records) {
+    const first = records[0]?.data[REC.distance], last = records[records.length - 1]?.data[REC.distance];
+    if (first != null && last != null && last >= first) return last - first;   // 单位 cm
+    const gps = gpsDistanceM(records);
+    return gps != null ? gps * 100 : null;
   }
 
   // ---- FIT 时间基准：1989-12-31 00:00:00 UTC = Unix 631065600 ----
@@ -377,7 +432,7 @@ const FIT = (() => {
       const lastTs = last.data[REC.timestamp];
       const firstTs = first.data[REC.timestamp];
       const dur = lastTs - firstTs;
-      const dist = (last.data[REC.distance] || 0) - (first.data[REC.distance] || 0);
+      const dist = distanceMeters(slice) ?? 0;   // cm；无效时 GPS 兜底
       msgs.push(makeEvent(MSG.event, first.data, baseTs));
       msgs.push(makeLap(first.data, baseTs, dur, dist));
       msgs.push(makeSession(first.data, baseTs, dur, dist));
@@ -480,7 +535,7 @@ const FIT = (() => {
     const firstTs = all[0].data[REC.timestamp];
     const lastTs = all[all.length - 1].data[REC.timestamp];
     const dur = lastTs - firstTs;
-    const dist = (all[all.length - 1].data[REC.distance] || 0) - (all[0].data[REC.distance] || 0);
+    const dist = distanceMeters(all) ?? 0;   // cm；无效时 GPS 兜底
     msgs.push(makeEvent(MSG.event, all[0].data, firstTs));
     msgs.push(makeLap(all[0].data, firstTs, dur, dist));
     msgs.push(makeSession(all[0].data, firstTs, dur, dist));
@@ -489,7 +544,7 @@ const FIT = (() => {
   }
 
   // ======================= 工具 4：FIT → GPX / TCX =======================
-  const SEMI = 180 * Math.pow(2, 31);   // 半圆 → 度
+  const SEMI = Math.pow(2, 31) / 180;   // 半圆/度：度 = 半圆 ÷ SEMI（FIT: 180° = 2^31 半圆）
 
   function toGpx(u8, name) {
     const p = tagDefs(parse(u8));
@@ -541,11 +596,18 @@ ${trkpts}
 
     const xesc = s => String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
-    let dist = 0;
+    let dist = 0;   // TCX 的 DistanceMeters 是「自起点累计」，必须累加而非取单步增量
     const pts = recs.map((r, i) => {
       const d = r.data;
       if (i > 0 && d[REC.distance] != null && recs[i - 1].data[REC.distance] != null) {
-        dist = d[REC.distance] - recs[i - 1].data[REC.distance];
+        dist += d[REC.distance] - recs[i - 1].data[REC.distance];
+      } else if (i > 0) {
+        // distance 字段缺失/无效：用 GPS 增量续上累计值
+        const la = d[REC.position_lat], lo = d[REC.position_long];
+        const pla = recs[i - 1].data[REC.position_lat], plo = recs[i - 1].data[REC.position_long];
+        if (la != null && lo != null && pla != null && plo != null) {
+          dist += haversineM(pla / SEMI, plo / SEMI, la / SEMI, lo / SEMI) * 100;
+        }
       }
       const lat = d[REC.position_lat] != null ? (d[REC.position_lat] / SEMI).toFixed(7) : '0';
       const lon = d[REC.position_long] != null ? (d[REC.position_long] / SEMI).toFixed(7) : '0';
@@ -589,16 +651,33 @@ ${trkpts}
 </TrainingCenterDatabase>`;
   }
 
+  // ======================= 轨迹坐标提取（供地图渲染）=======================
+  // 返回 [{lat, lon, ele?}]（度），无轨迹返回 []。抽稀：点数过多时等距取样，地图折线够用即可。
+  function trackPoints(u8, maxPts = 2000) {
+    const p = parse(u8);
+    const recs = p.messages.filter(m => m.type === 'data' && m.global === MSG.record && m.data[REC.timestamp] != null);
+    const pts = [];
+    for (const r of recs) {
+      const la = r.data[REC.position_lat], lo = r.data[REC.position_long];
+      if (la == null || lo == null) continue;
+      const ele = r.data[REC.altitude] != null ? (r.data[REC.altitude] - 500) / 5 : null;
+      pts.push({ lat: la / SEMI, lon: lo / SEMI, ele });
+    }
+    if (pts.length <= maxPts) return pts;
+    const out = [];
+    for (let i = 0; i < maxPts; i++) out.push(pts[Math.round(i * (pts.length - 1) / (maxPts - 1))]);
+    return out;
+  }
+
   // ======================= 文件概览（供 UI 展示）=======================
   function summarize(u8) {
     const p = parse(u8);
     const recs = p.messages.filter(m => m.type === 'data' && m.global === MSG.record && m.data[REC.timestamp] != null);
     const fid = p.messages.find(m => m.type === 'data' && m.global === MSG.file_id);
-    let lastDist = null, lastTs = null;
+    let distCm = null, lastTs = null;
     if (recs.length) {
-      const last = recs[recs.length - 1].data;
-      lastDist = last[REC.distance] != null ? last[REC.distance] / 100 : null;
-      lastTs = last[REC.timestamp];
+      lastTs = recs[recs.length - 1].data[REC.timestamp];
+      distCm = distanceMeters(recs);   // distance 字段无效时回退 GPS 轨迹
     }
     let has = { power: false, hr: false, cadence: false, lat: false, ele: false };
     for (const r of recs) {
@@ -615,7 +694,7 @@ ${trkpts}
       startUnix: recs.length ? FIT.fitToUnix(recs[0].data[REC.timestamp]) : null,
       endUnix: lastTs != null ? FIT.fitToUnix(lastTs) : null,
       duration: recs.length > 1 ? recs[recs.length - 1].data[REC.timestamp] - recs[0].data[REC.timestamp] : 0,
-      distanceKm: lastDist != null ? lastDist / 1000 : null,
+      distanceKm: distCm != null ? distCm / 100000 : null,   // cm → km
       manufacturer: fid ? fid.data[1] : null,
       product: fid ? fid.data[2] : null,
       maxGap: recs.length > 1 ? maxGap(recs) : 0,
@@ -626,7 +705,7 @@ ${trkpts}
   return {
     crc16, parse, serialize, tagDefs, BASE, MSG, REC,
     fitToUnix, unixToFit, FIT_EPOCH,
-    stripFields, split, combine, toGpx, toTcx, summarize,
+    stripFields, split, combine, toGpx, toTcx, summarize, trackPoints,
   };
 })();
 

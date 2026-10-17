@@ -38,7 +38,7 @@ import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { StravaDB, PyFloat, pyRound, pyDump, pyStr, pyf } from './db.js';
-import { tripWeather, tripTrains, TRIP_DESTINATIONS } from './trip.js';
+import { tripWeather, tripTrains, tripGeocode, tripRouteWeather, TRIP_DESTINATIONS } from './trip.js';
 
 const STRAVA_AUTH_URL = 'https://www.strava.com/oauth/token';
 const STRAVA_API = 'https://www.strava.com/api/v3';
@@ -1250,6 +1250,24 @@ async function handleGet(req, res, rawPath, qs) {
   if (rawPath === '/api/trip/destinations') {
     if (!requireApiToken(req, res, qs, rawPath)) return;
     sendJson(res, { ok: true, destinations: TRIP_DESTINATIONS });
+    return;
+  }
+  if (rawPath === '/api/trip/geocode') {
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    try {
+      sendJson(res, await tripGeocode(qs));
+    } catch (e) {
+      sendJson(res, { error: String(e.message || e) }, 502);
+    }
+    return;
+  }
+  if (rawPath === '/api/trip/routeweather') {
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    try {
+      sendJson(res, await tripRouteWeather(qs));
+    } catch (e) {
+      sendJson(res, { error: String(e.message || e) }, 502);
+    }
     return;
   }
   if (rawPath === '/api/powercurve') {

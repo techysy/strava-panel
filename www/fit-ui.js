@@ -76,6 +76,7 @@ const FitUI = (() => {
     try {
       const r = FIT.stripFields(f.bytes, { power: dropPw, heartRate: dropHr });
       download(new Blob([r.bytes], { type: 'application/octet-stream' }), baseName(f.name) + '-stripped.fit');
+      renderMap([r.bytes]);
       toast(t('fit_doneStrip', { n: r.count }), true);
     } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); }
   }
@@ -93,6 +94,7 @@ const FitUI = (() => {
         setTimeout(() => download(new Blob([b], { type: 'application/octet-stream' }),
           baseName(f.name) + `-part${i + 1}.fit`), i * 250);
       });
+      renderMap(files);   // 拆分产物在地图上多色渲染
       toast(t('fit_doneSplit', { n: files.length }), true);
     } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); }
   }
@@ -102,6 +104,7 @@ const FitUI = (() => {
     try {
       const r = FIT.combine(fitFiles.map(f => f.bytes));
       download(new Blob([r.bytes], { type: 'application/octet-stream' }), 'combined.fit');
+      renderMap([r.bytes]);   // 合并产物在地图上渲染
       toast(t('fit_doneCombine', { n: r.count }), true);
     } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); }
   }
@@ -120,6 +123,17 @@ const FitUI = (() => {
     } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); }
   }
 
+  // 轨迹小地图：多文件多色；拆分/合并/删除后的产物同样可渲染
+  function renderMap(bytesList) {
+    const wrap = $('fitMapWrap');
+    if (!wrap) return;
+    const src = bytesList || fitFiles.map(f => f.bytes);
+    const tracks = src.map(b => { try { return FIT.trackPoints(b); } catch (e) { return []; } }).filter(p => p.length);
+    if (!tracks.length || typeof TrackMap === 'undefined' || !TrackMap.available()) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    TrackMap.show('fitMap', tracks);
+  }
+
   function renderPanel() {
     const n = fitFiles.length;
     $('fitPanel').style.display = n ? '' : 'none';
@@ -133,6 +147,7 @@ const FitUI = (() => {
     $('fitStripTarget').textContent = fitFiles[0] ? baseName(fitFiles[0].name) : '-';
     $('fitSplitTarget').textContent = fitFiles[0] ? baseName(fitFiles[0].name) : '-';
     $('fitConvertTarget').textContent = fitFiles[0] ? baseName(fitFiles[0].name) : '-';
+    renderMap();
   }
 
   function init() {

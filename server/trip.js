@@ -39,26 +39,30 @@ export async function tripWeather(qs) {
   const days = Math.min(7, Math.max(1, Number(qs.days) || 7));
   const tz = qs.tz || 'Asia/Shanghai';
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
-    + `&hourly=temperature_2m,precipitation_probability,precipitation,weathercode,wind_speed_10m`
+    + `&hourly=temperature_2m,precipitation_probability,precipitation,weathercode,wind_speed_10m,wind_direction_10m,wind_gusts_10m`
     + `&timezone=${encodeURIComponent(tz)}&forecast_days=${days}`;
   const resp = await fetchTimeout(url, { headers: HEADERS }, 15000);
   if (!resp.ok) throw new Error(`Open-Meteo HTTP ${resp.status}`);
   const d = await resp.json();
   const h = d.hourly || {};
-  // 压缩为逐日 × 6~18 点运动窗口的行
+  // 全量逐时行（前端逐时图表 + 运动窗口用）
+  const hourly = (h.time || []).map((t, i) => ({
+    time: t,
+    temp: h.temperature_2m?.[i],
+    rainProb: h.precipitation_probability?.[i],
+    rainMm: h.precipitation?.[i],
+    code: h.weathercode?.[i],
+    wind: h.wind_speed_10m?.[i],
+    windDir: h.wind_direction_10m?.[i],
+    gust: h.wind_gusts_10m?.[i],
+  }));
+  // 兼容旧结构：逐日 × 6~18 点运动窗口聚合
   const byDay = {};
-  (h.time || []).forEach((t, i) => {
-    const day = t.slice(0, 10), hour = Number(t.slice(11, 13));
-    if (hour < 6 || hour > 18) return;
-    (byDay[day] ??= []).push({
-      hour,
-      temp: h.temperature_2m?.[i],
-      rainProb: h.precipitation_probability?.[i],
-      rainMm: h.precipitation?.[i],
-      code: h.weathercode?.[i],
-      wind: h.wind_speed_10m?.[i],
-    });
-  });
+  for (const x of hourly) {
+    const day = x.time.slice(0, 10), hour = Number(x.time.slice(11, 13));
+    if (hour < 6 || hour > 18) continue;
+    (byDay[day] ??= []).push(x);
+  }
   const daysOut = Object.entries(byDay).map(([day, hours]) => ({
     day, hours,
     // 全天概要：最高/最低温、最大降雨概率、代表天气
@@ -67,7 +71,83 @@ export async function tripWeather(qs) {
     rainMax: Math.max(0, ...hours.map(x => x.rainProb ?? 0)),
     worst: hours.slice().sort((a, b) => (b.rainProb ?? 0) - (a.rainProb ?? 0))[0]?.code,
   }));
-  return { ok: true, tz, unit: { temp: d.hourly_units?.temperature_2m || '°C', wind: d.hourly_units?.wind_speed_10m || 'km/h' }, days: daysOut, wmo: WMO };
+  return {
+    ok: true, tz,
+    unit: { temp: d.hourly_units?.temperature_2m || '°C', wind: d.hourly_units?.wind_speed_10m || 'km/h' },
+    hourly, days: daysOut, wmo: WMO,
+  };
+}
+
+// ===================== 地理编码（Open-Meteo，免费无 key） =====================
+
+export async function tripGeocode(qs) {
+  const name = String(qs.name || '').trim();
+  if (!name) throw new Error('缺少 name 参数');
+  const count = Math.min(10, Math.max(1, Number(qs.count) || 8));
+  const lang = qs.language === 'en' ? 'en' : 'zh';
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}`
+    + `&count=${count}&language=${lang}&format=json`;
+  const resp = await fetchTimeout(url, { headers: HEADERS }, 15000);
+  if (!resp.ok) throw new Error(`Open-Meteo geocoding HTTP ${resp.status}`);
+  const d = await resp.json();
+  const results = (d.results || []).map(r => ({
+    name: r.name,
+    admin1: r.admin1 || '',
+    country: r.country || '',
+    lat: r.latitude, lon: r.longitude,
+    elevation: r.elevation ?? null,
+    timezone: r.timezone || '',
+  }));
+  return { ok: true, results };
+}
+
+// ===================== 沿途天气（多点并行，Open-Meteo） =====================
+
+/**
+ * pts 编码: "lat,lon;lat,lon;..."（≤8 点，GET 紧凑传输，避免给零依赖服务端加 POST body 解析）
+ * 每点返回 2 天逐时（温度/降雨概率/降雨量/天气码/风），前端按各采样点 ETA 时刻就近取值。
+ *
+ * 所有点合并为**单次** Open-Meteo 请求（latitude/longitude 逗号分隔 → 响应为结果数组），
+ * 避免逐点并行触发免费层限流（HTTP 429）。结果按索引与请求点对应
+ * （Open-Meteo 返回的 latitude/longitude 是网格对齐后的值，不能用于匹配）。
+ */
+export async function tripRouteWeather(qs) {
+  const raw = String(qs.pts || '').trim();
+  if (!raw) throw new Error('缺少 pts 参数');
+  const pts = raw.split(';').map(s => {
+    const [la, lo] = s.split(',').map(Number);
+    return { lat: la, lon: lo };
+  }).filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lon)).slice(0, 8);
+  if (!pts.length) throw new Error('pts 无有效坐标');
+  const tz = qs.tz || 'Asia/Shanghai';
+  const days = Math.min(3, Math.max(1, Number(qs.days) || 2));
+  const lats = pts.map(p => p.lat.toFixed(4)).join(',');
+  const lons = pts.map(p => p.lon.toFixed(4)).join(',');
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}`
+    + `&hourly=temperature_2m,precipitation_probability,precipitation,weathercode,wind_speed_10m,wind_direction_10m,wind_gusts_10m`
+    + `&timezone=${encodeURIComponent(tz)}&forecast_days=${days}`;
+  const resp = await fetchTimeout(url, { headers: HEADERS }, 25000);
+  if (!resp.ok) throw new Error(`Open-Meteo HTTP ${resp.status}`);
+  const d = await resp.json();
+  // 多点 → 数组；单点 → 对象（Open-Meteo 两种形态都可能返回，统一成数组）
+  const list = Array.isArray(d) ? d : [d];
+  const points = pts.map((p, i) => {
+    const h = list[i]?.hourly || {};
+    return {
+      lat: p.lat, lon: p.lon,
+      hourly: (h.time || []).map((t, k) => ({
+        time: t,
+        temp: h.temperature_2m?.[k],
+        rainProb: h.precipitation_probability?.[k],
+        rainMm: h.precipitation?.[k],
+        code: h.weathercode?.[k],
+        wind: h.wind_speed_10m?.[k],
+        windDir: h.wind_direction_10m?.[k],
+        gust: h.wind_gusts_10m?.[k],
+      })),
+    };
+  });
+  return { ok: true, tz, wmo: WMO, unit: { temp: '°C', wind: 'km/h' }, points };
 }
 
 // ===================== 高铁票（12306） =====================
