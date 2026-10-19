@@ -21,10 +21,11 @@ const TrackMap = (() => {
       url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
       attr: '© OpenStreetMap contributors',
     },
+    // 免 key 素底图：Esri Light Gray Canvas（CARTO 免费瓦片已改为必须 API key，
+    // 匿名请求返回 "API KEY REQUIRED" 占位图，2026-10 起不可再用于无 key 场景）
     light: {
-      url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-      attr: '© OpenStreetMap © CARTO',
-      sub: 'abcd',
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+      attr: '© Esri, Maxar, Earthstar Geographics',
     },
     sat: {
       url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
