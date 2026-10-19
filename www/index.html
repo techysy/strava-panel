@@ -216,6 +216,16 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .pref-section{margin-top:18px}
 .pref-section h3{margin:0 0 8px;font-size:13.5px;display:flex;align-items:center;gap:6px}
 .pref-section .cap{font-size:12px;color:var(--text-3);margin:0 0 10px}
+/* 组件设置弹窗: 单列卡片行(显隐勾选 + 拖拽排序) */
+.cards-cfg{display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto}
+.cards-cfg .cc-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface);cursor:grab;user-select:none;transition:border-color .12s,opacity .12s}
+.cards-cfg .cc-row:hover{border-color:var(--border-strong)}
+.cards-cfg .cc-row.dragging{opacity:.45;cursor:grabbing}
+.cards-cfg .cc-row.drag-over{border-color:var(--viz)}
+.cards-cfg .cc-row.hidden-card{opacity:.55}
+.cards-cfg .cc-grip{color:var(--text-3);font-size:14px;letter-spacing:1px;flex:none}
+.cards-cfg .cc-name{flex:1;font-size:13px;font-weight:600;color:var(--text)}
+.cards-cfg .cc-chk{width:auto;accent-color:var(--accent);cursor:pointer}
 #tab-dash .log-view{flex:1;max-height:none}
 
 /* buttons */
@@ -422,6 +432,12 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 .ctx-item{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border:0;border-radius:8px;background:transparent;color:var(--text-2);font-size:12.5px;font-weight:600;cursor:pointer;text-align:left;font-family:inherit}
 .ctx-item:hover{background:var(--hover);color:var(--text)}
 .pop-item{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border:0;border-radius:9px;background:transparent;color:var(--text-2);font-size:12.5px;font-weight:600;cursor:pointer;text-align:left;font-family:inherit}
+/* 会话列表行:主体可点 + 右侧删除 */
+.sess-item{padding:2px 4px 2px 6px}
+.sess-item .sess-main{display:flex;align-items:center;gap:8px;flex:1;min-width:0;padding:6px 4px;border:0;background:transparent;color:inherit;font:inherit;font-weight:600;cursor:pointer;text-align:left}
+.sess-item .sess-del{width:24px;height:24px;flex:none;border:0;border-radius:7px;background:transparent;color:var(--text-3);font-size:15px;line-height:1;cursor:pointer;opacity:0;transition:all .12s}
+.sess-item:hover .sess-del,.sess-item .sess-del:focus{opacity:1}
+.sess-item .sess-del:hover{color:#ef4444;background:rgba(239,68,68,.1)}
 .pop-item:hover{background:var(--hover);color:var(--text)}
 .pop-item.on{background:var(--ok-soft);color:var(--viz)}
 .pop-item .pi-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -672,14 +688,26 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 
     <!-- 骑行数据 -->
     <div class="view active" id="tab-data">
-      <div class="seg" id="rangeSeg">
-        <button id="rg7d" class="active" onclick="setRange('7d')" data-i18n="rg_7d">近7天</button>
-        <button id="rg1m" onclick="setRange('1m')" data-i18n="rg_1m">近1月</button>
-        <button id="rg3m" onclick="setRange('3m')" data-i18n="rg_3m">近3月</button>
-        <button id="rg6m" onclick="setRange('6m')" data-i18n="rg_6m">近6月</button>
-        <button id="rgYtd" onclick="setRange('ytd')" data-i18n="rg_ytd">本年度</button>
-        <button id="rg12m" onclick="setRange('12m')" data-i18n="rg_12m">近12月</button>
-        <button id="rgAll" onclick="setRange('all')" data-i18n="rg_all">所有</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+        <div class="seg" id="rangeSeg" style="margin-bottom:0;flex:1 1 auto">
+          <button id="rg7d" class="active" onclick="setRange('7d')" data-i18n="rg_7d">近7天</button>
+          <button id="rg1m" onclick="setRange('1m')" data-i18n="rg_1m">近1月</button>
+          <button id="rg3m" onclick="setRange('3m')" data-i18n="rg_3m">近3月</button>
+          <button id="rg6m" onclick="setRange('6m')" data-i18n="rg_6m">近6月</button>
+          <button id="rgYtd" onclick="setRange('ytd')" data-i18n="rg_ytd">本年度</button>
+          <button id="rg12m" onclick="setRange('12m')" data-i18n="rg_12m">近12月</button>
+          <button id="rgAll" onclick="setRange('all')" data-i18n="rg_all">所有</button>
+        </div>
+        <button class="btn" onclick="openCardSettings()" style="padding:7px 12px" id="cardsCfgBtn"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span data-i18n="cards_settings">组件设置</span></button>
+      </div>
+      <div class="seg seg-sm" id="atypeSeg" style="margin-top:8px">
+        <button data-atype="ALL" class="active" onclick="setActType('ALL')">全部</button>
+        <button data-atype="Ride" onclick="setActType('Ride')">骑行</button>
+        <button data-atype="Run" onclick="setActType('Run')">跑步</button>
+        <button data-atype="Hike" onclick="setActType('Hike')">徒步</button>
+        <button data-atype="Walk" onclick="setActType('Walk')">步行</button>
+        <button data-atype="Swim" onclick="setActType('Swim')">游泳</button>
+        <button data-atype="VirtualRide" onclick="setActType('VirtualRide')">室内骑行</button>
       </div>
       <div class="grid" id="statsGrid">
         <div class="card mcard" id="cardDist" onclick="setChartMetric('dist')"><div class="label" data-i18n="stats_dist">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div><div class="delta" id="dDist"></div></div>
@@ -698,7 +726,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
     <!-- 最近骑行 -->
     <div class="view" id="tab-rides">
       <div class="panel">
-        <h2><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg><span data-i18n="panel_recent">最近骑行</span></h2>
+        <h2><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg><span data-i18n="panel_recent" id="recentTitle">最近骑行</span></h2>
         <table id="recentTable"><thead><tr><th class="sortable" data-sort="date" onclick="sortBy('date')" data-i18n="col_date">日期</th><th data-i18n="col_name">活动</th><th class="sortable" data-sort="dist" onclick="sortBy('dist')" data-i18n="col_dist">距离</th><th class="sortable" data-sort="dur" onclick="sortBy('dur')" data-i18n="col_dur">时长</th><th class="sortable" data-sort="spd" onclick="sortBy('spd')" data-i18n="col_speed">均速</th><th class="sortable" data-sort="elev" onclick="sortBy('elev')" data-i18n="col_elev">爬升</th><th class="sortable" data-sort="hr" onclick="sortBy('hr')" data-i18n="col_hr">心率</th><th class="sortable" data-sort="pw" onclick="sortBy('pw')" data-i18n="col_pw">功率</th><th class="sortable" data-sort="cad" onclick="sortBy('cad')" data-i18n="col_cad">踏频</th></tr></thead><tbody></tbody></table>
         <div class="pager" id="pager" style="display:none">
           <button id="prevPage" onclick="changePage(-1)" data-i18n="prev_page">‹ 上一页</button>
@@ -1103,6 +1131,19 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
     <div class="modal-actions" id="updActions"></div>
   </div>
 </div>
+<!-- 组件设置弹窗: 统计卡显隐 + 拖拽排序 -->
+<div class="modal-mask" id="cardsMask">
+  <div class="modal sm" role="dialog" aria-modal="true">
+    <h3><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span data-i18n="cards_settings">组件设置</span></h3>
+    <p class="tt" style="margin:0 0 10px" data-i18n="cards_hint">勾选控制显示；拖动排序（顺序即数据页从左到右）。</p>
+    <div id="cardsCfgList" class="cards-cfg"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="resetCardCfg()" data-i18n="cards_reset">恢复默认</button>
+      <button class="btn" onclick="document.getElementById('cardsMask').classList.remove('show')" data-i18n="modal_cancel">取消</button>
+      <button class="btn primary" onclick="saveCardCfg()" data-i18n="modal_save">保存</button>
+    </div>
+  </div>
+</div>
 <!-- 消息右键导出菜单 -->
 <div id="msgCtxMenu" class="ctx-menu"></div>
 
@@ -1144,7 +1185,7 @@ const I18N = {
     data_title:'数据管理', data_hint:'骑行数据缓存到本地 SQLite。可手动同步 Strava→SQLite，或导出全量数据给 agent 使用。',
     export_csv:'导出 CSV', export_json:'导出 JSON',
     badge_detect:'检测中…', badge_ok:'运行正常', badge_noConfig:'未配置', badge_fail:'连接失败', badge_attention:'需关注',
-    syncing:'同步中…', sync_done:'同步完成', sync_fail:'同步失败',
+    syncing:'同步中…', sync_done:'同步完成', sync_done_stats:'同步完成：拉取 {total} 条，新增 {n} 条', sync_fail:'同步失败',
     token_creating:'正在生成新 token…', token_done:'新 token (立即生效)：', token_fail:'创建失败:',
     load_log:'加载中…', no_log:'(暂无日志)', log_fmt:'{src} 日志 · {disp} · 共 {total} 行',
     menu_workspace:'工作区', menu_appearance:'外观', menu_language:'语言', menu_about:'关于', theme_system:'跟随系统', theme_light:'亮色', theme_dark:'暗色',
@@ -1194,9 +1235,11 @@ const I18N = {
     coach_thinking:'教练思考中…', coach_fail:'请求失败:', coach_cleared:'记忆已清空',
     coach_clear_confirm:'将清空当前会话的全部对话记忆,此操作不可撤销。', coach_suggest_prompt:'请根据我最近的骑行数据,给出本周训练建议(含强度、时长、恢复安排)。',
     coach_sessions:'会话', coach_new:'新会话', coach_newSess:'新会话', coach_pickModel:'选择模型', coach_untitled:'(无标题)', coach_noSessions:'暂无历史会话',
+    coach_sessDelete:'删除会话', coach_sessDeleted:'会话已删除（清掉 {n} 条消息）',
     cv_chat:'对话', cv_cal:'训练日历',
     model_defaultGroup:'默认', model_fetching:'拉取模型列表中…', model_fetchOk:'已拉取', model_fetchFail:'拉取失败:', model_fetchEmpty:'网关未返回模型列表',
-    modal_ok:'确定', modal_cancel:'取消',
+    modal_ok:'确定', modal_cancel:'取消', modal_save:'保存',
+    cards_settings:'组件设置', cards_hint:'勾选控制显示；拖动排序（顺序即数据页从左到右）。', cards_reset:'恢复默认',
     sub_model:'模型', model_title:'模型设置 (LLM)', model_hint:'接入 OpenAI 兼容 API(本地网关如 Ollama / LM Studio / vLLM,或云端),用于「训练建议」页签的 AI 教练。密钥仅存本地 strava.conf(权限 600)。',
     model_baseUrl:'API 地址 (base URL)', model_apiKey:'API Key (可选)', model_model:'模型名',
     model_save:'保存配置', model_test:'测试连接', model_saving:'保存中…', model_saved:'配置已保存', model_fail:'保存失败:',
@@ -1268,7 +1311,7 @@ const I18N = {
     data_title:'Data Management', data_hint:'Ride data cached to local SQLite. Sync Strava→SQLite manually, or export all data for an agent.',
     export_csv:'Export CSV', export_json:'Export JSON',
     badge_detect:'Detecting…', badge_ok:'Healthy', badge_noConfig:'Not Configured', badge_fail:'Connection Failed', badge_attention:'Needs Attention',
-    syncing:'Syncing…', sync_done:'Sync Complete', sync_fail:'Sync Failed',
+    syncing:'Syncing…', sync_done:'Sync Complete', sync_done_stats:'Sync complete: fetched {total}, {n} new', sync_fail:'Sync Failed',
     token_creating:'Generating new token…', token_done:'New token (effective now):', token_fail:'Failed:',
     load_log:'Loading…', no_log:'(no log)', log_fmt:'{src} log · {disp} · {total} lines',
     menu_workspace:'Workspace', menu_appearance:'Appearance', menu_language:'Language', menu_about:'About', theme_system:'System', theme_light:'Light', theme_dark:'Dark',
@@ -1318,9 +1361,11 @@ const I18N = {
     coach_thinking:'Coach is thinking…', coach_fail:'Request failed:', coach_cleared:'Memory cleared',
     coach_clear_confirm:'This clears the current session conversation memory and cannot be undone.', coach_suggest_prompt:'Based on my recent rides, give me a training plan for this week (intensity, duration, recovery).',
     coach_sessions:'Sessions', coach_new:'New', coach_newSess:'New', coach_pickModel:'Pick model', coach_untitled:'(untitled)', coach_noSessions:'No past sessions',
+    coach_sessDelete:'Delete session', coach_sessDeleted:'Session deleted ({n} messages cleared)',
     cv_chat:'Chat', cv_cal:'Training Calendar',
     model_defaultGroup:'default', model_fetching:'Fetching models…', model_fetchOk:'Fetched', model_fetchFail:'Fetch failed:', model_fetchEmpty:'Gateway returned no models',
-    modal_ok:'OK', modal_cancel:'Cancel',
+    modal_ok:'OK', modal_cancel:'Cancel', modal_save:'Save',
+    cards_settings:'Cards', cards_hint:'Check to show; drag to reorder (order = left-to-right on the data tab).', cards_reset:'Reset',
     sub_model:'Model', model_title:'Model Settings (LLM)', model_hint:'Connect an OpenAI-compatible API (local gateways like Ollama / LM Studio / vLLM, or cloud) for the AI coach. The key is stored only in local strava.conf (mode 600).',
     model_baseUrl:'Base URL', model_apiKey:'API Key (optional)', model_model:'Model name',
     model_save:'Save', model_test:'Test connection', model_saving:'Saving…', model_saved:'Saved', model_fail:'Save failed:',
@@ -1391,6 +1436,8 @@ function setLang(lang){
   reRenderChart();
   reRenderPowerCurve();
   if(typeof reRenderTrip === 'function') reRenderTrip();
+  if(typeof renderAtypeSeg === 'function') renderAtypeSeg();
+  if(document.getElementById('cardsMask')?.classList.contains('show')) openCardSettings();   // 重渲染弹窗内名称
 }
 
 // ===== Theme =====
@@ -1767,12 +1814,148 @@ function setDelta(id, cur, prev){
   el.textContent = `${sign}${Math.abs(pct) >= 100 ? Math.round(pct) : pct.toFixed(1)}% ${t('delta_vs')}`;
   el.className = 'delta ' + (pct > 0.05 ? 'up' : (pct < -0.05 ? 'down' : 'flat'));
 }
+// ---- 运动类型视角（数据页整页：统计卡 + 图表 + 最近骑行表联动）----
+// 'ALL' = 不限类型（后端传常见全量）；单选持久化 sp-atype
+const ATYPE_OPTS = [
+  { id: 'ALL',        zh: '全部',     en: 'All',        api: 'Ride,Run,TrailRun,Hike,Walk,Swim,VirtualRide,VirtualRun,EBikeRide,GravelRide,Snowboard,Ski,Workout' },
+  { id: 'Ride',       zh: '骑行',     en: 'Cycling',    api: 'Ride' },
+  { id: 'Run',        zh: '跑步',     en: 'Running',    api: 'Run,TrailRun' },
+  { id: 'Hike',       zh: '徒步',     en: 'Hiking',     api: 'Hike,Walk' },
+  { id: 'Swim',       zh: '游泳',     en: 'Swimming',   api: 'Swim' },
+  { id: 'VirtualRide',zh: '室内骑行', en: 'Indoor',     api: 'VirtualRide' },
+];
+let actType = localStorage.getItem('sp-atype') || 'ALL';
+if(!ATYPE_OPTS.some(o => o.id === actType)) actType = 'ALL';
+function actTypeParam(){
+  const o = ATYPE_OPTS.find(x => x.id === actType);
+  return o ? (o.id === 'ALL' ? o.api : o.api) : 'Ride';
+}
+function setActType(id){
+  actType = id;
+  localStorage.setItem('sp-atype', id);
+  document.querySelectorAll('#atypeSeg button').forEach(b => b.classList.toggle('active', b.dataset.atype === id));
+  renderAtypeSeg();
+  loadData();
+}
+// 按语言重渲染 seg 文案
+function renderAtypeSeg(){
+  const seg = document.getElementById('atypeSeg');
+  if(!seg) return;
+  seg.querySelectorAll('button').forEach(b => {
+    const o = ATYPE_OPTS.find(x => x.id === b.dataset.atype);
+    if(o) b.textContent = currentLang === 'en' ? o.en : o.zh;
+  });
+  // 「骑行次数」卡与最近骑行表标题随类型联动
+  const o = ATYPE_OPTS.find(x => x.id === actType);
+  const name = currentLang === 'en' ? (o ? o.en : '') : (o ? o.zh : '');
+  const isAll = actType === 'ALL';
+  const cntLabel = document.querySelector('#cardCount .label');
+  if(cntLabel){
+    cntLabel.textContent = currentLang === 'en' ? (isAll ? 'Activities' : name + ' count') : (isAll ? '活动次数' : name + '次数');
+  }
+  const recentTitle = document.getElementById('recentTitle');
+  if(recentTitle){
+    recentTitle.textContent = currentLang === 'en'
+      ? (isAll ? 'Recent Activities' : 'Recent ' + (o ? o.en : ''))
+      : (isAll ? '最近活动' : '最近' + name);
+  }
+}
+// ---- 组件设置：统计卡显隐 + 排序（拖拽），持久化 sp-cards ----
+// 卡片定义与 DOM id 对应；hr/pw 原本就存在(有数据自动显示)，此处纳入统一管理
+const CARD_DEFS = [
+  { k: 'dist',  id: 'cardDist',  zh: '总距离', en: 'Distance' },
+  { k: 'count', id: 'cardCount', zh: '骑行次数', en: 'Activities' },
+  { k: 'dur',   id: 'cardDur',   zh: '总时长', en: 'Time' },
+  { k: 'elev',  id: 'cardElev',  zh: '总爬升', en: 'Elevation' },
+  { k: 'hr',    id: 'cardHr',    zh: '平均心率', en: 'Avg HR' },
+  { k: 'pw',    id: 'cardPw',    zh: '平均功率', en: 'Avg Power' },
+];
+let cardCfg = null;   // [{k, on}] 顺序即展示顺序；null = 未设置用默认
+try{
+  const raw = JSON.parse(localStorage.getItem('sp-cards') || 'null');
+  if(Array.isArray(raw) && raw.length && raw.every(x => x && typeof x.k === 'string' && typeof x.on === 'boolean')
+     && raw.length === CARD_DEFS.length && new Set(raw.map(x=>x.k)).size === CARD_DEFS.length){
+    cardCfg = raw;
+  }
+}catch(e){}
+function cardCfgOrder(){ return cardCfg || CARD_DEFS.map(d => ({ k: d.k, on: d.k !== 'hr' && d.k !== 'pw' })); }
+function saveCardCfgList(list){
+  cardCfg = list;
+  localStorage.setItem('sp-cards', JSON.stringify(list));
+  applyCardCfg();
+}
+// 把配置应用到 DOM：按顺序重排卡片；显示/隐藏（hr/pw 无数据时仍强制隐藏）
+function applyCardCfg(){
+  const grid = document.getElementById('statsGrid');
+  if(!grid) return;
+  const map = {}; CARD_DEFS.forEach(d => { const el = document.getElementById(d.id); if(el) map[d.k] = el; });
+  cardCfgOrder().forEach(({k, on}) => {
+    const el = map[k]; if(!el) return;
+    grid.appendChild(el);
+    const d = CARD_DEFS.find(x => x.k === k);
+    // hr/pw 依赖有数据才显示的逻辑在 loadData 里管（无数据时 hide），此处只恢复用户偏好
+    if(k === 'hr' || k === 'pw'){
+      el.dataset.pref = on ? '1' : '0';
+      if(on && el.style.display === 'none' && el.dataset.hasData === '1') el.style.display = '';
+      if(!on) el.style.display = 'none';
+    } else {
+      el.style.display = on ? '' : 'none';
+    }
+  });
+}
+function openCardSettings(){
+  const mask = document.getElementById('cardsMask');
+  const list = document.getElementById('cardsCfgList');
+  const items = cardCfgOrder();
+  list.innerHTML = items.map(({k, on}) => {
+    const d = CARD_DEFS.find(x => x.k === k);
+    return '<div class="cc-row'+(on?'':' hidden-card')+'" draggable="true" data-k="'+k+'">'
+      + '<span class="cc-grip">⠿</span>'
+      + '<input type="checkbox" class="cc-chk"'+(on?' checked':'')+'>'
+      + '<span class="cc-name">'+escapeHtml(currentLang==='en'?d.en:d.zh)+'</span>'
+      + '</div>';
+  }).join('');
+  bindCardDrag(list);
+  mask.classList.add('show');
+}
+function bindCardDrag(list){
+  let dragEl = null;
+  list.querySelectorAll('.cc-row').forEach(row => {
+    row.addEventListener('dragstart', () => { dragEl = row; row.classList.add('dragging'); });
+    row.addEventListener('dragend', () => { row.classList.remove('dragging'); list.querySelectorAll('.cc-row').forEach(r => r.classList.remove('drag-over')); });
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if(!dragEl || dragEl === row) return;
+      const rect = row.getBoundingClientRect();
+      const after = (e.clientY - rect.top) > rect.height / 2;
+      list.insertBefore(dragEl, after ? row.nextSibling : row);
+      row.classList.add('drag-over');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+    row.addEventListener('change', (e) => {
+      if(e.target.classList.contains('cc-chk')) row.classList.toggle('hidden-card', !e.target.checked);
+    });
+  });
+}
+function saveCardCfg(){
+  const list = [...document.querySelectorAll('#cardsCfgList .cc-row')].map(row => ({
+    k: row.dataset.k, on: row.querySelector('.cc-chk').checked,
+  }));
+  saveCardCfgList(list);
+  document.getElementById('cardsMask').classList.remove('show');
+  loadData();   // 重取数据（hr/pw 卡的显隐与数据相关状态刷新）
+}
+function resetCardCfg(){
+  saveCardCfgList(null);   // 回默认顺序与显隐
+  openCardSettings();      // 重渲染弹窗内容
+}
 async function loadData(){
   try{
     const r = periodRange();
-    const qs = r ? `start=${r.start}&end=${r.end}` : '';
+    const tQs = 'types=' + encodeURIComponent(actTypeParam());
+    const qs = (r ? `start=${r.start}&end=${r.end}&` : '') + tQs;
     const pr = prevPeriodRange();
-    const pqs = pr ? `start=${pr.start}&end=${pr.end}` : '';
+    const pqs = (pr ? `start=${pr.start}&end=${pr.end}&` : '') + tQs;
     const [s, ps] = await Promise.all([
       apiGet('/api/stats', qs),
       pr ? apiGet('/api/stats', pqs) : Promise.resolve(null),
@@ -1789,8 +1972,12 @@ async function loadData(){
       setDelta('dElev', s.total_elevation_m, p ? p.total_elevation_m : null);
       const hrOk = s.avg_heartrate !== null && s.avg_heartrate !== undefined;
       const pwOk = s.avg_watts !== null && s.avg_watts !== undefined;
-      document.getElementById('cardHr').style.display = hrOk ? '' : 'none';
-      document.getElementById('cardPw').style.display = pwOk ? '' : 'none';
+      // hr/pw 卡：用户偏好(on) × 有数据 才显示；无数据恒隐
+      const hrEl = document.getElementById('cardHr'), pwEl = document.getElementById('cardPw');
+      hrEl.dataset.hasData = hrOk ? '1' : '0';
+      pwEl.dataset.hasData = pwOk ? '1' : '0';
+      hrEl.style.display = (hrOk && hrEl.dataset.pref !== '0') ? '' : 'none';
+      pwEl.style.display = (pwOk && pwEl.dataset.pref !== '0') ? '' : 'none';
       if(hrOk) document.getElementById('cHr').textContent = Math.round(s.avg_heartrate);
       if(pwOk) document.getElementById('cPw').textContent = Math.round(s.avg_watts);
       setDelta('dHr', s.avg_heartrate, p && p.avg_heartrate != null ? p.avg_heartrate : null);
@@ -2313,7 +2500,7 @@ function sortBy(k){
 }
 async function loadActivities(){
   try{
-    const d = await apiGet('/api/activities', 'type=Ride&limit=5000');
+    const d = await apiGet('/api/activities', 'type='+encodeURIComponent(actTypeParam())+'&limit=5000');
     if(d.activities){
       allActivities = d.activities;
       page = 1;
@@ -2399,7 +2586,7 @@ async function syncNow(mode){
     const d = await apiPost('/api/sync?mode=' + mode);
     clearInterval(timer);
     if(d.ok){
-      const msg = t('sync_done') + ` (${d.new} new / ${d.activities} total)`;
+      const msg = t('sync_done_stats', { n: d.new, total: d.activities });
       if(el) el.textContent = msg;
       toast(msg, true);
       loadInfo(); if(currentNav==='data') loadData(); if(currentNav==='rides') loadActivities();
@@ -3177,10 +3364,33 @@ function renderSessions(){
   const sorted = list.slice().sort((a,b) => (b.msg_count||0) - (a.msg_count||0));
   if(!sorted.length){ pop.innerHTML = '<div class="pop-empty">'+escapeHtml(t('coach_noSessions'))+'</div>'; return; }
   pop.innerHTML = sorted.map(s =>
-    '<button class="pop-item'+(s.id===coachSessionId?' on':'')+'" onclick="switchSession('+s.id+')">'+
-    '<span class="pi-title">'+escapeHtml(sessLabel(s))+'</span>'+
-    (s.model?'<span class="pi-meta" style="color:var(--viz);max-width:80px;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(modelShort(s.model))+'</span>':'')+
-    '<span class="pi-meta">'+(s.msg_count||0)+'</span></button>').join('');
+    '<div class="pop-item sess-item'+(s.id===coachSessionId?' on':'')+'">'
+    +'<button class="sess-main" onclick="switchSession('+s.id+')">'
+    +'<span class="pi-title">'+escapeHtml(sessLabel(s))+'</span>'
+    +(s.model?'<span class="pi-meta" style="color:var(--viz);max-width:80px;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(modelShort(s.model))+'</span>':'')
+    +'<span class="pi-meta">'+(s.msg_count||0)+'</span>'
+    +'</button>'
+    +'<button class="sess-del" onclick="deleteCoachSession('+s.id+')" title="'+escapeHtml(t('coach_sessDelete'))+'">×</button>'
+    +'</div>').join('');
+}
+async function deleteCoachSession(id){
+  const s = (coachSessions || []).find(x => Number(x.id) === Number(id));
+  const label = s ? sessLabel(s) : ('#'+id);
+  if(!await appConfirm(t('coach_sessDelete'), label, true)) return;
+  try{
+    const d = await apiDelete('/api/coach/session', { session_id: id });
+    if(d.error){ toast(d.error, false); return; }
+    coachSessions = d.sessions || [];
+    // 删除的是当前会话 → 回到空白新会话
+    if(Number(coachSessionId) === Number(id)){
+      coachSessionId = null;
+      renderChat([]);
+      renderModelPick();
+      loadCal();
+    }
+    renderSessions();
+    toast(t('coach_sessDeleted', { n: d.deleted || 0 }), true);
+  }catch(e){ toast(t('trip_fail')+shortErr(e.message), false); }
 }
 async function loadCoach(){
   await ensureApiToken();
@@ -4283,6 +4493,9 @@ initTheme();
 applyI18n();
 FitUI.init();
 renderCompareUI();
+renderAtypeSeg();
+document.querySelectorAll('#atypeSeg button').forEach(b => b.classList.toggle('active', b.dataset.atype === actType));
+applyCardCfg();
 refreshStatus();
 switchNav(currentNav);
 </script>

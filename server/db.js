@@ -403,9 +403,9 @@ export class StravaDB {
     return [s, e];
   }
 
-  daily(startDate = null, endDate = null) {
-    /** 按天聚合; 范围内每一天都返回 (无骑行则为 0, 避免图表时间轴断裂)。 */
-    const rows = this.getRides(startDate, endDate, 100000);
+  daily(startDate = null, endDate = null, types = ['Ride']) {
+    /** 按天聚合; 范围内每一天都返回 (无数据则为 0, 避免图表时间轴断裂)。 */
+    const rows = this.getRides(startDate, endDate, 100000, types);
     const days = new Map();
     for (const a of rows) {
       const d = String(a.start_date || '').slice(0, 10);
@@ -467,9 +467,9 @@ export class StravaDB {
       .map(([k, v]) => ({ week: k, ...bucketOut(v) }));
   }
 
-  monthly(startDate = null, endDate = null) {
-    /** 按月份聚合; 范围内每月都返回 (无骑行则为 0)。 */
-    const rows = this.getRides(startDate, endDate, 100000);
+  monthly(startDate = null, endDate = null, types = ['Ride']) {
+    /** 按月份聚合; 范围内每月都返回 (无数据则为 0)。 */
+    const rows = this.getRides(startDate, endDate, 100000, types);
     const months = new Map();
     for (const a of rows) {
       const d = String(a.start_date || '').slice(0, 10);
@@ -500,9 +500,9 @@ export class StravaDB {
       .map(([k, v]) => ({ month: k, ...bucketOut(v) }));
   }
 
-  yearly(startDate = null, endDate = null) {
+  yearly(startDate = null, endDate = null, types = ['Ride']) {
     /** 按年聚合 (返回年度汇总) */
-    const rows = this.getRides(startDate, endDate, 100000);
+    const rows = this.getRides(startDate, endDate, 100000, types);
     const years = new Map();
     for (const a of rows) {
       const d = String(a.start_date || '').slice(0, 10);
@@ -609,6 +609,14 @@ export class StravaDB {
              (SELECT COUNT(*) FROM coach_memory m WHERE m.session_id=s.id) AS msg_count
       FROM coach_sessions s
       ORDER BY s.updated_at DESC, s.id DESC`).all();
+  }
+
+  deleteSession(sid) {
+    /** 删除会话:消息与会话行一并删除。返回删除的消息数。 */
+    const id = Number(sid) || 0;
+    const r = this.db.prepare('DELETE FROM coach_memory WHERE session_id=?').run(id);
+    this.db.prepare('DELETE FROM coach_sessions WHERE id=?').run(id);
+    return Number(r.changes);
   }
 
   countMemory() {

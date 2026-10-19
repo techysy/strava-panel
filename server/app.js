@@ -1150,11 +1150,13 @@ async function handleGet(req, res, rawPath, qs) {
     try {
       // 优先读本地缓存；仅本地为空时才尝试 Strava 同步（降级不报错）
       await ensureLocalData();
-      const stats = db.stats(qs.start || null, qs.end || null);
-      stats.weekly = db.weekly(qs.start || null, qs.end || null);
-      stats.monthly = db.monthly(qs.start || null, qs.end || null);
-      stats.daily = db.daily(qs.start || null, qs.end || null);
-      stats.yearly = db.yearly(qs.start || null, qs.end || null);
+      // 运动类型过滤（逗号分隔 Strava 类型，如 Ride,Run；缺省 Ride 兼容旧调用）
+      const types = String(qs.types || 'Ride').split(',').map(s => s.trim()).filter(Boolean);
+      const stats = db.stats(qs.start || null, qs.end || null, types);
+      stats.weekly = db.weekly(qs.start || null, qs.end || null, types);
+      stats.monthly = db.monthly(qs.start || null, qs.end || null, types);
+      stats.daily = db.daily(qs.start || null, qs.end || null, types);
+      stats.yearly = db.yearly(qs.start || null, qs.end || null, types);
       stats.last_sync = db.getMeta('last_sync');
       sendJson(res, stats);
     } catch (e) {
@@ -1327,7 +1329,10 @@ async function handleGet(req, res, rawPath, qs) {
     if (!requireApiToken(req, res, qs, rawPath)) return;
     try {
       await ensureLocalData();
-      const acts = db.getActivities(qs.type || null, strictInt(qs.limit, 50), qs.start || null, qs.end || null);
+      // type 支持逗号分隔多类型（如 Run,TrailRun）；单类型/缺省行为不变
+      const tRaw = String(qs.type || '').trim();
+      const typeArg = tRaw ? tRaw.split(',').map(s => s.trim()).filter(Boolean) : null;
+      const acts = db.getActivities(typeArg && typeArg.length === 1 ? typeArg[0] : typeArg, strictInt(qs.limit, 50), qs.start || null, qs.end || null);
       sendJson(res, { activities: acts, count: acts.length });
     } catch (e) {
       sendJson(res, { error: String(e.message || e) }, 500);
@@ -1639,12 +1644,17 @@ async function handlePost(req, res, rawPath, qs) {
     return;
   }
   if (rawPath === '/api/coach/session') {
-    // 会话管理:重命名 {session_id, title}
+    // 会话管理:重命名 {session_id, title} / 删除 DELETE {session_id}
     if (!requireApiToken(req, res, qs, rawPath)) return;
     try {
       const data = JSON.parse(await readBody(req));
       const sid = Number(data.session_id);
       if (!sid) { sendJson(res, { error: '缺少 session_id' }, 400); return; }
+      if (req.method === 'DELETE') {
+        const deleted = db.deleteSession(sid);
+        sendJson(res, { ok: true, session_id: sid, deleted, sessions: db.listSessions() });
+        return;
+      }
       const title = db.renameSession(sid, data.title);
       sendJson(res, { ok: true, session_id: sid, title, sessions: db.listSessions() });
     } catch (e) {
