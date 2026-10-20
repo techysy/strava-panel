@@ -1169,7 +1169,7 @@ const I18N = {
     gran_day:'每日', gran_week:'每周', gran_month:'每月', gran_year:'每年', metric_dist:'运动距离', metric_dur:'运动时长', metric_elev:'累计爬升', metric_count:'活动次数',
     stats_rides:'活动次数', stats_dist:'总距离', stats_dur:'总时长', stats_elev:'总爬升', stats_hr:'平均心率', stats_pw:'平均功率',
     panel_monthly:'每月运动距离 (km)', panel_daily:'每日运动距离 (km)', panel_weekly:'每周运动距离 (km)', panel_yearly:'每年运动距离 (km)', panel_recent:'最近活动',
-    col_date:'日期', col_name:'活动', col_dist:'距离', col_dur:'时长', col_speed:'均速', col_elev:'爬升', col_hr:'心率', col_pw:'功率',
+    col_date:'日期', col_name:'活动', col_dist:'距离', col_dur:'时长', col_speed:'均速', col_pace:'配速', col_elev:'爬升', col_hr:'心率', col_pw:'功率',
     prev_page:'‹ 上一页', next_page:'下一页 ›', empty:'暂无数据',
     nav_power:'功率曲线', power_title:'最佳功率曲线', power_hint:'横轴为持续时间，纵轴为该时长内可维持的最大平均功率。数据来源于本地活动记录。',
     pw_all:'全部', pw_recent6m:'近6月', pw_ftp_est:'估算 FTP', pw_best_5s:'5秒最佳', pw_best_1min:'1分钟最佳', pw_best_5min:'5分钟最佳', pw_best_20min:'20分钟最佳', pw_ftp_hint:'20分钟最佳 × 0.95',
@@ -1296,7 +1296,7 @@ const I18N = {
     gran_day:'Daily', gran_week:'Weekly', gran_month:'Monthly', gran_year:'Yearly', metric_dist:'Distance', metric_dur:'Duration', metric_elev:'Elevation', metric_count:'Activities',
     stats_rides:'Activities', stats_dist:'Distance', stats_dur:'Duration', stats_elev:'Elevation', stats_hr:'Avg HR', stats_pw:'Avg Power',
     panel_monthly:'Monthly Distance (km)', panel_daily:'Daily Distance (km)', panel_weekly:'Weekly Distance (km)', panel_yearly:'Yearly Distance (km)', panel_recent:'Recent Activities',
-    col_date:'Date', col_name:'Activity', col_dist:'Distance', col_dur:'Duration', col_speed:'Avg Spd', col_elev:'Elevation', col_hr:'HR', col_pw:'Power',
+    col_date:'Date', col_name:'Activity', col_dist:'Distance', col_dur:'Duration', col_speed:'Avg Spd', col_pace:'Pace', col_elev:'Elevation', col_hr:'HR', col_pw:'Power',
     prev_page:'‹ Prev', next_page:'Next ›', empty:'No data',
     nav_power:'Power Curve', power_title:'Best Power Curve', power_hint:'X-axis: duration; Y-axis: best average power sustained for that duration. Data from local activities.',
     pw_all:'All', pw_recent6m:'6 Months', pw_ftp_est:'Est. FTP', pw_best_5s:'5s Best', pw_best_1min:'1min Best', pw_best_5min:'5min Best', pw_best_20min:'20min Best', pw_ftp_hint:'20min best × 0.95',
@@ -2550,6 +2550,21 @@ function renderActivities(){
   const slice = rows.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
   const cell = (v, txt, k) => v !== null && v !== undefined && maxes[k] !== null && v === maxes[k]
     ? `<td class="cell-max" title="${escapeHtml(t('col_max_tip'))}">${txt}</td>` : `<td>${txt}</td>`;
+  // 跑步/步行视角：速度列显示配速 (min/km) 而非均速 (km/h)；配速越小越快，
+  // 排序沿用底层 average_speed 值（方向自动正确：升序=配速最快在前）
+  const paceMode = ['Run','Hike','OTHER'].includes(actType);
+  const spdHeader = document.querySelector('#recentTable th[data-sort="spd"]');
+  if(spdHeader) spdHeader.textContent = paceMode ? t('col_pace') : t('col_speed');
+  const fmtSpd = (spd) => {
+    if(spd == null) return '—';
+    if(paceMode){
+      const kmh = spd * 3.6;
+      if(kmh <= 0.1) return '—';
+      const secPerKm = 3600 / kmh;
+      return Math.floor(secPerKm/60) + ':' + String(Math.round(secPerKm%60)).padStart(2,'0') + ' /km';
+    }
+    return (spd*3.6).toFixed(1)+' km/h';
+  };
   tbody.innerHTML = slice.map(a=>{
     const date = (a.start_date_local||a.start_date||'').slice(0,10);
     const dist = a.distance != null ? +a.distance : null;
@@ -2566,7 +2581,7 @@ function renderActivities(){
     return `<tr><td>${date}</td><td>${nmHtml}</td>`
       + cell(dist, dist != null ? (dist/1000).toFixed(1)+' km' : '—', 'dist')
       + cell(dur, dur != null ? (dur/3600).toFixed(1)+' h' : '—', 'dur')
-      + cell(spd, spd != null ? (spd*3.6).toFixed(1)+' km/h' : '—', 'spd')
+      + cell(spd, fmtSpd(spd), 'spd')
       + cell(el, el != null ? Math.round(el)+' m' : '—', 'elev')
       + cell(hr, hr != null ? Math.round(hr)+' bpm' : '—', 'hr')
       + cell(pw, pw != null ? Math.round(pw)+' W' : '—', 'pw')
