@@ -523,11 +523,15 @@ export class StravaDB {
   // ---- 功率曲线 (最佳功率-时长曲线) ----
   // 对比 Strava/TrainingPeaks 的 "Power Curve" 语义: 骑手在给定时间区间内可维持的最大功率。
   // 结合活动真实时长与运动生理学持续时间拟合(短时间高强度爆发衰减曲线),覆盖 1s 到 10h。
-  powerCurve(startDate = null, endDate = null) {
+  powerCurve(startDate = null, endDate = null, types = null) {
     const DURATIONS = [1, 5, 10, 15, 30, 60, 120, 180, 300, 600, 900, 1200, 1800, 2700, 3600, 5400, 7200, 10800, 14400, 18000, 21600, 28800, 36000];
     let q = `SELECT moving_time, average_watts FROM activities
              WHERE average_watts IS NOT NULL AND average_watts > 0 AND moving_time IS NOT NULL AND moving_time > 0`;
     const params = [];
+    if (Array.isArray(types) && types.length) {
+      q += ` AND type IN (${types.map(() => '?').join(',')})`;
+      params.push(...types);
+    }
     if (startDate) { q += ' AND start_date >= ?'; params.push(startDate); }
     if (endDate) { q += ' AND start_date <= ?'; params.push(endDate + 'T23:59:59'); }
     const rows = this.db.prepare(q).all(...params);

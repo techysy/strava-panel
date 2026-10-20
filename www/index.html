@@ -637,7 +637,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
   </header>
 
   <nav class="nav" id="nav">
-    <button data-view="data" class="active" onclick="switchNav('data')"><svg class="ic" aria-hidden="true"><use href="#i-bike"/></svg><span class="tab-txt" data-i18n="nav_data">骑行数据</span></button>
+    <button data-view="data" class="active" onclick="switchNav('data')"><svg class="ic" aria-hidden="true"><use href="#i-bike"/></svg><span class="tab-txt" data-i18n="nav_data">运动数据</span></button>
     <button data-view="rides" onclick="switchNav('rides')"><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg><span class="tab-txt" data-i18n="nav_rides">最近骑行</span></button>
     <button data-view="power" onclick="switchNav('power')"><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg><span class="tab-txt" data-i18n="nav_power">功率曲线</span></button>
     <button data-view="coach" onclick="switchNav('coach')"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span class="tab-txt" data-i18n="nav_coach">训练建议</span></button>
@@ -700,15 +700,6 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         </div>
         <button class="btn" onclick="openCardSettings()" style="padding:7px 12px" id="cardsCfgBtn"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span data-i18n="cards_settings">组件设置</span></button>
       </div>
-      <div class="seg seg-sm" id="atypeSeg" style="margin-top:8px">
-        <button data-atype="ALL" class="active" onclick="setActType('ALL')">全部</button>
-        <button data-atype="Ride" onclick="setActType('Ride')">骑行</button>
-        <button data-atype="Run" onclick="setActType('Run')">跑步</button>
-        <button data-atype="Hike" onclick="setActType('Hike')">徒步</button>
-        <button data-atype="Walk" onclick="setActType('Walk')">步行</button>
-        <button data-atype="Swim" onclick="setActType('Swim')">游泳</button>
-        <button data-atype="VirtualRide" onclick="setActType('VirtualRide')">室内骑行</button>
-      </div>
       <div class="grid" id="statsGrid">
         <div class="card mcard" id="cardDist" onclick="setChartMetric('dist')"><div class="label" data-i18n="stats_dist">总距离</div><div class="value"><span id="cDist">-</span><span class="unit">km</span></div><div class="delta" id="dDist"></div></div>
         <div class="card mcard" id="cardCount" onclick="setChartMetric('count')"><div class="label" data-i18n="stats_rides">骑行次数</div><div class="value"><span id="cRides">-</span><span class="unit">次</span></div><div class="delta" id="dRides"></div></div>
@@ -726,7 +717,11 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
     <!-- 最近骑行 -->
     <div class="view" id="tab-rides">
       <div class="panel">
-        <h2><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg><span data-i18n="panel_recent" id="recentTitle">最近骑行</span></h2>
+        <h2><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg><span data-i18n="panel_recent" id="recentTitle">最近活动</span>
+          <span class="pop-anchor" style="margin-left:auto">
+            <button class="btn" onclick="toggleCoachPop('atypePop',event)" style="padding:4px 10px"><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg><span data-i18n="atype_label">类型</span><span class="pi-meta" id="atypeCur">—</span></button>
+            <div class="pop-list right" id="atypePop"></div>
+          </span></h2>
         <table id="recentTable"><thead><tr><th class="sortable" data-sort="date" onclick="sortBy('date')" data-i18n="col_date">日期</th><th data-i18n="col_name">活动</th><th class="sortable" data-sort="dist" onclick="sortBy('dist')" data-i18n="col_dist">距离</th><th class="sortable" data-sort="dur" onclick="sortBy('dur')" data-i18n="col_dur">时长</th><th class="sortable" data-sort="spd" onclick="sortBy('spd')" data-i18n="col_speed">均速</th><th class="sortable" data-sort="elev" onclick="sortBy('elev')" data-i18n="col_elev">爬升</th><th class="sortable" data-sort="hr" onclick="sortBy('hr')" data-i18n="col_hr">心率</th><th class="sortable" data-sort="pw" onclick="sortBy('pw')" data-i18n="col_pw">功率</th><th class="sortable" data-sort="cad" onclick="sortBy('cad')" data-i18n="col_cad">踏频</th></tr></thead><tbody></tbody></table>
         <div class="pager" id="pager" style="display:none">
           <button id="prevPage" onclick="changePage(-1)" data-i18n="prev_page">‹ 上一页</button>
@@ -748,6 +743,11 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
           <button id="pwRgYtd" onclick="setPwRange('ytd')" data-i18n="rg_ytd">本年度</button>
           <button id="pwRg12m" onclick="setPwRange('12m')" data-i18n="rg_12m">近1年</button>
           <button id="pwRgAll" onclick="setPwRange('all')" data-i18n="rg_all">所有</button>
+        </div>
+        <div class="seg seg-sm" id="pwTypeSeg" style="margin-bottom:0">
+          <button data-ptype="Ride" class="active" onclick="setPwType('Ride')" data-i18n="atype_ride">骑行</button>
+          <button data-ptype="Run,TrailRun" onclick="setPwType('Run,TrailRun')" data-i18n="atype_run">跑步</button>
+          <button data-ptype="" onclick="setPwType('')" data-i18n="atype_all">全部</button>
         </div>
         <div class="mode-seg" id="pwUnitSeg">
           <button class="seg-btn on" id="btnUnitW" onclick="setPwUnit('w')" data-i18n="pw_unit_w">瓦特 (W)</button>
@@ -1157,7 +1157,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 // ===== i18n =====
 const I18N = {
   zh: {
-    app_title:'Strava Panel', nav_dash:'仪表板', nav_data:'骑行数据', nav_rides:'最近骑行', nav_settings:'设置',
+    app_title:'Strava Panel', nav_dash:'仪表板', nav_data:'运动数据', nav_rides:'最近活动', nav_settings:'设置',
     dash_title:'服务状态', console_title:'日志控制台', refresh:'刷新', download:'下载', current:'当前', log_src_system:'系统日志', log_src_strava:'Strava API', log_src_agent:'Agent 调用',
     console_hint:'日志按日期归档，可查看历史日期。当前日志仅保留当天，历史自动归档到 data/logs/ 目录。',
     sync_btn:'立即同步', sync_full:'全量重同步', sync_full_confirm:'全量重同步会重新拉取全部历史活动(较慢,用于回填心率/功率等字段),确定继续?', token_btn:'创建 token',
@@ -1166,9 +1166,9 @@ const I18N = {
     stat_athlete:'Athlete ID', stat_dbsize:'DB 大小', stat_dbpath:'DB 路径', stat_apitoken:'API token', stat_calls:'调用次数', stat_lastcall:'最后调用',
     stat_configured_ok:'已配置', stat_configured_no:'未配置', stat_token_ok:'正常', stat_token_no:'失效', stat_apitoken_ok:'已生成', stat_apitoken_no:'未生成',
     rg_7d:'近7天', rg_42d:'近42天', rg_1m:'近1月', rg_3m:'近3月', rg_6m:'近6月', rg_ytd:'本年度', rg_12m:'近12月', rg_all:'所有',
-    gran_day:'每日', gran_week:'每周', gran_month:'每月', gran_year:'每年', metric_dist:'骑行距离', metric_dur:'骑行时长', metric_elev:'骑行爬升', metric_count:'骑行次数',
-    stats_rides:'骑行次数', stats_dist:'总距离', stats_dur:'总时长', stats_elev:'总爬升', stats_hr:'平均心率', stats_pw:'平均功率',
-    panel_monthly:'每月骑行距离 (km)', panel_daily:'每日骑行距离 (km)', panel_weekly:'每周骑行距离 (km)', panel_yearly:'每年骑行距离 (km)', panel_recent:'最近骑行',
+    gran_day:'每日', gran_week:'每周', gran_month:'每月', gran_year:'每年', metric_dist:'运动距离', metric_dur:'运动时长', metric_elev:'累计爬升', metric_count:'活动次数',
+    stats_rides:'活动次数', stats_dist:'总距离', stats_dur:'总时长', stats_elev:'总爬升', stats_hr:'平均心率', stats_pw:'平均功率',
+    panel_monthly:'每月运动距离 (km)', panel_daily:'每日运动距离 (km)', panel_weekly:'每周运动距离 (km)', panel_yearly:'每年运动距离 (km)', panel_recent:'最近活动',
     col_date:'日期', col_name:'活动', col_dist:'距离', col_dur:'时长', col_speed:'均速', col_elev:'爬升', col_hr:'心率', col_pw:'功率',
     prev_page:'‹ 上一页', next_page:'下一页 ›', empty:'暂无数据',
     nav_power:'功率曲线', power_title:'最佳功率曲线', power_hint:'横轴为持续时间，纵轴为该时长内可维持的最大平均功率。数据来源于本地活动记录。',
@@ -1227,6 +1227,7 @@ const I18N = {
     trip_hourlyChart:'逐时天气', trip_hourlyNote:'温度折线 + 降雨概率柱；竖线间为运动窗口（开始时间起按匀速推算用时；未加载 GPX 时为 6~18 点）。悬停查看该小时详情。',
     trip_noHourly:'无逐时数据',
     map_street:'街道', map_light:'浅色', map_sat:'卫星', map_unavailable:'地图库未加载',
+    atype_ride:'骑行', atype_run:'跑步', atype_all:'全部', atype_label:'类型',
 
     fit_durH:'小时', fit_durM:'分', fit_durS:'秒', fit_tagCad:'踏频', fit_tagGeo:'轨迹', fit_tagPoints:'点', fit_noDist:'无距离', fit_tagCrcBad:'CRC 异常', fit_remove:'移除',
     nav_coach:'训练建议', coach_title:'AI 训练建议', coach_noLlm:'尚未配置模型', coach_gotoSettings:'前往 设置 → 模型',
@@ -1283,7 +1284,7 @@ const I18N = {
     coach_writeCal:'写入训练日历', coach_downloadIcs:'下载日历 (ICS)', coach_calWritten:'已成功将 {n} 条计划写入训练日历！', coach_calWriteFail:'写入训练日历失败: ',
   },
   en: {
-    app_title:'Strava Panel', nav_dash:'Dashboard', nav_data:'Rides', nav_rides:'Recent Rides', nav_settings:'Settings',
+    app_title:'Strava Panel', nav_dash:'Dashboard', nav_data:'Sports', nav_rides:'Recent', nav_settings:'Settings',
     dash_title:'Service Status', console_title:'Log Console', refresh:'Refresh', download:'Download', current:'Current', log_src_system:'System', log_src_strava:'Strava API', log_src_agent:'Agent Calls',
     console_hint:'Logs archived by date. Current file keeps today only; history moves to data/logs/.',
     sync_btn:'Sync Now', sync_full:'Full Resync', sync_full_confirm:'Full resync re-fetches all history (slower; backfills heart-rate/power fields). Continue?', token_btn:'Create Token',
@@ -1292,9 +1293,9 @@ const I18N = {
     stat_athlete:'Athlete ID', stat_dbsize:'DB Size', stat_dbpath:'DB Path', stat_apitoken:'API token', stat_calls:'Call Count', stat_lastcall:'Last Call',
     stat_configured_ok:'Configured', stat_configured_no:'Not Configured', stat_token_ok:'OK', stat_token_no:'Invalid', stat_apitoken_ok:'Generated', stat_apitoken_no:'Not Generated',
     rg_7d:'7D', rg_42d:'42D', rg_1m:'1M', rg_3m:'3M', rg_6m:'6M', rg_ytd:'YTD', rg_12m:'12M', rg_all:'All',
-    gran_day:'Daily', gran_week:'Weekly', gran_month:'Monthly', gran_year:'Yearly', metric_dist:'Ride Distance', metric_dur:'Duration', metric_elev:'Elevation', metric_count:'Rides',
-    stats_rides:'Rides', stats_dist:'Distance', stats_dur:'Duration', stats_elev:'Elevation', stats_hr:'Avg HR', stats_pw:'Avg Power',
-    panel_monthly:'Monthly Distance (km)', panel_daily:'Daily Distance (km)', panel_weekly:'Weekly Distance (km)', panel_yearly:'Yearly Distance (km)', panel_recent:'Recent Rides',
+    gran_day:'Daily', gran_week:'Weekly', gran_month:'Monthly', gran_year:'Yearly', metric_dist:'Distance', metric_dur:'Duration', metric_elev:'Elevation', metric_count:'Activities',
+    stats_rides:'Activities', stats_dist:'Distance', stats_dur:'Duration', stats_elev:'Elevation', stats_hr:'Avg HR', stats_pw:'Avg Power',
+    panel_monthly:'Monthly Distance (km)', panel_daily:'Daily Distance (km)', panel_weekly:'Weekly Distance (km)', panel_yearly:'Yearly Distance (km)', panel_recent:'Recent Activities',
     col_date:'Date', col_name:'Activity', col_dist:'Distance', col_dur:'Duration', col_speed:'Avg Spd', col_elev:'Elevation', col_hr:'HR', col_pw:'Power',
     prev_page:'‹ Prev', next_page:'Next ›', empty:'No data',
     nav_power:'Power Curve', power_title:'Best Power Curve', power_hint:'X-axis: duration; Y-axis: best average power sustained for that duration. Data from local activities.',
@@ -1353,6 +1354,7 @@ const I18N = {
     trip_hourlyChart:'Hourly weather', trip_hourlyNote:'Temperature line + rain-probability bars; the vertical band is the workout window (from the start time, using the constant-speed duration; 6-18 without a GPX). Hover for hourly detail.',
     trip_noHourly:'No hourly data',
     map_street:'Street', map_light:'Light', map_sat:'Satellite', map_unavailable:'Map library not loaded',
+    atype_ride:'Cycling', atype_run:'Running', atype_all:'All', atype_label:'Type',
 
     fit_durH:'h', fit_durM:'min', fit_durS:'s', fit_tagCad:'Cadence', fit_tagGeo:'Track', fit_tagPoints:'pts', fit_noDist:'no distance', fit_tagCrcBad:'CRC bad', fit_remove:'Remove',
     nav_coach:'Coach', coach_title:'AI Training Coach', coach_noLlm:'Model not configured', coach_gotoSettings:'Go to Settings → Model',
@@ -1833,32 +1835,37 @@ function actTypeParam(){
 function setActType(id){
   actType = id;
   localStorage.setItem('sp-atype', id);
-  document.querySelectorAll('#atypeSeg button').forEach(b => b.classList.toggle('active', b.dataset.atype === id));
   renderAtypeSeg();
-  loadData();
+  document.querySelectorAll('.pop-anchor .pop-list').forEach(p=>p.classList.remove('show'));
+  // 类型只作用于「最近」列表；统计卡/图表恒为全量，不重拉
+  if(currentNav === 'rides') loadActivities();
 }
-// 按语言重渲染 seg 文案
+// 「类型」下拉：最近活动标题栏，选中项高亮
+function renderAtypePop(){
+  const pop = document.getElementById('atypePop');
+  if(!pop) return;
+  pop.innerHTML = ATYPE_OPTS.map(o =>
+    '<button class="pop-item'+(o.id===actType?' on':'')+'" onclick="setActType(\''+o.id+'\')">'
+    + escapeHtml(currentLang==='en'?o.en:o.zh)
+    + (o.id===actType?'<span class="pi-meta" style="margin-left:auto">✓</span>':'')
+    + '</button>').join('');
+}
+// 按语言重渲染下拉按钮当前值 + 列表标题
 function renderAtypeSeg(){
-  const seg = document.getElementById('atypeSeg');
-  if(!seg) return;
-  seg.querySelectorAll('button').forEach(b => {
-    const o = ATYPE_OPTS.find(x => x.id === b.dataset.atype);
-    if(o) b.textContent = currentLang === 'en' ? o.en : o.zh;
-  });
-  // 「骑行次数」卡与最近骑行表标题随类型联动
   const o = ATYPE_OPTS.find(x => x.id === actType);
   const name = currentLang === 'en' ? (o ? o.en : '') : (o ? o.zh : '');
   const isAll = actType === 'ALL';
-  const cntLabel = document.querySelector('#cardCount .label');
-  if(cntLabel){
-    cntLabel.textContent = currentLang === 'en' ? (isAll ? 'Activities' : name + ' count') : (isAll ? '活动次数' : name + '次数');
-  }
+  const cur = document.getElementById('atypeCur');
+  if(cur) cur.textContent = name;
   const recentTitle = document.getElementById('recentTitle');
   if(recentTitle){
     recentTitle.textContent = currentLang === 'en'
       ? (isAll ? 'Recent Activities' : 'Recent ' + (o ? o.en : ''))
       : (isAll ? '最近活动' : '最近' + name);
   }
+  // 统计卡恒为全部运动视角：次数卡固定「活动次数」
+  const cntLabel = document.querySelector('#cardCount .label');
+  if(cntLabel) cntLabel.textContent = currentLang === 'en' ? 'Activities' : '活动次数';
 }
 // ---- 组件设置：统计卡显隐 + 排序（拖拽），持久化 sp-cards ----
 // 卡片定义与 DOM id 对应；hr/pw 原本就存在(有数据自动显示)，此处纳入统一管理
@@ -1952,7 +1959,8 @@ function resetCardCfg(){
 async function loadData(){
   try{
     const r = periodRange();
-    const tQs = 'types=' + encodeURIComponent(actTypeParam());
+    // 统计卡/图表恒为全部运动视角（ALL）；运动类型过滤只作用于「最近」列表
+    const tQs = 'types=' + encodeURIComponent(ATYPE_OPTS[0].api);
     const qs = (r ? `start=${r.start}&end=${r.end}&` : '') + tQs;
     const pr = prevPeriodRange();
     const pqs = (pr ? `start=${pr.start}&end=${pr.end}&` : '') + tQs;
@@ -2006,6 +2014,14 @@ async function loadData(){
 let powerCurveData = null;  // 缓存最近一次功率曲线数据（主题切换后重绘）
 let powerCurveCompareOn = localStorage.getItem('sp-pw-compare') !== '0';   // 默认开启对比历史最佳
 let pwRange = '7d';  // 功率曲线时间范围: 7d/42d/1m/3m/6m/ytd/12m/all，默认最近7天
+let pwType = 'Ride'; // 功率曲线运动类型: Ride（骑行）| Run,TrailRun（跑步）| ''（全部）——仅对本地曲线生效
+try{ const saved = localStorage.getItem('sp-pw-type'); if(saved !== null && saved !== undefined) pwType = saved; }catch(e){}
+function setPwType(t){
+  pwType = t;
+  localStorage.setItem('sp-pw-type', t);
+  document.querySelectorAll('#pwTypeSeg button').forEach(b => b.classList.toggle('active', b.dataset.ptype === t));
+  loadPowerCurve();
+}
 let pwUnit = localStorage.getItem('sp-pw-unit') || 'w'; // w | wkg
 
 function setPwUnit(u){
@@ -2029,7 +2045,9 @@ async function loadPowerCurve(){
   const host = document.getElementById('powerChart');
   host.innerHTML = `<div style="color:var(--text-3);font-size:13px">${t('load_log')}</div>`;
   try{
-    const d = await apiGet('/api/powercurve', pwRange !== 'all' ? 'range=' + pwRange : '');
+    // 本地曲线支持 type 过滤（Intervals.icu 源只有骑行数据，type 参数不影响它）
+    const qs = (pwRange !== 'all' ? 'range=' + pwRange : '') + (pwType ? (pwRange !== 'all' ? '&' : '') + 'type=' + encodeURIComponent(pwType) : '');
+    const d = await apiGet('/api/powercurve', qs);
     powerCurveData = d;
     renderPowerCurve();
   }catch(e){
@@ -3436,6 +3454,7 @@ function toggleCoachPop(id, ev){
     if(id === 'planPop') renderPlanPop();
     if(id === 'modelPop') renderCoachModelPop();
     if(id === 'sportPop') renderSportPop();
+    if(id === 'atypePop') renderAtypePop();
   }
 }
 function renderCoachModelPop(){
@@ -4494,7 +4513,7 @@ applyI18n();
 FitUI.init();
 renderCompareUI();
 renderAtypeSeg();
-document.querySelectorAll('#atypeSeg button').forEach(b => b.classList.toggle('active', b.dataset.atype === actType));
+document.querySelectorAll('#pwTypeSeg button').forEach(b => b.classList.toggle('active', b.dataset.ptype === pwType));
 applyCardCfg();
 refreshStatus();
 switchNav(currentNav);

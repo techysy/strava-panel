@@ -1317,8 +1317,11 @@ async function handleGet(req, res, rawPath, qs) {
       };
       const start = qs.start || (rangeMap[qs.range] || null);
       const end = qs.end || null;
-      const curve = db.powerCurve(start, end);
-      const all = db.powerCurve(null, null);
+      // 运动类型过滤（缺省全部有功率的类型——骑行天然有，跑步为 Strava 估算功率）
+      const pRaw = String(qs.type || '').trim();
+      const pTypes = pRaw ? pRaw.split(',').map(s => s.trim()).filter(Boolean) : null;
+      const curve = db.powerCurve(start, end, pTypes);
+      const all = db.powerCurve(null, null, pTypes);
       sendJson(res, { source: 'local', weight: 73, curve, all, unit: 'W', range: qs.range || 'all' });
     } catch (e) {
       sendJson(res, { error: String(e.message || e) }, 500);
