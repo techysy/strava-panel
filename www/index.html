@@ -744,11 +744,6 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
           <button id="pwRg12m" onclick="setPwRange('12m')" data-i18n="rg_12m">近1年</button>
           <button id="pwRgAll" onclick="setPwRange('all')" data-i18n="rg_all">所有</button>
         </div>
-        <div class="seg seg-sm" id="pwTypeSeg" style="margin-bottom:0">
-          <button data-ptype="Ride" class="active" onclick="setPwType('Ride')" data-i18n="atype_ride">骑行</button>
-          <button data-ptype="Run,TrailRun" onclick="setPwType('Run,TrailRun')" data-i18n="atype_run">跑步</button>
-          <button data-ptype="" onclick="setPwType('')" data-i18n="atype_all">全部</button>
-        </div>
         <div class="mode-seg" id="pwUnitSeg">
           <button class="seg-btn on" id="btnUnitW" onclick="setPwUnit('w')" data-i18n="pw_unit_w">瓦特 (W)</button>
           <button class="seg-btn" id="btnUnitWkg" onclick="setPwUnit('wkg')" data-i18n="pw_unit_wkg">瓦特 / 公斤 (W/kg)</button>
@@ -2017,14 +2012,6 @@ async function loadData(){
 let powerCurveData = null;  // 缓存最近一次功率曲线数据（主题切换后重绘）
 let powerCurveCompareOn = localStorage.getItem('sp-pw-compare') !== '0';   // 默认开启对比历史最佳
 let pwRange = '7d';  // 功率曲线时间范围: 7d/42d/1m/3m/6m/ytd/12m/all，默认最近7天
-let pwType = 'Ride'; // 功率曲线运动类型: Ride（骑行）| Run,TrailRun（跑步）| ''（全部）——仅对本地曲线生效
-try{ const saved = localStorage.getItem('sp-pw-type'); if(saved !== null && saved !== undefined) pwType = saved; }catch(e){}
-function setPwType(t){
-  pwType = t;
-  localStorage.setItem('sp-pw-type', t);
-  document.querySelectorAll('#pwTypeSeg button').forEach(b => b.classList.toggle('active', b.dataset.ptype === t));
-  loadPowerCurve();
-}
 let pwUnit = localStorage.getItem('sp-pw-unit') || 'w'; // w | wkg
 
 function setPwUnit(u){
@@ -2048,9 +2035,7 @@ async function loadPowerCurve(){
   const host = document.getElementById('powerChart');
   host.innerHTML = `<div style="color:var(--text-3);font-size:13px">${t('load_log')}</div>`;
   try{
-    // 本地曲线支持 type 过滤（Intervals.icu 源只有骑行数据，type 参数不影响它）
-    const qs = (pwRange !== 'all' ? 'range=' + pwRange : '') + (pwType ? (pwRange !== 'all' ? '&' : '') + 'type=' + encodeURIComponent(pwType) : '');
-    const d = await apiGet('/api/powercurve', qs);
+    const d = await apiGet('/api/powercurve', pwRange !== 'all' ? 'range=' + pwRange : '');
     powerCurveData = d;
     renderPowerCurve();
   }catch(e){
@@ -4531,7 +4516,6 @@ applyI18n();
 FitUI.init();
 renderCompareUI();
 renderAtypeSeg();
-document.querySelectorAll('#pwTypeSeg button').forEach(b => b.classList.toggle('active', b.dataset.ptype === pwType));
 applyCardCfg();
 refreshStatus();
 switchNav(currentNav);
