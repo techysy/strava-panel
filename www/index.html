@@ -1838,6 +1838,8 @@ function setActType(id){
   localStorage.setItem('sp-atype', id);
   renderAtypeSeg();
   document.querySelectorAll('.pop-anchor .pop-list').forEach(p=>p.classList.remove('show'));
+  // 类型切换后列表恢复默认排序（日期降序），不残留上一类型的列排序
+  sortKey = 'date'; sortDir = -1; page = 1;
   // 类型只作用于「最近」列表；统计卡/图表恒为全量，不重拉
   if(currentNav === 'rides') loadActivities();
 }
