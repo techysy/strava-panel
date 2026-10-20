@@ -111,6 +111,14 @@ function readAppVersion() {
 
 const APP_VERSION = readAppVersion();
 
+// 展示用版本串：v2.5.2 (7d62d06) —— 帮助区分同一版本多次打包的产物。
+// build.json 缺失（开发树常见）或 dirty 时回退纯版本号；VERSION/tag/文件名/更新比较链路不受影响。
+function displayVersion() {
+  const b = buildInfo();
+  if (!b || !b.commit || b.dirty) return APP_VERSION || '';
+  return `${APP_VERSION} (${b.commit})`;
+}
+
 // 打包生成的构建信息 (scripts/gen-build-info.py 写入仓库根目录 build.json)
 const BUILD_FILE = path.join(__dirname, '..', 'build.json');
 let _buildInfoCache;                     // undefined = 未读
@@ -989,7 +997,7 @@ function sendFile(res, rel) {
   let body = fs.readFileSync(p);
   // 对 index.html 注入版本号 (替换 __APP_VERSION__ 占位符，读不到时用兜底值，避免残留占位符)
   if (rel === 'index.html') {
-    body = Buffer.from(body.toString('utf8').split('__APP_VERSION__').join(APP_VERSION || ''), 'utf8');
+    body = Buffer.from(body.toString('utf8').split('__APP_VERSION__').join(displayVersion() || ''), 'utf8');
   }
   res.writeHead(200, { 'Content-Type': ctype, 'Content-Length': body.length });
   res.end(body);
@@ -1127,7 +1135,7 @@ async function handleGet(req, res, rawPath, qs) {
     sendJson(res, {
       api_token: getOrCreateApiToken(),
       configured: hasCredentials(),
-      version: APP_VERSION || '',
+      version: displayVersion(),
     });
     return;
   }
