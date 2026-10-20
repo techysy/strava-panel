@@ -1819,12 +1819,13 @@ function setDelta(id, cur, prev){
 // ---- 运动类型视角（数据页整页：统计卡 + 图表 + 最近骑行表联动）----
 // 'ALL' = 不限类型（后端传常见全量）；单选持久化 sp-atype
 const ATYPE_OPTS = [
-  { id: 'ALL',        zh: '全部',     en: 'All',        api: 'Ride,Run,TrailRun,Hike,Walk,Swim,VirtualRide,VirtualRun,EBikeRide,GravelRide,Snowboard,Ski,Workout' },
+  { id: 'ALL',        zh: '全部',     en: 'All',        api: 'Ride,Run,TrailRun,Hike,Walk,Swim,VirtualRide,VirtualRun,EBikeRide,GravelRide,Snowboard,Ski,WeightTraining,Workout' },
   { id: 'Ride',       zh: '骑行',     en: 'Cycling',    api: 'Ride' },
   { id: 'Run',        zh: '跑步',     en: 'Running',    api: 'Run,TrailRun' },
   { id: 'Hike',       zh: '徒步',     en: 'Hiking',     api: 'Hike,Walk' },
   { id: 'Swim',       zh: '游泳',     en: 'Swimming',   api: 'Swim' },
-  { id: 'VirtualRide',zh: '室内骑行', en: 'Indoor',     api: 'VirtualRide' },
+  { id: 'WeightTraining', zh: '力量训练', en: 'Strength', api: 'WeightTraining,Workout' },
+  { id: 'OTHER',      zh: '其他',     en: 'Other',      api: 'VirtualRide,VirtualRun,EBikeRide,GravelRide,Snowboard,Ski,Rowing,Yoga' },
 ];
 let actType = localStorage.getItem('sp-atype') || 'ALL';
 if(!ATYPE_OPTS.some(o => o.id === actType)) actType = 'ALL';
