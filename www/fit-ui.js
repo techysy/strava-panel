@@ -14,6 +14,7 @@ const FitUI = (() => {
   };
   const fmtSize = b => b < 1024 ? b + ' B' : (b / 1024).toFixed(1) + ' KB';
   const fmtTime = u => u ? new Date(u * 1000).toLocaleString() : '-';
+  const cropBytesRev = new WeakSet();   // 已应用过裁剪的文件（避免文件名反复叠加 -crop）
 
   function renderList() {
     const box = $('fitFileList');
@@ -177,7 +178,7 @@ const FitUI = (() => {
     renderCropMap();
     renderCropBar();
   }
-  // 切换裁剪目标文件（点文件卡片）；再点当前目标 = 直接下载裁剪
+  // 切换裁剪目标文件（点文件卡片）；再点当前目标 = 应用裁剪到列表
   function cropSelectFile(i) {
     if (!cropMode || !fitFiles[i]) return;
     if (crop && crop.fileIdx === i) { cropApply(); return; }
@@ -258,6 +259,7 @@ const FitUI = (() => {
       + '<span class="fc-range">' + escapeHtml(t('fit_cropRange', { a: crop.i0 + 1, b: crop.i1 + 1, n: pts[pts.length-1].idx + 1 })) + '</span>'
       + '<span class="fc-meta">' + cropKm(crop.i0, crop.i1).toFixed(1) + ' km</span>'
       + '<button class="btn" onclick="FitUI.cropApply()" style="padding:4px 12px">' + escapeHtml(t('fit_cropApply')) + '</button>'
+      + '<button class="btn" onclick="FitUI.cropDownload()" style="padding:4px 10px">' + escapeHtml(t('fit_cropDl')) + '</button>'
       + '<button class="btn" onclick="FitUI.cropReset()" style="padding:4px 10px">' + escapeHtml(t('fit_cropReset')) + '</button>'
       + '<button class="btn" onclick="FitUI.toggleCrop()" style="padding:4px 10px">' + escapeHtml(t('fit_cropDone')) + '</button>';
   }
@@ -345,19 +347,40 @@ const FitUI = (() => {
     return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
   }
 
-  function cropApply() {
-    if (!crop || !fitFiles[crop.fileIdx]) return;
+  // 生成裁剪产物（cropRange 出合法 FIT 字节）；失败返回 null
+  function buildCrop() {
+    if (!crop || !fitFiles[crop.fileIdx]) return null;
     const f = fitFiles[crop.fileIdx];
-    try {
-      const bytes = FIT.cropRange(f.bytes, crop.i0, crop.i1 + 1);
-      const blob = new Blob([bytes], { type: 'application/octet-stream' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = baseName(f.name) + '-crop.fit';
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-      toast(t('fit_cropDone2'), true);
-    } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); }
+    // 已裁过的文件不再叠加 -crop 后缀（二次裁剪沿用原名）
+    const stem = cropBytesRev.has(f) ? baseName(f.name) : baseName(f.name) + '-crop';
+    try { return { bytes: FIT.cropRange(f.bytes, crop.i0, crop.i1 + 1), name: stem + '.fit', f }; }
+    catch (e) { toast(t('fit_fail') + ' ' + e.message, false); return null; }
+  }
+  // 下载裁剪产物（原行为保留）
+  function cropDownload() {
+    const r = buildCrop();
+    if (!r) return;
+    const blob = new Blob([r.bytes], { type: 'application/octet-stream' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = r.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    toast(t('fit_cropDone2'), true);
+  }
+  // 应用到列表：裁剪结果原地替换文件字节，多文件「各自裁完 → 直接合并」不出页面
+  function cropApply() {
+    const r = buildCrop();
+    if (!r) return;
+    const dropped = crop.i1 - crop.i0 + 1 !== r.f.sum.points;   // 区间是否真的裁过
+    r.f.bytes = r.bytes;
+    r.f.sum = FIT.summarize(r.bytes);
+    r.f.name = r.name;
+    crop = null;                      // 字节已换，旧区间失效
+    cropBytesRev.add(r.f);            // 标记已裁剪（防止重复命名叠加）
+    renderList(); renderPanel();
+    toast(t('fit_cropApplied', { n: r.f.sum.points }), true);
+    if (!dropped) toast(t('fit_cropNoop'), false);
   }
   function cropReset() {
     if (!crop) return;
@@ -400,5 +423,5 @@ const FitUI = (() => {
     renderList(); renderPanel();
   }
 
-  return { init, addFiles, remove, clearAll, runStrip, runSplit, runCombine, runConvert, toggleCrop, cropApply, cropReset, cropSelectFile };
+  return { init, addFiles, remove, clearAll, runStrip, runSplit, runCombine, runConvert, toggleCrop, cropApply, cropDownload, cropReset, cropSelectFile };
 })();
