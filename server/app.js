@@ -897,6 +897,20 @@ const COACH_SYSTEM = (digest, lang, now = new Date(), sports = ['Ride']) => {
       ? `【TRAINING TIME WINDOWS】The athlete prefers training at: ${timeSel.map(id => enName[id]).join(', ')}. When suggesting concrete sessions, schedule them within these windows (roughly ${String(lo).padStart(2,'0')}:00-${String(hi).padStart(2,'0')}:00 local time) unless the user explicitly asks otherwise.`
       : `【训练时间段偏好】该运动员偏好的训练时间段为：${timeSel.map(id => zhName[id]).join('、')}。给出具体课表时,训练安排应落在这些时间窗口内(当地约 ${p2(lo)}:00-${p2(hi)}:00),除非用户明确要求其他时间。`;
   }
+  // 运动员画像声明：把面板中已知的用户偏好显式告知模型，禁止凭空假设。
+  // 运动方式来自设置→偏好（coach_sports，与 sportRule 同源）；常驻地来自 coach_home_city（如有）。
+  const city = String(loadConfig().coach_home_city || '').trim();
+  const profileLines = [];
+  profileLines.push(lang === 'en'
+    ? `- Selected sports (from Settings → Preferences): ${sportNames.join(', ')}. These are the athlete's OWN choices, not assumptions.`
+    : `- 运动方式（来自 设置→偏好，是用户本人勾选的，不是假设）：${sportNames.join('、')}`);
+  if (city) profileLines.push(lang === 'en' ? `- Home city: ${city}` : `- 常驻城市：${city}`);
+  profileLines.push(lang === 'en'
+    ? `- Anything not listed above (age, weight, fitness level, health conditions, goals) is UNKNOWN to you: never assume or invent it. If a plan depends on it, ask first.`
+    : `- 上面未列出的信息（年龄/体重/运动基础/健康状况/目标等）你并不知道：绝不假设或编造；计划依赖这些信息时先询问。`);
+  const profileRule = (lang === 'en'
+    ? `【ATHLETE PROFILE — from panel settings】\n`
+    : `【运动员画像 — 来自面板设置】\n`) + profileLines.map(l => l).join('\n');
   const roleLine = lang === 'en'
     ? `You are the built-in coach of Strava Panel for this ${sportNames.join('+').toLowerCase() || 'endurance'} athlete. Below is the athlete's training data aggregated from the local database:`
     : `你是 Strava Panel 内置的${sportNames.join('+') || '耐力'}教练。以下是该运动员从本地数据库汇总的训练数据:`;
@@ -908,6 +922,7 @@ const COACH_SYSTEM = (digest, lang, now = new Date(), sports = ['Ride']) => {
     dateLine,
     '',
     '规则: 基于上述真实数据回答,不要编造数据;数据不足时明确说明并给出需要补充的信息。',
+    profileRule,
     sportRule,
     timeRulePref,
     timeRule,
