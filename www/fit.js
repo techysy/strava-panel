@@ -441,6 +441,53 @@ const FIT = (() => {
     return files;
   }
 
+  // ======================= 工具 5：按记录区间裁剪（地图拖端点） =======================
+  // [startIdx, endIdx) 为 record 数组下标区间；复用 split 的片段重建逻辑
+  // （保留 file_id/device_info 元数据，末尾合成 event/lap/session）。
+  function cropRange(u8, startIdx, endIdx) {
+    const p = tagDefs(parse(u8));
+    const dataMsgs = p.messages.filter(m => m.type === 'data');
+    const records = dataMsgs.filter(m => m.global === MSG.record && m.data[REC.timestamp] != null);
+    const s = Math.max(0, Math.min(records.length - 1, Math.floor(startIdx) || 0));
+    const e = Math.max(s + 1, Math.min(records.length, Math.floor(endIdx) || records.length));
+    const slice = records.slice(s, e);
+    if (!slice.length) throw new Error('裁剪区间为空');
+    const first = slice[0], last = slice[slice.length - 1];
+    const msgs = [];
+    const baseTs = first.data[REC.timestamp];
+    for (const m of dataMsgs) {
+      if (m.global === MSG.file_id || m.global === MSG.device_info) msgs.push(m);
+    }
+    for (const r of slice) {
+      const c = Object.assign({}, r);
+      c.data = Object.assign({}, r.data);
+      msgs.push(c);
+    }
+    const lastTs = last.data[REC.timestamp];
+    const dur = lastTs - baseTs;
+    const dist = distanceMeters(slice) ?? 0;
+    msgs.push(makeEvent(MSG.event, first.data, baseTs));
+    msgs.push(makeLap(first.data, baseTs, dur, dist));
+    msgs.push(makeSession(first.data, baseTs, dur, dist));
+    return serialize(msgs, { protocolVer: p.protocolVer });
+  }
+
+  // 供 UI 拖端点用：返回按索引抽稀的轨迹点（点原始下标随行，拖动端点映射回 record 区间）
+  function trackPointsIndexed(u8, maxPts = 1200) {
+    const p = parse(u8);
+    const recs = p.messages.filter(m => m.type === 'data' && m.global === MSG.record && m.data[REC.timestamp] != null);
+    const withIdx = [];
+    recs.forEach((r, i) => {
+      const la = r.data[REC.position_lat], lo = r.data[REC.position_long];
+      if (la == null || lo == null) return;
+      withIdx.push({ lat: la / SEMI, lon: lo / SEMI, idx: i });
+    });
+    if (withIdx.length <= maxPts) return withIdx;
+    const out = [];
+    for (let i = 0; i < maxPts; i++) out.push(withIdx[Math.round(i * (withIdx.length - 1) / (maxPts - 1))]);
+    return out;
+  }
+
   function maxGap(records) {
     let m = 0;
     for (let i = 1; i < records.length; i++) {
@@ -705,7 +752,7 @@ ${trkpts}
   return {
     crc16, parse, serialize, tagDefs, BASE, MSG, REC,
     fitToUnix, unixToFit, FIT_EPOCH,
-    stripFields, split, combine, toGpx, toTcx, summarize, trackPoints,
+    stripFields, split, combine, toGpx, toTcx, summarize, trackPoints, cropRange, trackPointsIndexed,
   };
 })();
 

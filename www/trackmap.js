@@ -47,19 +47,119 @@ const TrackMap = (() => {
     let st = maps.get(id);
     if (st) return st;
     const map = L.map(host, {
-      zoomControl: true, attributionControl: false, scrollWheelZoom: false,
+      zoomControl: false, attributionControl: false, scrollWheelZoom: false,
       dragging: true, doubleClickZoom: true,
     });
-    // 默认浅色（CARTO positron，素底图不花）；偏好键 sp-tiles（旧键 sp-map-tiles 作废，
-    // 避免测试期写入的脏偏好继续生效）
-    st = { map, layers: [], tile: null, tileKey: localStorage.getItem('sp-tiles') || 'light', markers: [] };
+    // 默认浅色（Esri 素底，不花）；偏好键 sp-tiles（旧键 sp-map-tiles 作废）
+    st = { map, layers: [], tile: null, tileKey: localStorage.getItem('sp-tiles') || 'light', markers: [], fullscreen: false, savedView: null };
     maps.set(id, st);
     setTile(st, st.tileKey);
+    buildZoomCtl(st);
+    buildFullCtl(st);
     // 容器尺寸变化（展开/收起、窗口缩放）后修正
     const ro = new ResizeObserver(() => map.invalidateSize());
     ro.observe(host);
     st.ro = ro;
     return st;
+  }
+
+  // ---- 自绘缩放控件（与面板视觉一致：surface 底/描边/圆角，替代 Leaflet 默认灰条）----
+  function buildZoomCtl(st) {
+    const ctl = L.control({ position: 'topleft' });
+    ctl.onAdd = () => {
+      const box = L.DomUtil.create('div', 'tm-zoom');
+      box.innerHTML = '<button type="button" data-z="in" aria-label="zoom in">+</button>'
+        + '<button type="button" data-z="out" aria-label="zoom out">−</button>';
+      L.DomEvent.disableClickPropagation(box);
+      L.DomEvent.disableScrollPropagation(box);
+      box.addEventListener('click', e => {
+        const z = e.target?.dataset?.z;
+        if (z === 'in') st.map.zoomIn();
+        if (z === 'out') st.map.zoomOut();
+      });
+      return box;
+    };
+    ctl.addTo(st.map);
+  }
+
+  // ---- 全屏控件（右上角，与底图切换同排风格）----
+  function buildFullCtl(st) {
+    const ctl = L.control({ position: 'topright' });
+    ctl.onAdd = () => {
+      const box = L.DomUtil.create('div', 'tm-full');
+      box.innerHTML = '<button type="button" data-f="1" title="fullscreen">⛶</button>';
+      L.DomEvent.disableClickPropagation(box);
+      box.addEventListener('click', () => toggleFullscreen(st));
+      return box;
+    };
+    ctl.addTo(st.map);
+  }
+
+  // ---- 全屏：fixed 覆盖层方案（Electron 窗口内不依赖浏览器 Fullscreen API 权限）----
+  function toggleFullscreen(st) {
+    if (st.fullscreen) exitFullscreen(st);
+    else enterFullscreen(st);
+  }
+  function enterFullscreen(st) {
+    const host = st.map.getContainer();
+    // 浮层壳：铺满视口，内部重建一个等尺寸 host 供地图迁居
+    const shell = document.createElement('div');
+    shell.className = 'tm-shell';
+    shell.innerHTML = '<div class="tm-fs-head"><span class="tm-fs-title"></span>'
+      + '<button type="button" class="tm-fs-close" title="exit">✕</button></div>'
+      + '<div class="tm-fs-map"></div>'
+      + '<div class="tm-fs-extra"></div>';
+    document.body.appendChild(shell);
+    const fsMap = shell.querySelector('.tm-fs-map');
+    // 迁移：Leaflet 不支持换容器，直接在新 host 上重建，迁移图层与视图
+    const c = st.map.getCenter(), z = st.map.getZoom();
+    st.map.remove();
+    st.savedView = { host, center: c, zoom: z };
+    const map2 = L.map(fsMap, {
+      zoomControl: false, attributionControl: false, scrollWheelZoom: true,
+      dragging: true, doubleClickZoom: true,
+    });
+    st.map = map2;
+    st.layers = []; st.markers = [];
+    setTile(st, st.tileKey);
+    buildZoomCtl(st);
+    buildFullCtl(st);
+    // 全屏模式回调（各场景重绘自己的轨迹/浮窗）
+    st.fullscreen = true;
+    st.fsShell = shell;
+    st.fsMapEl = fsMap;
+    shell.querySelector('.tm-fs-close').addEventListener('click', () => exitFullscreen(st));
+    if (st.onFullscreen) { try { st.onFullscreen(true, shell); } catch (e) { console.error('onFullscreen', e); } }
+    setTimeout(() => { map2.invalidateSize(); rerenderFullscreen(st); }, 50);
+  }
+  function exitFullscreen(st) {
+    if (!st.fullscreen) return;
+    const orig = st.savedView;
+    const cb = st.onFullscreen;
+    st.fullscreen = false;
+    if (st.fsShell) { st.fsShell.remove(); st.fsShell = null; }
+    // 回迁：在原 host 重建
+    st.map.remove();
+    const map2 = L.map(orig.host, {
+      zoomControl: false, attributionControl: false, scrollWheelZoom: false,
+      dragging: true, doubleClickZoom: true,
+    });
+    st.map = map2;
+    st.layers = []; st.markers = [];
+    setTile(st, st.tileKey);
+    buildZoomCtl(st);
+    buildFullCtl(st);
+    st.fsMapEl = null;
+    setTimeout(() => {
+      map2.invalidateSize();
+      if (cb) { try { cb(false, orig.host); } catch (e) { console.error('onFullscreen', e); } }
+      map2.setView(orig.center, orig.zoom, { animate: false });
+    }, 50);
+  }
+  // 全屏（重）绘当前轨迹：优先 fsRenderer（场景自定义），否则按 lastShow 重绘
+  function rerenderFullscreen(st) {
+    if (st.fsRenderer) { try { st.fsRenderer(st.map, st.fsMapEl, st.fsShell?.querySelector('.tm-fs-extra')); } catch (e) { console.error('fsRenderer', e); } return; }
+    if (st.lastShow) drawOn(st.map, st.lastShow.tracks, { markers: st.lastShow.markers, fit: true });
   }
 
   function setTile(st, key) {
@@ -120,6 +220,23 @@ const TrackMap = (() => {
       }
     });
     (opts.markers || []).forEach(m => mk(st, m, m.kind || 'wp', m.label));
+    // 可拖裁剪端点（fit 裁剪模式）：opts.handles = { a: {lat,lon}, b: {lat,lon}, onDrag(kind, latlng) }
+    // 端点挂 st.cropHandles，由调用方通过 st.cropHandles[i].setLatLng 移动；show 的 clearLayers 不清它
+    if (opts.handles) {
+      st.cropHandles = [];
+      [['a', 's', opts.handles.a], ['b', 'e', opts.handles.b]].forEach(([key, kind, p]) => {
+        if (!p || !Number.isFinite(p.lat)) return;
+        const icon = L.divIcon({ html: '<b>' + kind.toUpperCase() + '</b>', className: 'tm-icon tm-crop-handle', iconSize: [24, 24], iconAnchor: [12, 12] });
+        const hm = L.marker([p.lat, p.lon], { icon, draggable: true, zIndexOffset: 1000 }).addTo(st.map);
+        hm.on('drag', () => {
+          const ll = hm.getLatLng();
+          try { opts.handles.onDrag(key, { lat: ll.lat, lon: ll.lng }); } catch (e) { console.error('handleDrag', e); }
+        });
+        st.cropHandles.push(hm);
+      });
+    }
+    // 记录最近一次绘制参数：进入全屏后 fsRenderer 重绘用
+    st.lastShow = { tracks: list.map(tr => ({ latlngs: tr.latlngs, color: tr.color })), markers: opts.markers || [] };
     if (!all.length) { st.map.setView([30.5, 104.0], 5); }
     else if (opts.fit !== false) st.map.fitBounds(L.latLngBounds(all).pad(0.12), { animate: false });
     st.map.invalidateSize();
@@ -137,6 +254,8 @@ const TrackMap = (() => {
     (st.layers || []).forEach(l => l.remove());
     st.layers = [];
     clearMarkers(st);
+    (st.cropHandles || []).forEach(m => m.remove());
+    st.cropHandles = [];
   }
 
   function clear(idOrEl) {
@@ -145,9 +264,41 @@ const TrackMap = (() => {
     const st = maps.get(host.id);
     if (!st) return;
     clearLayers(st);
+    st.lastShow = null;
   }
 
-  return { show, clear, available, setTile };
+  /**
+   * 在既有地图实例上直接绘制轨迹（不创建地图）——全屏 fsRenderer 用。
+   * map 为 L.Map 实例；tracks/opts 形状同 show()。返回绘制的图层（调用方管理生命周期）。
+   */
+  function drawOn(map, tracks, opts = {}) {
+    if (!available() || !map) return [];
+    const list = Array.isArray(tracks) && tracks.length && Array.isArray(tracks[0]) ? tracks.map((l, i) => ({ latlngs: l, color: PALETTE[i % PALETTE.length] }))
+      : Array.isArray(tracks) && tracks.length && tracks[0].latlngs ? tracks
+        : [{ latlngs: tracks || [], color: PALETTE[0] }];
+    const all = [];
+    const made = [];
+    list.forEach((tr, ti) => {
+      const pts = (tr.latlngs || []).filter(p => p && Number.isFinite(p.lat) && Number.isFinite(p.lon));
+      if (!pts.length) return;
+      const ll = pts.map(p => [p.lat, p.lon]);
+      all.push(...ll);
+      made.push(L.polyline(ll, { color: tr.color || PALETTE[ti % PALETTE.length], weight: 3.5, opacity: 0.9, lineJoin: 'round' }).addTo(map));
+    });
+    (opts.markers || []).forEach(m => {
+      const html = m.kind === 's' ? '<b>S</b>' : m.kind === 'e' ? '<b>E</b>' : '<i></i>';
+      const mk2 = L.marker([m.lat, m.lon], { icon: divIcon(html, 'tm-' + (m.kind || 'wp')), interactive: !!m.label }).addTo(map);
+      if (m.label) mk2.bindTooltip(m.label, { direction: 'top', offset: [0, -8] });
+      made.push(mk2);
+    });
+    if (all.length && opts.fit !== false) map.fitBounds(L.latLngBounds(all).pad(0.12), { animate: false });
+    map.invalidateSize();
+    return made;
+  }
+
+  function state(idOrEl) { const host = el(idOrEl); return host ? maps.get(host.id) : null; }
+
+  return { show, clear, available, setTile, toggleFullscreen, rerenderFullscreen, state, drawOn };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = TrackMap;

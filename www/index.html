@@ -149,6 +149,39 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .tm-tiles button{padding:3px 9px;border:0;border-radius:7px;background:transparent;color:var(--text-3);font-size:11px;font-weight:600;cursor:pointer}
 .tm-tiles button:hover{color:var(--text)}
 .tm-tiles button.on{background:var(--tertiary);color:var(--text)}
+/* 自绘缩放控件（替代 Leaflet 默认灰条，与面板视觉一致） */
+.tm-zoom{display:flex;flex-direction:column;gap:2px;padding:3px;border-radius:9px;background:var(--surface);box-shadow:var(--shadow-sm)}
+.tm-zoom button{width:26px;height:26px;border:0;border-radius:7px;background:transparent;color:var(--text-2);font-size:16px;font-weight:600;line-height:1;cursor:pointer;transition:all .12s}
+.tm-zoom button:hover{background:var(--tertiary);color:var(--text)}
+/* 全屏入口（右上角，与底图切换同排风格） */
+.tm-full{padding:3px;border-radius:9px;background:var(--surface);box-shadow:var(--shadow-sm);margin-right:86px}
+.tm-full button{width:26px;height:26px;border:0;border-radius:7px;background:transparent;color:var(--text-2);font-size:14px;line-height:1;cursor:pointer;transition:all .12s}
+.tm-full button:hover{background:var(--tertiary);color:var(--text)}
+/* FIT 裁剪工具条（地图下方；全屏时移入头部） */
+.fit-cropbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding:8px 12px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface)}
+.fit-cropbar .fc-t{font-size:12px;color:var(--text-2);font-weight:600}
+.fit-cropbar .fc-range{font-size:11.5px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.fit-cropbar .fc-meta{font-size:12px;font-weight:700;color:var(--viz);font-variant-numeric:tabular-nums;margin-right:auto}
+/* 可拖端点（略大于 S/E 标记，带描边提示可拖） */
+.tm-crop-handle b{width:24px;height:24px;border:2px solid var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:grab}
+.tm-crop-handle:active b{cursor:grabbing}
+/* 全屏覆盖壳 */
+.tm-shell{position:fixed;inset:0;z-index:9000;background:var(--bg,#f5f5f5);display:flex;flex-direction:column}
+html[data-theme="dark"] .tm-shell{background:var(--bg-dark,#111)}
+.tm-shell .tm-fs-head{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--border-subtle);flex:none}
+.tm-shell .tm-fs-title{font-size:13.5px;font-weight:700;color:var(--text)}
+.tm-shell .tm-fs-close{margin-left:auto;width:28px;height:28px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--surface);color:var(--text-2);font-size:14px;cursor:pointer}
+.tm-shell .tm-fs-close:hover{border-color:var(--border-strong);color:var(--text)}
+.tm-shell .tm-fs-map{flex:1;min-height:0}
+.tm-shell .tm-fs-extra{flex:none;max-height:38%;overflow-y:auto;border-top:1px solid var(--border-subtle);background:var(--surface);padding:10px 14px}
+.tm-shell .tm-fs-extra:empty{display:none}
+/* 全屏浮窗（海拔剖面等 extra 浮层挂地图上） */
+.tm-float{position:absolute;right:12px;bottom:14px;z-index:800;width:min(520px,calc(100% - 24px));background:var(--surface);border:1px solid var(--border-subtle);border-radius:12px;box-shadow:var(--shadow);padding:10px 12px}
+.tm-float .tm-float-t{font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px}
+/* 海拔剖面 hover 联动 */
+.trip-profile{cursor:crosshair;position:relative}
+.trip-profile .prof-tip{position:absolute;transform:translate(-50%,-110%);background:var(--text);color:var(--surface);font-size:11px;font-weight:600;padding:3px 8px;border-radius:7px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .1s;font-variant-numeric:tabular-nums;z-index:5}
+.trip-profile svg circle.prof-dot{transition:r .08s}
 .tm-icon{display:flex;align-items:center;justify-content:center}
 .tm-icon b{width:20px;height:20px;border-radius:50%;background:#10b981;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
 .tm-icon.tm-e b{background:#ef4444}
@@ -1143,11 +1176,11 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 <div id="msgCtxMenu" class="ctx-menu"></div>
 
 <!-- FIT 工具：解析内核 + UI（独立文件，便于单独测试） -->
-<script src="/static/leaflet.js"></script>
-<script src="/static/trackmap.js"></script>
-<script src="/static/fit.js"></script>
-<script src="/static/fit-ui.js"></script>
-<script src="/static/gpx.js"></script>
+<script src="/static/leaflet.js?v=__APP_VERSION__"></script>
+<script src="/static/trackmap.js?v=__APP_VERSION__"></script>
+<script src="/static/fit.js?v=__APP_VERSION__"></script>
+<script src="/static/fit-ui.js?v=__APP_VERSION__"></script>
+<script src="/static/gpx.js?v=__APP_VERSION__"></script>
 <script>
 // ===== i18n =====
 const I18N = {
@@ -1198,6 +1231,7 @@ const I18N = {
     fit_convert:'转换为 GPX / TCX', fit_convertHint:'轨迹、高程、心率、踏频、功率全部映射；GPX 供大多数平台上传，TCX 兼容 Garmin。', fit_namePh:'活动名称（留空用文件名）', fit_target:'目标：',
     fit_actionStrip:'执行并下载', fit_actionSplit:'执行并下载', fit_actionCombine:'执行并下载',
     fit_doneStrip:'已删除功率/心率，共处理 {n} 个采样点', fit_doneSplit:'已拆分为 {n} 个文件', fit_doneCombine:'合并完成，共 {n} 个采样点', fit_doneConvert:'转换完成，已开始下载',
+    fit_crop:'地图裁剪', fit_cropTitle:'拖动地图上 S/E 端点选择保留区间', fit_cropRange:'点 {a}–{b} / 共 {n}', fit_cropApply:'下载裁剪', fit_cropReset:'重置', fit_cropDone:'退出裁剪', fit_cropDone2:'裁剪完成，已开始下载',
     fit_needMulti:'合并至少需要 2 个文件',
     coach_sports:'运动方式', coach_sportsSave:'保存', coach_sportsSaved:'运动方式已保存，教练将只在该范围内推荐训练', coach_sportsSaveFail:'保存失败: ', coach_sportsNeedOne:'至少选择一种运动',
     nav_trip:'出行计划', trip_title:'户外出行计划', trip_hint:'骑行 / 徒步 / 越野跑出行方案：查目的地周末天气、高铁余票与装备清单。数据来自 Open-Meteo 与 12306。',
@@ -1214,7 +1248,7 @@ const I18N = {
     trip_speed:'匀速 (km/h)', trip_startTime:'开始时间', trip_routeWeather:'沿途天气', trip_gpxOnly:'请先加载 GPX 文件',
     trip_gpxParseFail:'GPX 解析失败：', trip_gpxNoPoints:'GPX 中没有轨迹点',
     trip_sumDist:'总距离', trip_sumGain:'累计爬升', trip_sumEle:'海拔范围', trip_sumEta:'预计用时', trip_sumFinish:'预计到达',
-    trip_noEle:'该 GPX 无高程数据',
+    trip_noEle:'该 GPX 无高程数据', trip_elevProfile2:'海拔剖面',
     trip_tlDist:'里程', trip_tlEta:'预计时刻', trip_wind:'风', trip_gust:'阵风',
     trip_routeWxNote:'按匀速 {v} km/h 从 {t} 出发推算各采样点到达时刻；天气取自 Open-Meteo 逐时预报（最近 {d} 天）。',
     trip_outOfRange:'出行日期超出逐时预报范围，时间线按最近两天预报推算，仅供参考。',
@@ -1325,6 +1359,7 @@ const I18N = {
     fit_convert:'Convert to GPX / TCX', fit_convertHint:'Tracks, elevation, HR, cadence and power are all mapped. GPX suits most upload targets; TCX suits Garmin.', fit_namePh:'Activity name (blank = filename)', fit_target:'Target: ',
     fit_actionStrip:'Run & download', fit_actionSplit:'Run & download', fit_actionCombine:'Run & download',
     fit_doneStrip:'Power/HR stripped from {n} samples', fit_doneSplit:'Split into {n} files', fit_doneCombine:'Combined {n} samples', fit_doneConvert:'Converted — download started',
+    fit_crop:'Crop on map', fit_cropTitle:'Drag S/E handles on the map to choose the range', fit_cropRange:'pts {a}–{b} / {n}', fit_cropApply:'Download crop', fit_cropReset:'Reset', fit_cropDone:'Exit crop', fit_cropDone2:'Crop ready — download started',
     fit_needMulti:'Combining needs at least 2 files',
     coach_sports:'Sports', coach_sportsSave:'Save', coach_sportsSaved:'Sports saved — the coach will now only recommend within these', coach_sportsSaveFail:'Save failed: ', coach_sportsNeedOne:'Pick at least one sport',
     nav_trip:'Trip Planner', trip_title:'Outdoor Trip Planner', trip_hint:'Cycling / hiking / trail-run trip plans: weekend weather at the destination, 12306 train seats and a gear checklist. Data from Open-Meteo and 12306.',
@@ -1341,7 +1376,7 @@ const I18N = {
     trip_speed:'Speed (km/h)', trip_startTime:'Start time', trip_routeWeather:'Route weather', trip_gpxOnly:'Load a GPX file first',
     trip_gpxParseFail:'GPX parse failed: ', trip_gpxNoPoints:'No track points in the GPX',
     trip_sumDist:'Distance', trip_sumGain:'Elev. gain', trip_sumEle:'Elev. range', trip_sumEta:'Est. time', trip_sumFinish:'Est. finish',
-    trip_noEle:'This GPX has no elevation data',
+    trip_noEle:'This GPX has no elevation data', trip_elevProfile2:'Elevation',
     trip_tlDist:'Dist.', trip_tlEta:'ETA', trip_wind:'Wind', trip_gust:'Gust',
     trip_routeWxNote:'Sampling times estimated at {v} km/h from {t}; weather from Open-Meteo hourly forecast (next {d} days).',
     trip_outOfRange:'The trip date is beyond the hourly forecast window; the timeline uses the next two days and is indicative only.',
@@ -4223,7 +4258,7 @@ function tripRenderGpx(){
     + (g.hasEle ? sum('trip_sumGain', Math.round(g.elevGain), 'm') + sum('trip_sumEle', Math.round(g.minEle)+'~'+Math.round(g.maxEle), 'm') : '')
     + (eta ? sum('trip_sumEta', eta.durText) + sum('trip_sumFinish', eta.finish) : '')
     + '</div>';
-  // 海拔剖面
+  // 海拔剖面（hover 联动地图：悬浮显示轨迹上对应位置）
   const prof = g.hasEle ? GPX.profile(g, 200) : [];
   if(prof.length){
     const C = chartColors();
@@ -4236,27 +4271,153 @@ function tripRenderGpx(){
     const Y = e => padT + ih - (e-eMin)/(eMax-eMin)*ih;
     const line = prof.map((p,i)=>X(i).toFixed(1)+','+Y(p.ele).toFixed(1)).join(' ');
     const area = `M${X(0).toFixed(1)},${(padT+ih).toFixed(1)} L${line.split(' ').join(' L')} L${X(prof.length-1).toFixed(1)},${(padT+ih).toFixed(1)} Z`;
-    html += '<div class="trip-profile"><svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'" role="img" aria-label="elevation profile">'
+    html += '<div class="trip-profile" id="tripProfile"><svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'" role="img" aria-label="elevation profile">'
       + '<path d="'+area+'" fill="'+C.viz+'" opacity="0.18"/>'
       + '<polyline points="'+line+'" fill="none" stroke="'+C.viz+'" stroke-width="1.6" stroke-linejoin="round"/>'
+      + '<line id="profCursor" x1="0" y1="'+padT+'" x2="0" y2="'+(padT+ih)+'" stroke="'+C.brand+'" stroke-width="1" stroke-dasharray="3 3" opacity="0"/>'
+      + '<circle id="profDot" r="4" fill="'+C.brand+'" stroke="#fff" stroke-width="1.5" opacity="0"/>'
       + '<text x="'+(padL-4)+'" y="'+(padT+8)+'" text-anchor="end" font-size="9" fill="'+C.muted+'">'+Math.round(eMax)+'m</text>'
       + '<text x="'+(padL-4)+'" y="'+(padT+ih)+'" text-anchor="end" font-size="9" fill="'+C.muted+'">'+Math.round(eMin)+'m</text>'
       + '<text x="'+padL+'" y="'+(h-4)+'" font-size="9" fill="'+C.muted+'">0 km</text>'
       + '<text x="'+(w-padR)+'" y="'+(h-4)+'" text-anchor="end" font-size="9" fill="'+C.muted+'">'+g.distanceKm.toFixed(1)+' km</text>'
-      + '</svg></div>';
+      + '</svg><div class="prof-tip" id="profTip"></div></div>';
   } else if(!g.hasEle){
     html += '<div class="tt" style="margin-top:8px;color:var(--text-3);font-size:11.5px">'+escapeHtml(t('trip_noEle'))+'</div>';
   }
   info.innerHTML = html;
+  bindProfileHover();
   tripRenderGpxFileCard();
-  // 轨迹小地图（Leaflet）：GPX 点直接上地图，起终点 S/E 标记
+  // 轨迹小地图（Leaflet）：GPX 点直接上地图，起终点 S/E 标记；注册全屏重绘
   const wrap = document.getElementById('tripMapWrap');
   if(wrap){
     if(typeof TrackMap !== 'undefined' && TrackMap.available() && g.points && g.points.length){
       wrap.style.display = '';
       TrackMap.show('tripMap', g.points);
+      // 注册须在 show() 之后（show 内部 ensureMap 惰性建图，之前 state() 拿不到实例）
+      const st = TrackMap.state('tripMap');
+      if(st && !st.fsRenderer){
+        st.onFullscreen = (on) => {
+          if(on) tripFsDraw(st);
+          else TrackMap.show('tripMap', g.points);
+        };
+        st.fsRenderer = (map) => tripFsDraw(st, map);
+      }
     } else wrap.style.display = 'none';
   }
+}
+// 全屏态绘制：轨迹 + 右下浮窗海拔剖面（hover 联动全屏地图）
+function tripFsDraw(st, map){
+  const g = tripGpx;
+  if(!g || !g.points || !g.points.length) return;
+  const target = map || st.map;
+  // 直接在既有地图实例上绘制（show() 会尝试新建地图，容器已初始化会抛错）
+  st.fsLayers = TrackMap.drawOn(target, g.points, { fit: true });
+  const fsMapEl = st.fsMapEl;
+  let float = fsMapEl && fsMapEl.querySelector('.tm-float');
+  if(float) float.remove();
+  const prof = g.hasEle ? GPX.profile(g, 400) : [];
+  if(!prof.length || !fsMapEl) return;
+  const fl = document.createElement('div');
+  fl.className = 'tm-float';
+  fl.innerHTML = '<div class="tm-float-t">'+escapeHtml(t('trip_elevProfile2'))+'</div><div id="tripFsProfile"></div>';
+  fsMapEl.appendChild(fl);
+  tripDrawProfile(document.getElementById('tripFsProfile'), prof, g, target);
+}
+// 剖面绘制 + hover 联动（宿主 container、剖面数据、联动目标地图）
+function tripDrawProfile(container, prof, g, linkedMap){
+  if(!container || !prof.length) return;
+  const C = chartColors();
+  const w = Math.max(280, container.clientWidth || 480), h = 110, padL = 34, padR = 8, padT = 8, padB = 16;
+  const iw = w-padL-padR, ih = h-padT-padB;
+  const es = prof.map(p=>p.ele);
+  let eMin = Math.min(...es), eMax = Math.max(...es);
+  if(eMax - eMin < 10){ const mid = (eMax+eMin)/2; eMin = mid-5; eMax = mid+5; }
+  const X = i => padL + iw * i/(prof.length-1);
+  const Y = e => padT + ih - (e-eMin)/(eMax-eMin)*ih;
+  const line = prof.map((p,i)=>X(i).toFixed(1)+','+Y(p.ele).toFixed(1)).join(' ');
+  const area = `M${X(0).toFixed(1)},${(padT+ih).toFixed(1)} L${line.split(' ').join(' L')} L${X(prof.length-1).toFixed(1)},${(padT+ih).toFixed(1)} Z`;
+  container.innerHTML = '<svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'" style="display:block">'
+    + '<path d="'+area+'" fill="'+C.viz+'" opacity="0.18"/>'
+    + '<polyline points="'+line+'" fill="none" stroke="'+C.viz+'" stroke-width="1.6" stroke-linejoin="round"/>'
+    + '<line class="pc-cursor" x1="0" y1="'+padT+'" x2="0" y2="'+(padT+ih)+'" stroke="'+C.brand+'" stroke-width="1" stroke-dasharray="3 3" opacity="0"/>'
+    + '<circle class="pc-dot" r="4" fill="'+C.brand+'" stroke="#fff" stroke-width="1.5" opacity="0"/>'
+    + '</svg><div class="prof-tip" style="opacity:0"></div>';
+  const svg = container.querySelector('svg'), cursor = container.querySelector('.pc-cursor'),
+    dot = container.querySelector('.pc-dot'), tip = container.querySelector('.prof-tip');
+  // 悬停 → 找最近剖面点 → 光标/圆点/提示 + 地图上指示位置
+  let mapDot = null;
+  const onMove = (ev) => {
+    const rect = svg.getBoundingClientRect();
+    const px = (ev.clientX - rect.left) * (w / rect.width);
+    const frac = Math.max(0, Math.min(1, (px - padL) / iw));
+    const i = Math.round(frac * (prof.length - 1));
+    const p = prof[i];
+    const cx = X(i), cy = Y(p.ele);
+    cursor.setAttribute('x1', cx); cursor.setAttribute('x2', cx); cursor.setAttribute('opacity', '1');
+    dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('opacity', '1');
+    tip.textContent = p.distKm.toFixed(1) + ' km · ' + Math.round(p.ele) + ' m';
+    tip.style.opacity = '1';
+    tip.style.left = (cx / w * 100) + '%';
+    tip.style.top = (cy / h * 100) + '%';
+    // 地图联动：最近轨迹点放指示圆
+    if(linkedMap && g.points && g.points.length){
+      const idx = Math.min(g.points.length - 1, Math.round(frac * (g.points.length - 1)));
+      const gp = g.points[idx];
+      if(!mapDot){
+        mapDot = L.circleMarker([gp.lat, gp.lon], { radius: 6, color: '#fc4c02', weight: 2, fillColor: '#fff', fillOpacity: 0.9 }).addTo(linkedMap);
+      } else mapDot.setLatLng([gp.lat, gp.lon]);
+    }
+  };
+  const onLeave = () => {
+    cursor.setAttribute('opacity', '0'); dot.setAttribute('opacity', '0'); tip.style.opacity = '0';
+    if(mapDot){ mapDot.remove(); mapDot = null; }
+  };
+  svg.addEventListener('mousemove', onMove);
+  svg.addEventListener('mouseleave', onLeave);
+}
+// 内嵌剖面 hover（联动内嵌地图）
+function bindProfileHover(){
+  const host = document.getElementById('tripProfile');
+  if(!host) return;
+  const svg = host.querySelector('svg'); if(!svg) return;
+  const g = tripGpx; if(!g) return;
+  const prof = g.hasEle ? GPX.profile(g, 200) : []; if(!prof.length) return;
+  const cursor = document.getElementById('profCursor'), dot = document.getElementById('profDot'), tip = document.getElementById('profTip');
+  const C = chartColors();
+  const w = Math.max(300, host.clientWidth || 520), h = 90, padL = 34, padR = 8, padT = 8, padB = 16;
+  const iw = w-padL-padR, ih = h-padT-padB;
+  const es = prof.map(p=>p.ele);
+  let eMin = Math.min(...es), eMax = Math.max(...es);
+  if(eMax - eMin < 10){ const mid = (eMax+eMin)/2; eMin = mid-5; eMax = mid+5; }
+  const X = i => padL + iw * i/(prof.length-1);
+  const Y = e => padT + ih - (e-eMin)/(eMax-eMin)*ih;
+  const st = (typeof TrackMap !== 'undefined') ? TrackMap.state('tripMap') : null;
+  let mapDot = null;
+  svg.addEventListener('mousemove', (ev) => {
+    const rect = svg.getBoundingClientRect();
+    const px = (ev.clientX - rect.left) * (w / rect.width);
+    const frac = Math.max(0, Math.min(1, (px - padL) / iw));
+    const i = Math.round(frac * (prof.length - 1));
+    const p = prof[i];
+    const cx = X(i), cy = Y(p.ele);
+    cursor.setAttribute('x1', cx); cursor.setAttribute('x2', cx); cursor.setAttribute('opacity', '1');
+    dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('opacity', '1');
+    tip.textContent = p.distKm.toFixed(1) + ' km · ' + Math.round(p.ele) + ' m';
+    tip.style.opacity = '1';
+    tip.style.left = (cx / w * 100) + '%';
+    tip.style.top = (cy / h * 100) + '%';
+    if(st && st.map && g.points && g.points.length){
+      const idx = Math.min(g.points.length - 1, Math.round(frac * (g.points.length - 1)));
+      const gp = g.points[idx];
+      if(!mapDot){
+        mapDot = L.circleMarker([gp.lat, gp.lon], { radius: 6, color: '#fc4c02', weight: 2, fillColor: '#fff', fillOpacity: 0.9 }).addTo(st.map);
+      } else mapDot.setLatLng([gp.lat, gp.lon]);
+    }
+  });
+  svg.addEventListener('mouseleave', () => {
+    cursor.setAttribute('opacity', '0'); dot.setAttribute('opacity', '0'); tip.style.opacity = '0';
+    if(mapDot){ mapDot.remove(); mapDot = null; }
+  });
 }
 // ---- 沿途天气（GPX 采样 × ETA）----
 async function tripLoadRouteWeather(){

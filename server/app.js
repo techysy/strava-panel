@@ -999,7 +999,8 @@ function sendFile(res, rel) {
   if (rel === 'index.html') {
     body = Buffer.from(body.toString('utf8').split('__APP_VERSION__').join(displayVersion() || ''), 'utf8');
   }
-  res.writeHead(200, { 'Content-Type': ctype, 'Content-Length': body.length });
+  // no-store：本地面板更新频繁，启发式缓存会让浏览器用旧 JS/CSS（改完代码刷新无效的元凶）
+  res.writeHead(200, { 'Content-Type': ctype, 'Content-Length': body.length, 'Cache-Control': 'no-store' });
   res.end(body);
 }
 
