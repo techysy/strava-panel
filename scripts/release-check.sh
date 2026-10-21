@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Strava Panel 发版前审查脚本（13 项检查）
+# Strava Panel 发版前审查脚本（14 项检查）
 # 用法：bash scripts/release-check.sh
 # 约定：server/VERSION 是唯一事实来源；先跑 scripts/sync-version.sh 再跑本脚本。
 # 若 v<VERSION> 的 tag 已存在且 CHANGELOG 已归档该版本，则视为「已发布版本复查」，不算错误。
@@ -21,7 +21,7 @@ fi
 
 ERRORS=0
 WARNINGS=0
-TOTAL=13
+TOTAL=14
 
 echo -e "${BLUE}═══════════════════════════════════════════════${NC}"
 echo -e "${BLUE}  Strava Panel 发版前审查${NC}"
@@ -331,6 +331,34 @@ if [ -n "$ART_LOCAL" ]; then
 fi
 if [ -z "$ART_TRACKED" ] && [ -z "$ART_LOCAL" ]; then
   ok "未发现入库/遗留的构建产物"
+fi
+echo ""
+
+# ── 14. 自测套件必须全绿（不可跳过）──────────────────────────
+# v2.6.1 教训：只跑语法检查就发版，trackmap.js 解析期抛错、地图全挂的事故被放行。
+echo -e "${YELLOW}[14/${TOTAL}] 🧪 自测套件（前端模块 / GPX / FIT）${NC}"
+if [ ! -f scripts/ui-selftest.mjs ]; then
+  err "缺少 scripts/ui-selftest.mjs"
+elif node scripts/ui-selftest.mjs > /tmp/sp-ui.log 2>&1; then
+  ok "前端模块自测：$(grep -oE '[0-9]+ 通过' /tmp/sp-ui.log | tail -1)"
+else
+  err "前端模块自测失败（模块加载/导出异常）——见 scripts/ui-selftest.mjs"
+  grep -E 'FAIL' /tmp/sp-ui.log | head -5 | sed 's/^/     /'
+fi
+if node scripts/gpx-selftest.mjs > /tmp/sp-gpx.log 2>&1; then
+  ok "GPX 自测：$(tail -1 /tmp/sp-gpx.log | tr -d '\n')"
+else
+  err "GPX 自测失败——见 /tmp/sp-gpx.log"
+fi
+if node --input-type=module -e "import('fit-file-parser')" >/dev/null 2>&1; then
+  if node scripts/fit-selftest.mjs > /tmp/sp-fit.log 2>&1; then
+    ok "FIT 自测：$(grep -oE '[0-9]+ 通过 / [0-9]+ 失败' /tmp/sp-fit.log | tail -1)"
+  else
+    err "FIT 自测失败——见 /tmp/sp-fit.log"
+    grep -E 'FAIL' /tmp/sp-fit.log | head -5 | sed 's/^/     /'
+  fi
+else
+  err "FIT 自测未运行：缺 fit-file-parser（npm install fit-file-parser --no-save）"
 fi
 echo ""
 

@@ -142,6 +142,11 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .fit-drop.has-file span{display:none}
 /* 轨迹小地图（Leaflet 本地库；瓦片为运行时数据请求） */
 .tm-wrap{position:relative;margin-top:10px;border:1px solid var(--border-subtle);border-radius:12px;overflow:hidden;background:var(--tertiary)}
+/* 地图左下工具（裁剪入口）——避开左上缩放/全屏、右上图层切换、右下 Leaflet 版权位 */
+.tm-tools{position:absolute;left:8px;bottom:8px;z-index:500;display:flex;gap:6px}
+.tm-tools .btn{padding:5px 12px;font-size:11.5px;font-weight:600;border-radius:8px;background:var(--surface);border:1px solid var(--border-subtle);box-shadow:var(--shadow-sm);cursor:pointer}
+.tm-tools .btn:hover{border-color:var(--border-strong)}
+.tm-tools .btn.on{background:var(--brand);border-color:var(--brand);color:#fff}
 .tm-map{width:100%;height:260px;background:var(--tertiary)}
 .tm-map.tall{height:340px}
 .tm-unavailable{padding:18px;text-align:center;color:var(--text-3);font-size:12px}
@@ -153,8 +158,9 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .tm-zoom{display:flex;flex-direction:column;gap:2px;padding:3px;border-radius:9px;background:var(--surface);box-shadow:var(--shadow-sm)}
 .tm-zoom button{width:26px;height:26px;border:0;border-radius:7px;background:transparent;color:var(--text-2);font-size:16px;font-weight:600;line-height:1;cursor:pointer;transition:all .12s}
 .tm-zoom button:hover{background:var(--tertiary);color:var(--text)}
-/* 全屏入口（右上角，与底图切换同排风格） */
-.tm-full{padding:3px;border-radius:9px;background:var(--surface);box-shadow:var(--shadow-sm);margin-right:86px}
+/* 全屏入口（左上、缩放按钮正下方；右上留给底图切换，互不遮挡） */
+.leaflet-top.leaflet-left .leaflet-control.tm-full-ctl{margin-top:4px}
+.tm-full{padding:3px;border-radius:9px;background:var(--surface);box-shadow:var(--shadow-sm)}
 .tm-full button{width:26px;height:26px;border:0;border-radius:7px;background:transparent;color:var(--text-2);font-size:14px;line-height:1;cursor:pointer;transition:all .12s}
 .tm-full button:hover{background:var(--tertiary);color:var(--text)}
 /* FIT 裁剪工具条（地图下方；全屏时移入头部） */
@@ -1010,7 +1016,12 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         <input type="file" id="fitInput" accept=".fit" multiple hidden>
 
         <div class="fit-list" id="fitFileList"></div>
-        <div class="tm-wrap" id="fitMapWrap" style="display:none"><div class="tm-map" id="fitMap"></div></div>
+        <div class="tm-wrap" id="fitMapWrap" style="display:none">
+          <div class="tm-map" id="fitMap"></div>
+          <div class="tm-tools">
+            <button type="button" class="btn btn-sm" id="fitCropToggle" onclick="FitUI.toggleCrop()" data-i18n="fit_crop">地图裁剪</button>
+          </div>
+        </div>
 
         <div class="fit-tools" id="fitPanel" style="display:none">
           <div class="fit-tool" id="fitToolStrip">
@@ -4298,7 +4309,8 @@ function tripRenderGpx(){
       if(st && !st.fsRenderer){
         st.onFullscreen = (on) => {
           if(on) tripFsDraw(st);
-          else TrackMap.show('tripMap', g.points);
+          // 退出全屏：按当前 GPX 现取（不闭包旧 g，换过文件也能正确恢复）
+          else if(tripGpx && tripGpx.points && tripGpx.points.length) TrackMap.show('tripMap', tripGpx.points);
         };
         st.fsRenderer = (map) => tripFsDraw(st, map);
       }

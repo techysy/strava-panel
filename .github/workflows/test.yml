@@ -23,6 +23,20 @@ jobs:
           node --check server/app.js
           node --check server/db.js
 
+      # 前端自测：模块必须「加载即成功」。node --check 只查语法，抓不到
+      # 「解析期抛 ReferenceError → 整个模块未定义」这类发布级故障（v2.6.1 踩过）。
+      - name: Frontend module selftest
+        run: node scripts/ui-selftest.mjs
+
+      - name: GPX selftest
+        run: node scripts/gpx-selftest.mjs
+
+      # FIT 自测需要第三方裁判 fit-file-parser（独立解析器，验证产物合法）
+      - name: FIT selftest
+        run: |
+          npm install fit-file-parser --no-save
+          node scripts/fit-selftest.mjs
+
       - name: Server smoke test
         run: |
           set -euo pipefail

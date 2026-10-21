@@ -37,3 +37,6 @@ fnos-packaging/*.fpk
 .v2c/
 *.db
 *.db-journal
+
+# 本地临时验证产物（不进仓库）
+.tmp-verify/

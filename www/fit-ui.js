@@ -130,7 +130,8 @@ const FitUI = (() => {
   function renderMap(bytesList) {
     const wrap = $('fitMapWrap');
     if (!wrap) return;
-    if (cropMode) { renderCropMap(); return; }
+    if (cropMode) { renderCropMap(); syncCropBtn(); return; }   // 非裁剪产物变化时也走裁剪渲染
+    syncCropBtn();
     const src = bytesList || fitFiles.map(f => f.bytes);
     const tracks = src.map(b => { try { return FIT.trackPoints(b); } catch (e) { return []; } }).filter(p => p.length);
     if (!tracks.length || typeof TrackMap === 'undefined' || !TrackMap.available()) { wrap.style.display = 'none'; return; }
@@ -176,13 +177,8 @@ const FitUI = (() => {
         if (tracks.length) { st.fsLayers = TrackMap.drawOn(map, tracks, { fit: true }); }
         return;
       }
-      const pts = crop.pts;
-      const tracks = [];
-      const segA = pts.filter(p => p.idx < crop.i0), segK = pts.filter(p => p.idx >= crop.i0 && p.idx <= crop.i1), segB = pts.filter(p => p.idx > crop.i1);
-      if (segA.length > 1) tracks.push({ latlngs: segA, color: '#b6b6b6' });
-      if (segK.length > 1) tracks.push({ latlngs: segK, color: '#fc4c02' });
-      if (segB.length > 1) tracks.push({ latlngs: segB, color: '#b6b6b6' });
-      st.fsLayers = TrackMap.drawOn(map, tracks, { fit: true, handles: cropHandlesOpts() });
+      // 全屏裁剪：三色轨迹 + 可拖 S/E 端点（drawOn 会把端点挂到实例上）
+      st.fsLayers = TrackMap.drawOn(map, cropTracks(), { fit: true, noAutoSE: true, handles: cropHandlesOpts() });
     };
   }
   function exitCrop() {
@@ -190,7 +186,15 @@ const FitUI = (() => {
     cropHandles = null;
     renderPanel();
   }
-  function toggleCrop() { cropMode ? exitCrop() : enterCrop(); }
+  function toggleCrop() { cropMode ? exitCrop() : enterCrop(); syncCropBtn(); }
+  // 裁剪入口按钮态（无文件/裁剪中禁用与高亮）
+  function syncCropBtn() {
+    const b = document.getElementById('fitCropToggle');
+    if (!b) return;
+    b.classList.toggle('on', cropMode);
+    b.disabled = !fitFiles.length;
+    b.textContent = cropMode ? t('fit_cropDone') : t('fit_crop');
+  }
 
   function renderCropBar() {
     let bar = document.getElementById('fitCropBar');
@@ -201,18 +205,29 @@ const FitUI = (() => {
       $('fitMapWrap').insertAdjacentElement('afterend', bar);
     }
     if (!cropMode || !crop) { bar.style.display = 'none'; return; }
+    bar.style.display = '';
+    updateCropBarText();
+  }
+  // 只刷新区间/里程文本（拖拽中用），不动按钮
+  function updateCropBarText() {
+    const bar = document.getElementById('fitCropBar');
+    if (!bar || !cropMode || !crop) return;
+    if (!bar.querySelector('.fc-range')) { renderCropBarFull(bar); return; }
     const pts = crop.pts;
-    const idxOf = v => pts.findIndex(p => p.idx >= v);
-    const pA = pts[Math.max(0, idxOf(crop.i0))], pB = pts[Math.min(pts.length - 1, idxOf(crop.i1))];
-    const km = (i0, i1) => {
-      let d = 0, prev = null;
-      for (const p of pts) { if (p.idx < i0 || p.idx > i1) continue; if (prev) d += TrackMapDist(prev, p); prev = p; }
-      return d;
-    };
+    bar.querySelector('.fc-range').textContent = t('fit_cropRange', { a: crop.i0 + 1, b: crop.i1 + 1, n: pts[pts.length - 1].idx + 1 });
+    bar.querySelector('.fc-meta').textContent = cropKm(crop.i0, crop.i1).toFixed(1) + ' km';
+  }
+  function cropKm(i0, i1) {
+    let d = 0, prev = null;
+    for (const p of crop.pts) { if (p.idx < i0 || p.idx > i1) continue; if (prev) d += TrackMapDist(prev, p); prev = p; }
+    return d / 1000;   // TrackMapDist 返回米，工具条按 km 显示
+  }
+  function renderCropBarFull(bar) {
+    const pts = crop.pts;
     bar.style.display = '';
     bar.innerHTML = '<span class="fc-t">' + escapeHtml(t('fit_cropTitle')) + '</span>'
       + '<span class="fc-range">' + escapeHtml(t('fit_cropRange', { a: crop.i0 + 1, b: crop.i1 + 1, n: pts[pts.length-1].idx + 1 })) + '</span>'
-      + '<span class="fc-meta">' + km(crop.i0, crop.i1).toFixed(1) + ' km</span>'
+      + '<span class="fc-meta">' + cropKm(crop.i0, crop.i1).toFixed(1) + ' km</span>'
       + '<button class="btn" onclick="FitUI.cropApply()" style="padding:4px 12px">' + escapeHtml(t('fit_cropApply')) + '</button>'
       + '<button class="btn" onclick="FitUI.cropReset()" style="padding:4px 10px">' + escapeHtml(t('fit_cropReset')) + '</button>'
       + '<button class="btn" onclick="FitUI.toggleCrop()" style="padding:4px 10px">' + escapeHtml(t('fit_cropDone')) + '</button>';
@@ -224,37 +239,63 @@ const FitUI = (() => {
     return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
   }
 
-  function renderCropMap() {
-    const wrap = $('fitMapWrap');
-    if (!wrap || !crop || typeof TrackMap === 'undefined' || !TrackMap.available()) { if (wrap) wrap.style.display = 'none'; return; }
-    const st = TrackMap.state('fitMap');
-    // 全屏态：由 st.fsRenderer 绘制到全屏地图，普通地图仅作背景占位
-    if (st && st.fullscreen) { wrap.style.display = ''; TrackMap.rerenderFullscreen(st); return; }
-    wrap.style.display = '';
+  // 裁剪三色分段（灰-裁掉 / 橙-保留 / 灰-裁掉）；端点由 handles 统一画成可拖 S/E
+  function cropTracks() {
     const pts = crop.pts;
-    const segA = pts.filter(p => p.idx < crop.i0);                    // 裁掉-前段（灰）
-    const segKeep = pts.filter(p => p.idx >= crop.i0 && p.idx <= crop.i1);  // 保留段（主题色）
-    const segB = pts.filter(p => p.idx > crop.i1);                    // 裁掉-后段（灰）
+    const segA = pts.filter(p => p.idx < crop.i0);
+    const segKeep = pts.filter(p => p.idx >= crop.i0 && p.idx <= crop.i1);
+    const segB = pts.filter(p => p.idx > crop.i1);
     const tracks = [];
     if (segA.length > 1) tracks.push({ latlngs: segA, color: '#b6b6b6' });
     if (segKeep.length > 1) tracks.push({ latlngs: segKeep, color: '#fc4c02' });
     if (segB.length > 1) tracks.push({ latlngs: segB, color: '#b6b6b6' });
-    const pA = nearestPt(pts, crop.i0), pB = nearestPt(pts, crop.i1);
-    TrackMap.show('fitMap', tracks, { fit: !cropHandles, handles: cropHandlesOpts() });
+    return tracks;
   }
-  // 端点配置（内嵌/全屏共用）：吸附最近轨迹点并约束区间有效
+
+  function renderCropMap() {
+    const wrap = $('fitMapWrap');
+    if (!wrap || !crop || typeof TrackMap === 'undefined' || !TrackMap.available()) { if (wrap) wrap.style.display = 'none'; return; }
+    const st = TrackMap.state('fitMap');
+    // 全屏态：由 st.fsRenderer 绘制到全屏地图（含可拖端点）
+    if (st && st.fullscreen) { wrap.style.display = ''; TrackMap.rerenderFullscreen(st); return; }
+    wrap.style.display = '';
+    const tracks = cropTracks();
+    // 首次进入裁剪才自动缩放；之后（拖拽松手/重绘）保留用户当前视图
+    const st0 = TrackMap.state('fitMap');
+    const firstFit = !st0 || !st0.cropHandles || !st0.cropHandles.length;
+    TrackMap.show('fitMap', tracks, { fit: firstFit, noAutoSE: true, handles: cropHandlesOpts() });
+  }
+  // 吸附最近轨迹点，返回 { idx }（找不到则 null）
+  function snapIdx(ll) {
+    let best = null, bd = Infinity;
+    for (const p of crop.pts) { const d = distM(ll, p); if (d < bd) { bd = d; best = p; } }
+    return best ? best.idx : null;
+  }
+  // 端点配置（内嵌/全屏共用）：
+  // 拖动中只更新区间并刷新工具条文本（不重建任何 Leaflet 对象，否则拖拽被打断）；
+  // 松手（drop）才重绘折线并把端点吸附到新位置。
   function cropHandlesOpts() {
     const pts = crop.pts;
+    const apply = (kind, ll) => {
+      const idx = snapIdx(ll);
+      if (idx == null) return false;
+      if (kind === 'a') crop.i0 = Math.min(idx, crop.i1 - 1);
+      else crop.i1 = Math.max(idx, crop.i0 + 1);
+      return true;
+    };
     return {
       a: nearestPt(pts, crop.i0), b: nearestPt(pts, crop.i1),
-      onDrag: (kind, ll) => {
-        let best = null, bd = Infinity;
-        for (const p of pts) { const d = distM(ll, p); if (d < bd) { bd = d; best = p; } }
-        if (!best) return;
-        if (kind === 'a') crop.i0 = Math.min(best.idx, crop.i1 - 1);
-        else crop.i1 = Math.max(best.idx, crop.i0 + 1);
-        renderCropMap();
-        renderCropBar();
+      onDrag: (kind, ll) => { if (apply(kind, ll)) updateCropBarText(); },
+      // 松手：只重绘折线 + 把端点吸附到最近轨迹点（不重建地图、不动视图，避免打断下一次拖拽）
+      onDrop: (kind, ll) => {
+        apply(kind, ll);
+        updateCropBarText();
+        const st = TrackMap.state('fitMap');
+        if (!st) return;
+        TrackMap.redrawTracks(st, cropTracks(), { fit: false, noAutoSE: true });
+        // 端点吸附：把拖动端点移到最近的轨迹点（同一实例上 setLatLng，不重建）
+        const snap = nearestPt(crop.pts, kind === 'a' ? crop.i0 : crop.i1);
+        if (snap && st.cropHandles && st.cropHandles[kind === 'a' ? 0 : 1]) st.cropHandles[kind === 'a' ? 0 : 1].setLatLng([snap.lat, snap.lon]);
       },
     };
   }

@@ -254,6 +254,45 @@ ok(brec && brec.data[253]===1000000000,'大端 timestamp 正确解析', brec&&br
 ok(brec && brec.data[3]===150,'大端 hr 正确', brec&&brec.data[3]);
 
 
+console.log('\n[11] 工具：按记录区间裁剪（地图拖端点）');
+// v2.6.1 新增 FIT.cropRange：保留 [startIdx, endIdx) 的记录，重建 event/lap/session。
+// 此前只在发布时跑过临时脚本，未进正式套件 —— 本段补齐。
+const fCrop = buildFit({ points: 50 });
+const crop = FIT.cropRange(fCrop, 10, 40);                       // 保留第 11~40 条（30 条）
+ok(FIT.parse(crop).crcOk, '裁剪产物 CRC 正确');
+ok(readByOracle(crop).issues.filter(i => i.code === 'invalid_crc').length === 0, '独立解析器接受裁剪产物');
+const cropRecs = fieldsOf(readByOracle(crop), 20);
+ok(cropRecs.length === 30, '裁剪后 record 数 = 40-10 = 30', cropRecs.length);
+const cts0 = val(cropRecs[0], 253), ctsN = val(cropRecs[cropRecs.length - 1], 253);
+ok(cts0 === 1000000010 && ctsN === 1000000039, '首末时间戳对应原文件第 11/40 条', [cts0, ctsN]);
+ok(fieldsOf(readByOracle(crop), 18).length === 1, '合成 1 条 session');
+ok(fieldsOf(readByOracle(crop), 19).length === 1, '合成 1 条 lap');
+const cropLap = fieldsOf(readByOracle(crop), 19)[0];
+ok(val(cropLap, 7) === (ctsN - cts0) * 1000, 'lap.total_elapsed_time = 裁剪段时长', val(cropLap, 7));
+ok(val(cropLap, 8) === (ctsN - cts0) * 1000, 'lap.total_timer_time = 裁剪段时长', val(cropLap, 8));
+ok(fieldsOf(readByOracle(crop), 0).length === 1, 'file_id 元数据保留');
+// 裁掉的前后数据不得泄漏
+ok(!cropRecs.some(r => val(r, 253) < 1000000010 || val(r, 253) > 1000000039), '裁掉区间数据不出现在产物中');
+// 边界：整段保留 / 单点 / 越界参数
+const cropAll = FIT.cropRange(fCrop, 0, 50);
+ok(fieldsOf(readByOracle(cropAll), 20).length === 50, '全区间裁剪保留 50 条');
+const cropOne = FIT.cropRange(fCrop, 7, 8);
+ok(fieldsOf(readByOracle(cropOne), 20).length === 1, '单点区间保留 1 条');
+const cropClamp = FIT.cropRange(fCrop, -5, 999);
+ok(fieldsOf(readByOracle(cropClamp), 20).length === 50, '越界参数被钳制到合法区间');
+
+console.log('\n[12] trackPointsIndexed（裁剪端点吸附用）');
+const ptsIdx = FIT.trackPointsIndexed(buildFit({ points: 100 }));
+ok(ptsIdx.length === 100, '未超上限时返回全部 100 点', ptsIdx.length);
+ok(ptsIdx[0].idx === 0 && ptsIdx[99].idx === 99, '首末点带原始 record 下标', [ptsIdx[0].idx, ptsIdx[99].idx]);
+ok(ptsIdx.every(p => Number.isFinite(p.lat) && Number.isFinite(p.lon)), '经纬度为有效数值');
+// 坐标精度：lat=400000000 半圆 → 33.5282°
+ok(Math.abs(ptsIdx[0].lat - 33.5282) < 0.001, 'trackPointsIndexed 坐标换算正确 ≈33.5282', ptsIdx[0].lat);
+const dec = FIT.trackPointsIndexed(buildFit({ points: 3000 }), 1200);
+ok(dec.length === 1200, '超上限时抽稀到 1200 点', dec.length);
+ok(dec[0].idx === 0 && dec[dec.length - 1].idx === 2999, '抽稀保持首末点下标完整');
+ok(dec.every((p, i) => i === 0 || p.idx > dec[i - 1].idx), '抽稀后下标严格递增（端点映射可靠）');
+
 console.log('\n=== ' + pass + ' 通过 / ' + fail + ' 失败 ===');
 // ---- [11] 无效哨兵值（0xFFFFFFFF 等）→ null + GPS 距离兜底 + 字节级往返 ----
 // 真机码表文件常见：停表瞬间 record.distance 写 0xFFFFFFFF（uint32 无效哨兵）。

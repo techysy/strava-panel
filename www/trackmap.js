@@ -56,8 +56,17 @@ const TrackMap = (() => {
     setTile(st, st.tileKey);
     buildZoomCtl(st);
     buildFullCtl(st);
-    // 容器尺寸变化（展开/收起、窗口缩放）后修正
-    const ro = new ResizeObserver(() => map.invalidateSize());
+    // 容器尺寸变化（展开/收起、窗口缩放）后修正；从 0 尺寸恢复（tab 切回）时补画暂存的轨迹
+    const ro = new ResizeObserver(() => {
+      const w = host.clientWidth, h = host.clientHeight;
+      if (!w || !h) return;
+      map.invalidateSize();
+      if (st.pendingShow) {
+        const p = st.pendingShow;
+        st.pendingShow = null;
+        try { show(host, p.tracks, p.opts); } catch (e) { console.error('pendingShow', e); }
+      }
+    });
     ro.observe(host);
     st.ro = ro;
     return st;
@@ -82,9 +91,10 @@ const TrackMap = (() => {
     ctl.addTo(st.map);
   }
 
-  // ---- 全屏控件（右上角，与底图切换同排风格）----
+  // ---- 全屏控件（左上、缩放按钮下方；右上留给图层切换不遮挡）----
   function buildFullCtl(st) {
-    const ctl = L.control({ position: 'topright' });
+    const ctl = L.control({ position: 'topleft' });
+    ctl.options.className = 'tm-full-ctl';   // 外层 leaflet-control 附加类，用于与缩放控件的间距
     ctl.onAdd = () => {
       const box = L.DomUtil.create('div', 'tm-full');
       box.innerHTML = '<button type="button" data-f="1" title="fullscreen">⛶</button>';
@@ -113,7 +123,9 @@ const TrackMap = (() => {
     const fsMap = shell.querySelector('.tm-fs-map');
     // 迁移：Leaflet 不支持换容器，直接在新 host 上重建，迁移图层与视图
     const c = st.map.getCenter(), z = st.map.getZoom();
+    clearLayers(st);       // 先摘图层，避免 remove() 期间对已脱离 DOM 的标记算位置
     st.map.remove();
+    st.cropHandles = [];   // 旧地图实例上的标记已随 remove 失效，直接丢引用
     st.savedView = { host, center: c, zoom: z };
     const map2 = L.map(fsMap, {
       zoomControl: false, attributionControl: false, scrollWheelZoom: true,
@@ -137,13 +149,27 @@ const TrackMap = (() => {
     const orig = st.savedView;
     const cb = st.onFullscreen;
     st.fullscreen = false;
+    // 顺序要紧：先摘图层再拆 shell。若先移除 shell，Leaflet 仍持有已脱离 DOM 的标记，
+    // remove() 过程中重算位置会抛 `_leaflet_pos`（真机退出全屏必现）。
+    clearLayers(st);
     if (st.fsShell) { st.fsShell.remove(); st.fsShell = null; }
     // 回迁：在原 host 重建
     st.map.remove();
-    const map2 = L.map(orig.host, {
+    st.cropHandles = [];   // 同 enterFullscreen：旧实例标记引用直接丢弃
+    let map2;
+    try { map2 = L.map(orig.host, {
       zoomControl: false, attributionControl: false, scrollWheelZoom: false,
       dragging: true, doubleClickZoom: true,
-    });
+    }); } catch (e) {
+      // 兜底：容器残留导致重建失败时，清空容器再试一次（避免退出后地图全空）
+      console.error('exitFullscreen rebuild', e);
+      orig.host.innerHTML = '';
+      delete orig.host._leaflet_id;
+      map2 = L.map(orig.host, {
+        zoomControl: false, attributionControl: false, scrollWheelZoom: false,
+        dragging: true, doubleClickZoom: true,
+      });
+    }
     st.map = map2;
     st.layers = []; st.markers = [];
     setTile(st, st.tileKey);
@@ -152,9 +178,14 @@ const TrackMap = (() => {
     st.fsMapEl = null;
     setTimeout(() => {
       map2.invalidateSize();
-      if (cb) { try { cb(false, orig.host); } catch (e) { console.error('onFullscreen', e); } }
-      map2.setView(orig.center, orig.zoom, { animate: false });
-    }, 50);
+      let redrawn = false;
+      if (cb) { try { cb(false, orig.host); redrawn = true; } catch (e) { console.error('onFullscreen', e); } }
+      // 场景回调缺失或抛错时兜底重绘：按 lastShow 恢复轨迹与标记，退出后不再空白
+      if (!redrawn && st.lastShow) { try { drawOn(map2, st.lastShow.tracks, { markers: st.lastShow.markers, fit: true }); } catch (e) { console.error('exitFullscreen redraw', e); } }
+      // 注意：不在此处 setView 覆盖——场景回调的 show() 已做过 fitBounds；
+      // 只有在没有任何重绘时才回落保存视图，避免「退出后地图空白/跳回错误位置」
+      if (!redrawn) map2.setView(orig.center, orig.zoom, { animate: false });
+    }, 80);
   }
   // 全屏（重）绘当前轨迹：优先 fsRenderer（场景自定义），否则按 lastShow 重绘
   function rerenderFullscreen(st) {
@@ -202,40 +233,33 @@ const TrackMap = (() => {
     const host = el(idOrEl);
     if (!host) return false;
     if (!available()) { host.innerHTML = '<div class="tm-unavailable">' + (typeof t === 'function' ? t('map_unavailable') : 'map unavailable') + '</div>'; return false; }
-    const st = ensureMap(host);
-    clearLayers(st);
-    const list = Array.isArray(tracks) && tracks.length && Array.isArray(tracks[0]) ? tracks.map((l, i) => ({ latlngs: l, color: PALETTE[i % PALETTE.length] }))
-      : Array.isArray(tracks) && tracks.length && tracks[0].latlngs ? tracks
-        : [{ latlngs: tracks || [], color: PALETTE[0] }];
-    const all = [];
-    list.forEach((tr, ti) => {
-      const pts = (tr.latlngs || []).filter(p => p && Number.isFinite(p.lat) && Number.isFinite(p.lon));
-      if (!pts.length) return;
-      const ll = pts.map(p => [p.lat, p.lon]);
-      all.push(...ll);
-      st.layers.push(L.polyline(ll, { color: tr.color || PALETTE[ti % PALETTE.length], weight: 3.5, opacity: 0.9, lineJoin: 'round' }).addTo(st.map));
-      if (ti === 0) {
-        mk(st, pts[0], 's');
-        if (pts.length > 1) mk(st, pts[pts.length - 1], 'e');
-      }
-    });
-    (opts.markers || []).forEach(m => mk(st, m, m.kind || 'wp', m.label));
-    // 可拖裁剪端点（fit 裁剪模式）：opts.handles = { a: {lat,lon}, b: {lat,lon}, onDrag(kind, latlng) }
-    // 端点挂 st.cropHandles，由调用方通过 st.cropHandles[i].setLatLng 移动；show 的 clearLayers 不清它
-    if (opts.handles) {
-      st.cropHandles = [];
-      [['a', 's', opts.handles.a], ['b', 'e', opts.handles.b]].forEach(([key, kind, p]) => {
-        if (!p || !Number.isFinite(p.lat)) return;
-        const icon = L.divIcon({ html: '<b>' + kind.toUpperCase() + '</b>', className: 'tm-icon tm-crop-handle', iconSize: [24, 24], iconAnchor: [12, 12] });
-        const hm = L.marker([p.lat, p.lon], { icon, draggable: true, zIndexOffset: 1000 }).addTo(st.map);
-        hm.on('drag', () => {
-          const ll = hm.getLatLng();
-          try { opts.handles.onDrag(key, { lat: ll.lat, lon: ll.lng }); } catch (e) { console.error('handleDrag', e); }
+    // 容器不可见（tab 未激活 / 外层 display:none）：此刻建图或画标记都会让 Leaflet
+    // 在零尺寸下算位置并抛 `_leaflet_pos`。暂存参数，容器可见后补画。
+    if (!host.clientWidth || !host.clientHeight) {
+      const prev = maps.get(host.id);
+      if (prev) prev.pendingShow = { tracks, opts };
+      host.__tmPending = { tracks, opts };
+      // 尚未建图时没有 ResizeObserver 兜底，这里挂一个一次性观察：可见后补画
+      if (!prev && !host.__tmRo) {
+        host.__tmRo = new ResizeObserver(() => {
+          if (!host.clientWidth || !host.clientHeight) return;
+          host.__tmRo.disconnect(); host.__tmRo = null;
+          const p = host.__tmPending;
+          if (p) { host.__tmPending = null; try { show(host, p.tracks, p.opts); } catch (e) { console.error('pendingShow', e); } }
         });
-        st.cropHandles.push(hm);
-      });
+        host.__tmRo.observe(host);
+      }
+      return false;
     }
-    // 记录最近一次绘制参数：进入全屏后 fsRenderer 重绘用
+    // 容器已可见：若之前是隐藏态调用，本次即补画（清掉暂存）
+    const st = ensureMap(host);
+    if (host.__tmPending) { host.__tmPending = null; st.pendingShow = null; }
+    clearLayers(st);
+    const list = normTracks(tracks);
+    const { all } = paintTracks(st, list, opts);
+    // 可拖裁剪端点（fit 裁剪模式）：opts.handles = { a, b, onDrag(kind,ll), onDrop(kind,ll) }
+    if (opts.handles) addHandles(st, opts.handles);
+    // 记录最近一次绘制参数：进入全屏 / 退出全屏兜底重绘用
     st.lastShow = { tracks: list.map(tr => ({ latlngs: tr.latlngs, color: tr.color })), markers: opts.markers || [] };
     if (!all.length) { st.map.setView([30.5, 104.0], 5); }
     else if (opts.fit !== false) st.map.fitBounds(L.latLngBounds(all).pad(0.12), { animate: false });
@@ -248,6 +272,81 @@ const TrackMap = (() => {
     const m = L.marker([p.lat, p.lon], { icon: divIcon(html, 'tm-' + kind), interactive: !!label }).addTo(st.map);
     if (label) m.bindTooltip(label, { direction: 'top', offset: [0, -8] });
     st.markers.push(m);
+  }
+
+  // ---- 可拖裁剪端点：记在 st.cropHandles，随地图实例存续 ----
+  // opts.handles = { a:{lat,lon}, b:{lat,lon}, onDrag(kind,{lat,lon}), onDrop(kind,{lat,lon}) }
+  // onDrag 拖动中持续触发（场景只更新工具条文本，禁止重建地图对象，否则拖拽被打断）；
+  // onDrop 松手触发（场景提交索引并 redrawTracks 重绘折线 + 吸附端点）。
+  function addHandles(st, h) {
+    (st.cropHandles || []).forEach(m => m.remove());
+    st.cropHandles = [];
+    if (!h) return;
+    [['a', 's', h.a], ['b', 'e', h.b]].forEach(([key, kind, p]) => {
+      if (!p || !Number.isFinite(p.lat)) return;
+      const icon = L.divIcon({ html: '<b>' + kind.toUpperCase() + '</b>', className: 'tm-icon tm-crop-handle', iconSize: [24, 24], iconAnchor: [12, 12] });
+      const hm = L.marker([p.lat, p.lon], { icon, draggable: true, zIndexOffset: 1000 }).addTo(st.map);
+      hm.on('drag', () => {
+        const ll = hm.getLatLng();
+        try { h.onDrag && h.onDrag(key, { lat: ll.lat, lon: ll.lng }); } catch (e) { console.error('handleDrag', e); }
+      });
+      hm.on('dragend', () => {
+        const ll = hm.getLatLng();
+        try { h.onDrop && h.onDrop(key, { lat: ll.lat, lon: ll.lng }); } catch (e) { console.error('handleDrop', e); }
+      });
+      st.cropHandles.push(hm);
+    });
+  }
+
+  // 归一化 tracks 入参（show / drawOn / redrawTracks 共用）
+  function normTracks(tracks) {
+    return Array.isArray(tracks) && tracks.length && Array.isArray(tracks[0]) ? tracks.map((l, i) => ({ latlngs: l, color: PALETTE[i % PALETTE.length] }))
+      : Array.isArray(tracks) && tracks.length && tracks[0].latlngs ? tracks
+        : [{ latlngs: tracks || [], color: PALETTE[0] }];
+  }
+  // 在 st.map 上绘制折线组，返回 [layers, allLatLngs]
+  function paintTracks(st, list, opts) {
+    const made = [], all = [];
+    list.forEach((tr, ti) => {
+      const pts = (tr.latlngs || []).filter(p => p && Number.isFinite(p.lat) && Number.isFinite(p.lon));
+      if (!pts.length) return;
+      const ll = pts.map(p => [p.lat, p.lon]);
+      all.push(...ll);
+      made.push(L.polyline(ll, { color: tr.color || PALETTE[ti % PALETTE.length], weight: 3.5, opacity: 0.9, lineJoin: 'round' }).addTo(st.map));
+      // 仅第一条轨迹自动 S/E；裁剪模式 noAutoSE 关闭（端点即拖点，S/E 会误导）
+      if (ti === 0 && !opts.noAutoSE) {
+        mk(st, pts[0], 's');
+        if (pts.length > 1) mk(st, pts[pts.length - 1], 'e');
+      }
+    });
+    (opts.markers || []).forEach(m => mk(st, m, m.kind || 'wp', m.label));
+    return { made, all };
+  }
+
+  /**
+   * 在既有地图实例上直接绘制轨迹（不创建地图）——全屏 fsRenderer 用。
+   * map 为 L.Map 实例；tracks/opts 形状同 show()。返回绘制的图层（调用方管理生命周期）。
+   */
+  function drawOn(map, tracks, opts = {}) {
+    if (!available() || !map) return [];
+    let st = null;
+    for (const s of maps.values()) { if (s.map === map) { st = s; break; } }
+    const made = [];
+    if (st) {
+      const { made: m1, all } = paintTracks(st, normTracks(tracks), opts);
+      made.push(...m1);
+      if (all.length && opts.fit !== false) map.fitBounds(L.latLngBounds(all).pad(0.12), { animate: false });
+      if (opts.handles) addHandles(st, opts.handles);
+    } else {
+      // 非常规路径（map 不属于任何 TrackMap 实例）：退化为仅画折线
+      normTracks(tracks).forEach((tr, ti) => {
+        const pts = (tr.latlngs || []).filter(p => p && Number.isFinite(p.lat) && Number.isFinite(p.lon));
+        if (!pts.length) return;
+        made.push(L.polyline(pts.map(p => [p.lat, p.lon]), { color: tr.color || PALETTE[ti % PALETTE.length], weight: 3.5, opacity: 0.9, lineJoin: 'round' }).addTo(map));
+      });
+    }
+    map.invalidateSize();
+    return made;
   }
 
   function clearLayers(st) {
@@ -270,35 +369,40 @@ const TrackMap = (() => {
   /**
    * 在既有地图实例上直接绘制轨迹（不创建地图）——全屏 fsRenderer 用。
    * map 为 L.Map 实例；tracks/opts 形状同 show()。返回绘制的图层（调用方管理生命周期）。
+   * map 属于本模块的 TrackMap 实例时（常规情况）图层记入 st，后续 clearLayers/端点重建
+   * 都由实例统一管理；否则退化为仅画折线。
    */
   function drawOn(map, tracks, opts = {}) {
     if (!available() || !map) return [];
-    const list = Array.isArray(tracks) && tracks.length && Array.isArray(tracks[0]) ? tracks.map((l, i) => ({ latlngs: l, color: PALETTE[i % PALETTE.length] }))
-      : Array.isArray(tracks) && tracks.length && tracks[0].latlngs ? tracks
-        : [{ latlngs: tracks || [], color: PALETTE[0] }];
-    const all = [];
-    const made = [];
-    list.forEach((tr, ti) => {
-      const pts = (tr.latlngs || []).filter(p => p && Number.isFinite(p.lat) && Number.isFinite(p.lon));
-      if (!pts.length) return;
-      const ll = pts.map(p => [p.lat, p.lon]);
-      all.push(...ll);
-      made.push(L.polyline(ll, { color: tr.color || PALETTE[ti % PALETTE.length], weight: 3.5, opacity: 0.9, lineJoin: 'round' }).addTo(map));
-    });
-    (opts.markers || []).forEach(m => {
-      const html = m.kind === 's' ? '<b>S</b>' : m.kind === 'e' ? '<b>E</b>' : '<i></i>';
-      const mk2 = L.marker([m.lat, m.lon], { icon: divIcon(html, 'tm-' + (m.kind || 'wp')), interactive: !!m.label }).addTo(map);
-      if (m.label) mk2.bindTooltip(m.label, { direction: 'top', offset: [0, -8] });
-      made.push(mk2);
-    });
+    // 找到 map 所属实例：st.map 即该实例当前生效地图
+    let st = null;
+    for (const s of maps.values()) { if (s.map === map) { st = s; break; } }
+    if (!st) return paintTracks({ layers: [], markers: [] }, normTracks(tracks), opts).made;
+    clearLayers(st);
+    const { made, all } = paintTracks(st, normTracks(tracks), opts);
     if (all.length && opts.fit !== false) map.fitBounds(L.latLngBounds(all).pad(0.12), { animate: false });
+    if (opts.handles) addHandles(st, opts.handles);
     map.invalidateSize();
     return made;
   }
 
+  /**
+   * 仅重绘折线/标记，保留可拖端点与当前视图——裁剪拖拽松手后的局部刷新。
+   * st 为 state() 返回的实例；内嵌/全屏皆适用（st.map 指向当前生效实例）。
+   * 与 show() 的区别：不重建地图、不 fitBounds（视图不跳）。
+   */
+  function redrawTracks(st, tracks, opts = {}) {
+    if (!st || !st.map) return;
+    clearLayers(st);
+    paintTracks(st, normTracks(tracks), opts);
+    if (opts.handles) addHandles(st, opts.handles);
+    st.map.invalidateSize();
+  }
+
+  // 取实例（供 UI 注册 onFullscreen/fsRenderer、拖端点后续操作）；未建图返回 null
   function state(idOrEl) { const host = el(idOrEl); return host ? maps.get(host.id) : null; }
 
-  return { show, clear, available, setTile, toggleFullscreen, rerenderFullscreen, state, drawOn };
+  return { show, clear, available, setTile, toggleFullscreen, rerenderFullscreen, state, drawOn, redrawTracks };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = TrackMap;
