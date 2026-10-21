@@ -273,6 +273,7 @@ const FitUI = (() => {
   // 裁剪分段：目标文件三色（灰-裁掉/橙-保留/灰-裁掉）+ 可拖 S/E；
   // 其他文件淡灰背景（单文件时无）。全部轨迹都参与渲染，不再「全屏只剩一个文件」。
   function cropTracks() {
+    if (!crop) return [];
     const pts = crop.pts;
     const segA = pts.filter(p => p.idx < crop.i0);
     const segKeep = pts.filter(p => p.idx >= crop.i0 && p.idx <= crop.i1);
@@ -310,10 +311,11 @@ const FitUI = (() => {
     for (const p of crop.pts) { const d = distM(ll, p); if (d < bd) { bd = d; best = p; } }
     return best ? best.idx : null;
   }
-  // 端点配置（内嵌/全屏共用）：
+  // 端点配置（内嵌/全屏共用）：无裁剪会话返回 null（fsRenderer 兜底走普通渲染）。
   // 拖动中只更新区间并刷新工具条文本（不重建任何 Leaflet 对象，否则拖拽被打断）；
   // 松手（drop）才重绘折线并把端点吸附到新位置。
   function cropHandlesOpts() {
+    if (!crop) return null;
     const pts = crop.pts;
     const apply = (kind, ll) => {
       const idx = snapIdx(ll);
@@ -373,11 +375,15 @@ const FitUI = (() => {
     const r = buildCrop();
     if (!r) return;
     const dropped = crop.i1 - crop.i0 + 1 !== r.f.sum.points;   // 区间是否真的裁过
+    const fi = crop.fileIdx;
     r.f.bytes = r.bytes;
     r.f.sum = FIT.summarize(r.bytes);
     r.f.name = r.name;
-    crop = null;                      // 字节已换，旧区间失效
     cropBytesRev.add(r.f);            // 标记已裁剪（防止重复命名叠加）
+    // 字节已换：以新字节重建当前文件的裁剪会话（回到全区间）。
+    // 不能把 crop 置 null 留着 cropMode——全屏态 fsRenderer/cropTracks 读 crop.pts 会炸，
+    // 地图状态从此不一致（应用后退出全屏容器崩溃的根因）。
+    if (!initCropFor(fi)) { crop = null; exitCrop(); }
     renderList(); renderPanel();
     toast(t('fit_cropApplied', { n: r.f.sum.points }), true);
     if (!dropped) toast(t('fit_cropNoop'), false);

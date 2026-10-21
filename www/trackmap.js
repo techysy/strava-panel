@@ -49,6 +49,9 @@ const TrackMap = (() => {
     const map = L.map(host, {
       zoomControl: false, attributionControl: false, scrollWheelZoom: false,
       dragging: true, doubleClickZoom: true,
+      // 步进减半（用户反馈跨度太大）。zoomSnap 保持 1——半级缩放会让 Esri 瓦片
+      // 出现灰色空洞（半级瓦片缺失），只调步进不动吸附。
+      zoomSnap: 1, zoomDelta: 0.5, wheelPxPerZoomLevel: 120,
     });
     // 默认浅色（Esri 素底，不花）；偏好键 sp-tiles（旧键 sp-map-tiles 作废）
     st = { map, layers: [], tile: null, tileKey: localStorage.getItem('sp-tiles') || 'light', markers: [], fullscreen: false, savedView: null };
@@ -91,7 +94,7 @@ const TrackMap = (() => {
     ctl.addTo(st.map);
   }
 
-  // ---- 全屏控件（左上、缩放按钮下方；右上留给图层切换不遮挡）----
+  // ---- 全屏控件（左上、缩放按钮下方；同键进出，全屏态橙色高亮）----
   function buildFullCtl(st) {
     const ctl = L.control({ position: 'topleft' });
     ctl.options.className = 'tm-full-ctl';   // 外层 leaflet-control 附加类，用于与缩放控件的间距
@@ -103,6 +106,14 @@ const TrackMap = (() => {
       return box;
     };
     ctl.addTo(st.map);
+    syncFullBtn(st);
+    return ctl;
+  }
+  // 全屏态高亮：⛶ 加橙色线框（用户反馈：同键进出 + 醒目状态提示）
+  function syncFullBtn(st) {
+    const host = st.map.getContainer();
+    const btn = host && host.querySelector('.tm-full button');
+    if (btn) btn.classList.toggle('on', !!st.fullscreen);
   }
 
   // ---- 全屏：fixed 覆盖层方案（Electron 窗口内不依赖浏览器 Fullscreen API 权限）----
@@ -112,11 +123,11 @@ const TrackMap = (() => {
   }
   function enterFullscreen(st) {
     const host = st.map.getContainer();
-    // 浮层壳：铺满视口，内部重建一个等尺寸 host 供地图迁居
+    // 浮层壳：铺满视口。头部不占位（absolute 悬浮在地图上），供场景 append 工具条。
+    // 无 ✕ 关闭按钮——⛶ 同键进出（全屏态橙色高亮），退出路径唯一且可发现。
     const shell = document.createElement('div');
     shell.className = 'tm-shell';
-    shell.innerHTML = '<div class="tm-fs-head"><span class="tm-fs-title"></span>'
-      + '<button type="button" class="tm-fs-close" title="exit">✕</button></div>'
+    shell.innerHTML = '<div class="tm-fs-head"><span class="tm-fs-title"></span></div>'
       + '<div class="tm-fs-map"></div>'
       + '<div class="tm-fs-extra"></div>';
     document.body.appendChild(shell);
@@ -130,6 +141,7 @@ const TrackMap = (() => {
     const map2 = L.map(fsMap, {
       zoomControl: false, attributionControl: false, scrollWheelZoom: true,
       dragging: true, doubleClickZoom: true,
+      zoomSnap: 1, zoomDelta: 0.5, wheelPxPerZoomLevel: 120,
     });
     st.map = map2;
     st.layers = []; st.markers = [];
@@ -140,7 +152,9 @@ const TrackMap = (() => {
     st.fullscreen = true;
     st.fsShell = shell;
     st.fsMapEl = fsMap;
-    shell.querySelector('.tm-fs-close').addEventListener('click', () => exitFullscreen(st));
+    // 全屏地图上的 ⛶ 也要高亮（buildFullCtl 的 syncFullBtn 查的是旧容器）
+    const fsBtn = fsMap.querySelector('.tm-full button');
+    if (fsBtn) fsBtn.classList.add('on');
     if (st.onFullscreen) { try { st.onFullscreen(true, shell); } catch (e) { console.error('onFullscreen', e); } }
     setTimeout(() => { map2.invalidateSize(); rerenderFullscreen(st); }, 50);
   }
@@ -160,6 +174,7 @@ const TrackMap = (() => {
     try { map2 = L.map(orig.host, {
       zoomControl: false, attributionControl: false, scrollWheelZoom: false,
       dragging: true, doubleClickZoom: true,
+      zoomSnap: 1, zoomDelta: 0.5, wheelPxPerZoomLevel: 120,
     }); } catch (e) {
       // 兜底：容器残留导致重建失败时，清空容器再试一次（避免退出后地图全空）
       console.error('exitFullscreen rebuild', e);
@@ -168,6 +183,7 @@ const TrackMap = (() => {
       map2 = L.map(orig.host, {
         zoomControl: false, attributionControl: false, scrollWheelZoom: false,
         dragging: true, doubleClickZoom: true,
+        zoomSnap: 1, zoomDelta: 0.5, wheelPxPerZoomLevel: 120,
       });
     }
     st.map = map2;

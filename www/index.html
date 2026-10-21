@@ -161,11 +161,12 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .tm-zoom{display:flex;flex-direction:column;gap:2px;padding:3px;border-radius:9px;background:var(--surface);box-shadow:var(--shadow-sm)}
 .tm-zoom button{width:26px;height:26px;border:0;border-radius:7px;background:transparent;color:var(--text-2);font-size:16px;font-weight:600;line-height:1;cursor:pointer;transition:all .12s}
 .tm-zoom button:hover{background:var(--tertiary);color:var(--text)}
-/* 全屏入口（左上、缩放按钮正下方；右上留给底图切换，互不遮挡） */
+/* 全屏入口（左上、缩放按钮正下方；同键进出，全屏态橙色线框高亮） */
 .leaflet-top.leaflet-left .leaflet-control.tm-full-ctl{margin-top:4px}
 .tm-full{padding:3px;border-radius:9px;background:var(--surface);box-shadow:var(--shadow-sm)}
-.tm-full button{width:26px;height:26px;border:0;border-radius:7px;background:transparent;color:var(--text-2);font-size:14px;line-height:1;cursor:pointer;transition:all .12s}
+.tm-full button{width:26px;height:26px;border:2px solid transparent;border-radius:7px;background:transparent;color:var(--text-2);font-size:14px;line-height:1;cursor:pointer;transition:all .12s}
 .tm-full button:hover{background:var(--tertiary);color:var(--text)}
+.tm-full button.on{border-color:#fc4c02;color:#fc4c02;background:color-mix(in srgb,#fc4c02 10%,transparent)}
 /* FIT 裁剪工具条（地图下方；全屏时移入头部） */
 .fit-cropbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding:8px 12px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface)}
 .fit-cropbar .fc-t{font-size:12px;color:var(--text-2);font-weight:600}
@@ -177,11 +178,16 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 /* 全屏覆盖壳 */
 .tm-shell{position:fixed;inset:0;z-index:9000;background:var(--bg,#f5f5f5);display:flex;flex-direction:column}
 html[data-theme="dark"] .tm-shell{background:var(--bg-dark,#111)}
-.tm-shell .tm-fs-head{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--border-subtle);flex:none}
-.tm-shell .tm-fs-title{font-size:13.5px;font-weight:700;color:var(--text)}
-.tm-shell .tm-fs-close{margin-left:auto;width:28px;height:28px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--surface);color:var(--text-2);font-size:14px;cursor:pointer}
+/* 全屏头部不占位：悬浮在地图上（工具条/裁剪栏需要时仍可 append 进来）。
+   无 ✕——⛶ 同键进出（橙色线框高亮），退出入口唯一且可发现 */
+.tm-shell .tm-fs-head{position:absolute;top:10px;left:0;right:0;z-index:9500;display:flex;align-items:center;gap:10px;padding:0 14px;pointer-events:none}
+.tm-shell .tm-fs-title{font-size:13.5px;font-weight:700;color:var(--text);text-shadow:0 1px 3px rgba(255,255,255,.6)}
+html[data-theme="dark"] .tm-shell .tm-fs-title{text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.tm-shell .tm-fs-head>*{pointer-events:auto}
+/* 悬浮头里 append 的场景工具条（如 FIT 裁剪栏）：自带底色可读 */
+.tm-shell .tm-fs-head .fit-cropbar{background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(6px);border-color:var(--border-subtle);box-shadow:var(--shadow)}
 .tm-shell .tm-fs-close:hover{border-color:var(--border-strong);color:var(--text)}
-.tm-shell .tm-fs-map{flex:1;min-height:0}
+.tm-shell .tm-fs-map{flex:1;min-height:0;width:100%}
 .tm-shell .tm-fs-extra{flex:none;max-height:38%;overflow-y:auto;border-top:1px solid var(--border-subtle);background:var(--surface);padding:10px 14px}
 .tm-shell .tm-fs-extra:empty{display:none}
 /* 全屏浮窗（海拔剖面等 extra 浮层挂地图上） */
@@ -4418,7 +4424,6 @@ function bindProfileHover(){
   if(eMax - eMin < 10){ const mid = (eMax+eMin)/2; eMin = mid-5; eMax = mid+5; }
   const X = i => padL + iw * i/(prof.length-1);
   const Y = e => padT + ih - (e-eMin)/(eMax-eMin)*ih;
-  const st = (typeof TrackMap !== 'undefined') ? TrackMap.state('tripMap') : null;
   let mapDot = null;
   svg.addEventListener('mousemove', (ev) => {
     const rect = svg.getBoundingClientRect();
@@ -4433,6 +4438,9 @@ function bindProfileHover(){
     tip.style.opacity = '1';
     tip.style.left = (cx / w * 100) + '%';
     tip.style.top = (cy / h * 100) + '%';
+    // 地图实例使用时现取：bindProfileHover 在 TrackMap.show 之前执行，
+    // 绑定时捕获 st 会是 null（首帧地图未建），联动从此失效。
+    const st = (typeof TrackMap !== 'undefined') ? TrackMap.state('tripMap') : null;
     if(st && st.map && g.points && g.points.length){
       const idx = Math.min(g.points.length - 1, Math.round(frac * (g.points.length - 1)));
       const gp = g.points[idx];
