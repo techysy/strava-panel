@@ -28,11 +28,15 @@ const FitUI = (() => {
       if (s.has.hr) tags.push('<b class="t-hr">' + escapeHtml(t('fit_stripHr')) + '</b>');
       if (s.has.cadence) tags.push('<b class="t-cad">' + escapeHtml(t('fit_tagCad')) + '</b>');
       if (s.has.lat) tags.push('<b class="t-geo">' + escapeHtml(t('fit_tagGeo')) + '</b>');
-      return `<div class="fit-file" data-i="${i}">
+      // 裁剪模式：卡片可点切换裁剪目标，当前目标高亮
+      const cropCls = cropMode && crop && crop.fileIdx === i ? ' ff-crop-target' : '';
+      const cropTag = cropMode && crop && crop.fileIdx === i ? '<b class="t-crop">' + escapeHtml(t('fit_cropTarget')) + '</b>' : '';
+      const clickAttr = cropMode ? ` onclick="FitUI.cropSelectFile(${i})" style="cursor:pointer" title="${escapeHtml(t('fit_cropTargetHint'))}"` : '';
+      return `<div class="fit-file${cropCls}" data-i="${i}"${clickAttr}>
         <div class="ff-main">
           <div class="ff-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
           <div class="ff-meta">${s.points} ${escapeHtml(t('fit_tagPoints'))} · ${fmtDur(s.duration)} · ${s.distanceKm != null ? s.distanceKm.toFixed(2) + ' km' : escapeHtml(t('fit_noDist'))} · ${fmtSize(s.size)}</div>
-          <div class="ff-tags">${tags.join('')}${s.crcOk ? '' : '<b class="t-bad">' + escapeHtml(t('fit_tagCrcBad')) + '</b>'}</div>
+          <div class="ff-tags">${cropTag}${tags.join('')}${s.crcOk ? '' : '<b class="t-bad">' + escapeHtml(t('fit_tagCrcBad')) + '</b>'}</div>
         </div>
         <div class="ff-time">${fmtTime(s.startUnix)}</div>
         <button class="ff-del" onclick="FitUI.remove(${i})" title="${escapeHtml(t('fit_remove'))}">×</button>
@@ -51,12 +55,19 @@ const FitUI = (() => {
       if (!sum.crcOk) { toast(t('fit_crcBad') + ': ' + file.name, false); }
       fitFiles.push({ name: file.name, bytes: buf, sum });
     }
+    crop = null;   // 文件集合变化，裁剪目标失效（下次进裁剪重新初始化）
     renderList();
     renderPanel();
   }
 
-  function remove(i) { fitFiles.splice(i, 1); renderList(); renderPanel(); }
-  function clearAll() { fitFiles.length = 0; renderList(); renderPanel(); }
+  function remove(i) {
+    fitFiles.splice(i, 1);
+    if (crop && crop.fileIdx === i) crop = null;              // 删的是裁剪目标 → 失效
+    else if (crop && crop.fileIdx > i) crop.fileIdx--;        // 删的是前面的文件 → 索引前移
+    if (!fitFiles.length) exitCrop();
+    renderList(); renderPanel();
+  }
+  function clearAll() { fitFiles.length = 0; crop = null; exitCrop(); renderList(); renderPanel(); }
 
   function download(blob, name) {
     const a = document.createElement('a');
@@ -140,20 +151,38 @@ const FitUI = (() => {
   }
 
   // ---- 裁剪模式：地图拖端点调整起止 ----
-  // crop = { i0, i1 } 当前记录索引区间（含），持久到下一次进入裁剪或换文件
+  // crop = { i0, i1 } 当前记录索引区间（含），持久到下一次进入裁剪或换目标文件。
+  // 多文件时每个文件各自记忆裁剪区间（perFile 数组），点文件卡片切换裁剪目标。
   let crop = null;   // { i0, i1, pts: [{lat,lon,idx}], fileIdx }
+  function initCropFor(fi) {
+    try {
+      const pts = FIT.trackPointsIndexed(fitFiles[fi].bytes);
+      if (pts.length < 2) return false;
+      crop = { i0: 0, i1: pts[pts.length - 1].idx, pts, fileIdx: fi };
+      return true;
+    } catch (e) { return false; }
+  }
   function enterCrop() {
     if (!fitFiles.length) return;
     cropMode = true;
-    if (!crop || crop.fileIdx !== 0) {
-      try {
-        const pts = FIT.trackPointsIndexed(fitFiles[0].bytes);
-        if (pts.length >= 2) crop = { i0: 0, i1: pts[pts.length - 1].idx, pts, fileIdx: 0 };
-      } catch (e) { cropMode = false; toast(t('fit_fail') + ' ' + e.message, false); return; }
+    // 上次的裁剪目标仍在文件列表里就沿用（区间也保留），否则落到第一个有 GPS 的文件
+    if (!crop || !fitFiles[crop.fileIdx]) {
+      const fi = fitFiles.findIndex(f => { try { return FIT.trackPointsIndexed(f.bytes).length >= 2; } catch (e) { return false; } });
+      if (fi < 0 || !initCropFor(fi)) { cropMode = false; toast(t('fit_fail') + ' — no GPS', false); return; }
     }
     const st = (typeof TrackMap !== 'undefined') ? TrackMap.state('fitMap') : null;
     if (st) registerFs(st);
+    renderList();
     renderPanel();
+    renderCropMap();
+    renderCropBar();
+  }
+  // 切换裁剪目标文件（点文件卡片）；再点当前目标 = 直接下载裁剪
+  function cropSelectFile(i) {
+    if (!cropMode || !fitFiles[i]) return;
+    if (crop && crop.fileIdx === i) { cropApply(); return; }
+    if (!initCropFor(i)) { toast(t('fit_fail') + ' — no GPS', false); return; }
+    renderList();
     renderCropMap();
     renderCropBar();
   }
@@ -239,13 +268,21 @@ const FitUI = (() => {
     return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
   }
 
-  // 裁剪三色分段（灰-裁掉 / 橙-保留 / 灰-裁掉）；端点由 handles 统一画成可拖 S/E
+  // 裁剪分段：目标文件三色（灰-裁掉/橙-保留/灰-裁掉）+ 可拖 S/E；
+  // 其他文件淡灰背景（单文件时无）。全部轨迹都参与渲染，不再「全屏只剩一个文件」。
   function cropTracks() {
     const pts = crop.pts;
     const segA = pts.filter(p => p.idx < crop.i0);
     const segKeep = pts.filter(p => p.idx >= crop.i0 && p.idx <= crop.i1);
     const segB = pts.filter(p => p.idx > crop.i1);
     const tracks = [];
+    fitFiles.forEach((f, i) => {
+      if (i === crop.fileIdx) return;
+      try {
+        const bg = FIT.trackPointsIndexed(f.bytes, 400);
+        if (bg.length > 1) tracks.push({ latlngs: bg, color: '#c9c9c9', weight: 2.2, opacity: 0.55 });
+      } catch (e) { /* 无 GPS 文件跳过 */ }
+    });
     if (segA.length > 1) tracks.push({ latlngs: segA, color: '#b6b6b6' });
     if (segKeep.length > 1) tracks.push({ latlngs: segKeep, color: '#fc4c02' });
     if (segB.length > 1) tracks.push({ latlngs: segB, color: '#b6b6b6' });
@@ -286,16 +323,14 @@ const FitUI = (() => {
     return {
       a: nearestPt(pts, crop.i0), b: nearestPt(pts, crop.i1),
       onDrag: (kind, ll) => { if (apply(kind, ll)) updateCropBarText(); },
-      // 松手：只重绘折线 + 把端点吸附到最近轨迹点（不重建地图、不动视图，避免打断下一次拖拽）
+      // 松手：重画折线并按新区间重建端点（a/b 本身就是吸附后的最近轨迹点）。
+      // 拖拽已结束，重建不打断下一次拖拽；不传 handles 会让 clearLayers 把端点删掉不补（S/E 消失的根因）。
       onDrop: (kind, ll) => {
         apply(kind, ll);
         updateCropBarText();
         const st = TrackMap.state('fitMap');
         if (!st) return;
-        TrackMap.redrawTracks(st, cropTracks(), { fit: false, noAutoSE: true });
-        // 端点吸附：把拖动端点移到最近的轨迹点（同一实例上 setLatLng，不重建）
-        const snap = nearestPt(crop.pts, kind === 'a' ? crop.i0 : crop.i1);
-        if (snap && st.cropHandles && st.cropHandles[kind === 'a' ? 0 : 1]) st.cropHandles[kind === 'a' ? 0 : 1].setLatLng([snap.lat, snap.lon]);
+        TrackMap.redrawTracks(st, cropTracks(), { fit: false, noAutoSE: true, handles: cropHandlesOpts() });
       },
     };
   }
@@ -311,8 +346,8 @@ const FitUI = (() => {
   }
 
   function cropApply() {
-    if (!crop) return;
-    const f = fitFiles[0];
+    if (!crop || !fitFiles[crop.fileIdx]) return;
+    const f = fitFiles[crop.fileIdx];
     try {
       const bytes = FIT.cropRange(f.bytes, crop.i0, crop.i1 + 1);
       const blob = new Blob([bytes], { type: 'application/octet-stream' });
@@ -365,5 +400,5 @@ const FitUI = (() => {
     renderList(); renderPanel();
   }
 
-  return { init, addFiles, remove, clearAll, runStrip, runSplit, runCombine, runConvert, toggleCrop, cropApply, cropReset };
+  return { init, addFiles, remove, clearAll, runStrip, runSplit, runCombine, runConvert, toggleCrop, cropApply, cropReset, cropSelectFile };
 })();

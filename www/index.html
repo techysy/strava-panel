@@ -116,6 +116,9 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 @media (max-width:900px){.fit-list{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:600px){.fit-list{grid-template-columns:1fr}}
 .fit-file{position:relative;display:flex;flex-direction:column;gap:6px;padding:10px 12px 8px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface);transition:border-color .15s}
+/* 裁剪模式：当前裁剪目标高亮 */
+.fit-file.ff-crop-target{border-color:var(--brand,#fc4c02)}
+.ff-tags .t-crop{margin-right:6px;padding:1px 6px;border-radius:6px;background:var(--brand,#fc4c02);color:#fff;font-size:10px}
 .fit-file:hover{border-color:var(--border-strong)}
 .ff-main{flex:1;min-width:0}
 .ff-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:20px}
@@ -186,7 +189,10 @@ html[data-theme="dark"] .tm-shell{background:var(--bg-dark,#111)}
 .tm-float .tm-float-t{font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px}
 /* 海拔剖面 hover 联动 */
 .trip-profile{cursor:crosshair;position:relative}
-.trip-profile .prof-tip{position:absolute;transform:translate(-50%,-110%);background:var(--text);color:var(--surface);font-size:11px;font-weight:600;padding:3px 8px;border-radius:7px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .1s;font-variant-numeric:tabular-nums;z-index:5}
+.trip-profile .prof-tip,.tm-float .prof-tip{position:absolute;transform:translate(-50%,-110%);background:var(--text);color:var(--surface);font-size:11px;font-weight:600;padding:3px 8px;border-radius:7px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .1s;font-variant-numeric:tabular-nums;z-index:5}
+/* 全屏海拔浮窗：半透明玻璃底，容器收紧，少遮挡地图 */
+.tm-float.tm-float-glass{width:min(400px,calc(100% - 24px));background:color-mix(in srgb,var(--surface) 72%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-color:transparent;box-shadow:0 4px 18px rgba(0,0,0,.18);padding:8px 10px}
+.tm-float.tm-float-glass .tm-float-t{font-size:11.5px;margin-bottom:2px}
 .trip-profile svg circle.prof-dot{transition:r .08s}
 .tm-icon{display:flex;align-items:center;justify-content:center}
 .tm-icon b{width:20px;height:20px;border-radius:50%;background:#10b981;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
@@ -1243,6 +1249,7 @@ const I18N = {
     fit_actionStrip:'执行并下载', fit_actionSplit:'执行并下载', fit_actionCombine:'执行并下载',
     fit_doneStrip:'已删除功率/心率，共处理 {n} 个采样点', fit_doneSplit:'已拆分为 {n} 个文件', fit_doneCombine:'合并完成，共 {n} 个采样点', fit_doneConvert:'转换完成，已开始下载',
     fit_crop:'地图裁剪', fit_cropTitle:'拖动地图上 S/E 端点选择保留区间', fit_cropRange:'点 {a}–{b} / 共 {n}', fit_cropApply:'下载裁剪', fit_cropReset:'重置', fit_cropDone:'退出裁剪', fit_cropDone2:'裁剪完成，已开始下载',
+    fit_cropTarget:'裁剪目标', fit_cropTargetHint:'点击切换裁剪目标；再点一次下载当前裁剪',
     fit_needMulti:'合并至少需要 2 个文件',
     coach_sports:'运动方式', coach_sportsSave:'保存', coach_sportsSaved:'运动方式已保存，教练将只在该范围内推荐训练', coach_sportsSaveFail:'保存失败: ', coach_sportsNeedOne:'至少选择一种运动',
     nav_trip:'出行计划', trip_title:'户外出行计划', trip_hint:'骑行 / 徒步 / 越野跑出行方案：查目的地周末天气、高铁余票与装备清单。数据来自 Open-Meteo 与 12306。',
@@ -1371,6 +1378,7 @@ const I18N = {
     fit_actionStrip:'Run & download', fit_actionSplit:'Run & download', fit_actionCombine:'Run & download',
     fit_doneStrip:'Power/HR stripped from {n} samples', fit_doneSplit:'Split into {n} files', fit_doneCombine:'Combined {n} samples', fit_doneConvert:'Converted — download started',
     fit_crop:'Crop on map', fit_cropTitle:'Drag S/E handles on the map to choose the range', fit_cropRange:'pts {a}–{b} / {n}', fit_cropApply:'Download crop', fit_cropReset:'Reset', fit_cropDone:'Exit crop', fit_cropDone2:'Crop ready — download started',
+    fit_cropTarget:'cropping', fit_cropTargetHint:'Click to switch the crop target; click again to download the crop',
     fit_needMulti:'Combining needs at least 2 files',
     coach_sports:'Sports', coach_sportsSave:'Save', coach_sportsSaved:'Sports saved — the coach will now only recommend within these', coach_sportsSaveFail:'Save failed: ', coach_sportsNeedOne:'Pick at least one sport',
     nav_trip:'Trip Planner', trip_title:'Outdoor Trip Planner', trip_hint:'Cycling / hiking / trail-run trip plans: weekend weather at the destination, 12306 train seats and a gear checklist. Data from Open-Meteo and 12306.',
@@ -4318,6 +4326,7 @@ function tripRenderGpx(){
   }
 }
 // 全屏态绘制：轨迹 + 右下浮窗海拔剖面（hover 联动全屏地图）
+// 浮窗半透明、紧贴标线显示海拔信息、左侧保留最高/最低海拔——与内嵌剖面一致。
 function tripFsDraw(st, map){
   const g = tripGpx;
   if(!g || !g.points || !g.points.length) return;
@@ -4330,7 +4339,7 @@ function tripFsDraw(st, map){
   const prof = g.hasEle ? GPX.profile(g, 400) : [];
   if(!prof.length || !fsMapEl) return;
   const fl = document.createElement('div');
-  fl.className = 'tm-float';
+  fl.className = 'tm-float tm-float-glass';
   fl.innerHTML = '<div class="tm-float-t">'+escapeHtml(t('trip_elevProfile2'))+'</div><div id="tripFsProfile"></div>';
   fsMapEl.appendChild(fl);
   tripDrawProfile(document.getElementById('tripFsProfile'), prof, g, target);
@@ -4353,6 +4362,10 @@ function tripDrawProfile(container, prof, g, linkedMap){
     + '<polyline points="'+line+'" fill="none" stroke="'+C.viz+'" stroke-width="1.6" stroke-linejoin="round"/>'
     + '<line class="pc-cursor" x1="0" y1="'+padT+'" x2="0" y2="'+(padT+ih)+'" stroke="'+C.brand+'" stroke-width="1" stroke-dasharray="3 3" opacity="0"/>'
     + '<circle class="pc-dot" r="4" fill="'+C.brand+'" stroke="#fff" stroke-width="1.5" opacity="0"/>'
+    + '<text x="'+(padL-4)+'" y="'+(padT+8)+'" text-anchor="end" font-size="9" fill="'+C.muted+'">'+Math.round(eMax)+'m</text>'
+    + '<text x="'+(padL-4)+'" y="'+(padT+ih)+'" text-anchor="end" font-size="9" fill="'+C.muted+'">'+Math.round(eMin)+'m</text>'
+    + '<text x="'+padL+'" y="'+(h-4)+'" font-size="9" fill="'+C.muted+'">0 km</text>'
+    + '<text x="'+(w-padR)+'" y="'+(h-4)+'" text-anchor="end" font-size="9" fill="'+C.muted+'">'+g.distanceKm.toFixed(1)+' km</text>'
     + '</svg><div class="prof-tip" style="opacity:0"></div>';
   const svg = container.querySelector('svg'), cursor = container.querySelector('.pc-cursor'),
     dot = container.querySelector('.pc-dot'), tip = container.querySelector('.prof-tip');
