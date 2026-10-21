@@ -996,8 +996,10 @@ function sendFile(res, rel) {
   const ctype = CONTENT_TYPES[path.extname(p).toLowerCase()] || 'application/octet-stream';
   let body = fs.readFileSync(p);
   // 对 index.html 注入版本号 (替换 __APP_VERSION__ 占位符，读不到时用兜底值，避免残留占位符)
+  // 页面两处用途：brandVer 显示（可含 commit 后缀）、脚本 ?v= 缓存参数（须 URL 安全）→ 注入纯版本号，
+  // 显示用的 commit 后缀由前端从 bootstrap 的 version 动态填充
   if (rel === 'index.html') {
-    body = Buffer.from(body.toString('utf8').split('__APP_VERSION__').join(displayVersion() || ''), 'utf8');
+    body = Buffer.from(body.toString('utf8').split('__APP_VERSION__').join(APP_VERSION || ''), 'utf8');
   }
   // no-store：本地面板更新频繁，启发式缓存会让浏览器用旧 JS/CSS（改完代码刷新无效的元凶）
   res.writeHead(200, { 'Content-Type': ctype, 'Content-Length': body.length, 'Cache-Control': 'no-store' });
