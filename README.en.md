@@ -25,10 +25,18 @@ Strava cycling data panel — credential management, auto token refresh, riding 
 
 ## ✨ Features
 
-- 🧭 **Tabbed panel** — Ride Data (home) / Recent Rides / Coach / Dashboard / Settings; auto light/dark, CN/EN UI, official Strava logomark + linear SVG icons
+- 🧭 **Tabbed panel** — Ride Data (home) / Recent Rides / Coach / FIT Tools / Trip Planner / Dashboard / Settings; auto light/dark, CN/EN UI, official Strava logomark + linear SVG icons
 - 📊 **Stat cards drive the chart** — click Distance / Rides / Duration / Elevation to switch the trend metric; each card shows a period-over-period delta badge
 - 📈 **Compare last period** — overlay the previous period as a dashed line; tooltip shows this/last/% change; day view uses weekday labels + an orange "today" marker (matches official Strava)
 - ❤️ **Heart rate / power** — captures avg/max HR, avg power, kJ; per-ride columns plus auto-hiding mean cards
+- ✂️ **FIT Tools (100% Client-Side, Zero Upload)**:
+  - **Visual crop with "Crop-then-Merge" workflow**: Drag S/E markers on map to crop, switch files with floating bottom-right glass list in fullscreen; auto-drafts memory; combine multiple cropped tracks seamlessly.
+  - **Smart moving time detection**: Accurately filters out red lights, long pauses, and cross-file merge gaps. Adaptive display of "Elapsed xx · Moving xx" and real moving time written to generated FIT Session/Lap messages.
+  - **Combine / Split / Strip**: Merge multi-segment files with automatic timestamp continuity; split by time gaps or record counts; strip private power/heart-rate fields; export to GPX / TCX.
+- 🏔️ **Outdoor Trip Planner (GPX + Hourly Weather + Trains)**:
+  - Search any global destination (Open-Meteo geocoding); hourly temperature and wind charts.
+  - Load GPX route files, calculate ETA timeline and elevation profile by constant speed.
+  - High-speed train ticket lookup with departure time filters and duration sorting.
 - 🤖 **AI training coach** — plug in any OpenAI-compatible API (Ollama / LM Studio / vLLM / One-API local gateways); it injects your training digest (7/28/90-day + weekly trend + last 15 rides) for actionable plans. **Multi-session** context control, **gateway model list** grouped by provider, per-session model override, conversation memory in local SQLite
 - 🔄 **Incremental / full sync** — daily incremental is seconds (watermark `after=`), full resync backfills historical fields
 - 📜 **Log console** — System / Strava API / Agent segmented switch, archived by date

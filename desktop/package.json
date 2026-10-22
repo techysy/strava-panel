@@ -1,7 +1,7 @@
 {
   "name": "strava-panel-desktop",
   "productName": "StravaPanel",
-  "version": "2.6.4",
+  "version": "2.6.5",
   "description": "Strava 骑行数据面板 桌面托盘版 — Electron 托盘壳 + Node.js sidecar",
   "main": "main.js",
   "author": "techysy",

@@ -120,6 +120,7 @@ const FIT = (() => {
 
   // record 消息里我们关心的字段号
   const REC = { timestamp: 253, position_lat: 0, position_long: 1, altitude: 2, heart_rate: 3, cadence: 4, distance: 5, speed: 6, power: 7, temperature: 13 };
+  const SEMI = Math.pow(2, 31) / 180;   // 半圆/度：度 = 半圆 ÷ SEMI（FIT: 180° = 2^31 半圆）
 
   // ---- 解析 ----
   function parse(u8) {
@@ -433,9 +434,10 @@ const FIT = (() => {
       const firstTs = first.data[REC.timestamp];
       const dur = lastTs - firstTs;
       const dist = distanceMeters(slice) ?? 0;   // cm；无效时 GPS 兜底
+      const moveSec = calcMoveTime(slice);
       msgs.push(makeEvent(MSG.event, first.data, baseTs));
-      msgs.push(makeLap(first.data, baseTs, dur, dist));
-      msgs.push(makeSession(first.data, baseTs, dur, dist));
+      msgs.push(makeLap(first.data, baseTs, dur, dist, moveSec));
+      msgs.push(makeSession(first.data, baseTs, dur, dist, moveSec));
       files.push(serialize(msgs, { protocolVer: p.protocolVer }));
     }
     return files;
@@ -466,9 +468,10 @@ const FIT = (() => {
     const lastTs = last.data[REC.timestamp];
     const dur = lastTs - baseTs;
     const dist = distanceMeters(slice) ?? 0;
+    const moveSec = calcMoveTime(slice);
     msgs.push(makeEvent(MSG.event, first.data, baseTs));
-    msgs.push(makeLap(first.data, baseTs, dur, dist));
-    msgs.push(makeSession(first.data, baseTs, dur, dist));
+    msgs.push(makeLap(first.data, baseTs, dur, dist, moveSec));
+    msgs.push(makeSession(first.data, baseTs, dur, dist, moveSec));
     return serialize(msgs, { protocolVer: p.protocolVer });
   }
 
@@ -497,6 +500,48 @@ const FIT = (() => {
     return m;
   }
 
+  // 累计移动时间（秒）：过滤停表断点、红灯静止与跨文件衔接间隔
+  function calcMoveTime(records) {
+    if (!records || records.length < 2) return 0;
+    let moveSec = 0;
+    for (let i = 1; i < records.length; i++) {
+      const prev = records[i - 1].data, curr = records[i].data;
+      const dt = curr[REC.timestamp] - prev[REC.timestamp];
+      if (dt <= 0) continue;
+      // 停表/长断点（>15 秒）视为暂停，不计入移动时间
+      if (dt > 15) continue;
+
+      let moving = false;
+      const spd = curr[REC.speed];
+      const d1 = curr[REC.distance], d0 = prev[REC.distance];
+
+      if (spd != null && Number.isFinite(spd)) {
+        // FIT speed: 1/1000 m/s，>0.5 m/s (500) 视为移动，过滤 GPS 漂移
+        moving = spd > 500 || (spd > 0 && spd < 100 && spd > 0.5);
+      } else if (d1 != null && d0 != null && d1 > d0) {
+        // 无 speed 字段时看累计距离差值：速度 (d1-d0)/100 / dt > 0.5 m/s
+        const deltaM = (d1 - d0) / 100;
+        moving = deltaM / dt >= 0.5;
+      } else if (curr[REC.position_lat] != null && prev[REC.position_lat] != null) {
+        // 无距离字段时看 GPS 经纬度差值
+        const dLat = (curr[REC.position_lat] - prev[REC.position_lat]) / SEMI;
+        const dLon = (curr[REC.position_long] - prev[REC.position_long]) / SEMI;
+        const degDist = Math.hypot(dLat, dLon * Math.cos((curr[REC.position_lat] / SEMI) * Math.PI / 180));
+        const meterDist = degDist * 111320;
+        moving = meterDist / dt >= 0.5;
+      } else if (curr[REC.power] > 0 || curr[REC.cadence] > 0) {
+        // 骑行台/室内无 GPS/距离，但有踏频或功率 > 0
+        moving = true;
+      } else {
+        // 兜底：如果记录间隔紧密（<=5 秒），默认算作活动状态
+        moving = dt <= 5;
+      }
+
+      if (moving) moveSec += dt;
+    }
+    return moveSec;
+  }
+
   function makeEvent(global, sample, ts) {
     return {
       type: 'data', global, __defKey: defKey(global,
@@ -507,29 +552,31 @@ const FIT = (() => {
       data: { 253: ts, 0: 0 },   // timer start
     };
   }
-  function makeLap(sample, ts, dur, dist) {
+  function makeLap(sample, ts, dur, dist, moveTime) {
     const fields = [
       { num: 253, size: 4, base: 4 }, { num: 2, size: 4, base: 4 }, { num: 7, size: 4, base: 4 },
       { num: 8, size: 4, base: 4 }, { num: 9, size: 4, base: 4 }, { num: 15, size: 2, base: 4 },
       { num: 24, size: 1, base: 0 },
     ];
+    const timer = (moveTime != null && moveTime > 0) ? moveTime : dur;
     return {
       type: 'data', global: MSG.lap, fields, dev: null, devData: null,
       __defKey: defKey(MSG.lap, fields, null),
-      data: { 253: ts + dur, 2: ts, 7: dur * 1000, 8: dur * 1000, 9: dist, 15: 0, 24: 9 },
+      data: { 253: ts + dur, 2: ts, 7: dur * 1000, 8: timer * 1000, 9: dist, 15: 0, 24: 9 },
     };
   }
-  function makeSession(sample, ts, dur, dist) {
+  function makeSession(sample, ts, dur, dist, moveTime) {
     const fields = [
       { num: 253, size: 4, base: 4 }, { num: 2, size: 4, base: 4 }, { num: 5, size: 1, base: 0 },
       { num: 7, size: 4, base: 4 }, { num: 8, size: 4, base: 4 }, { num: 9, size: 4, base: 4 },
       { num: 14, size: 2, base: 4 }, { num: 16, size: 2, base: 4 }, { num: 17, size: 2, base: 4 },
       { num: 26, size: 2, base: 4 },
     ];
+    const timer = (moveTime != null && moveTime > 0) ? moveTime : dur;
     return {
       type: 'data', global: MSG.session, fields, dev: null, devData: null,
       __defKey: defKey(MSG.session, fields, null),
-      data: { 253: ts + dur, 2: ts, 5: 2, 7: dur * 1000, 8: dur * 1000, 9: dist, 14: 0, 16: 0, 17: 0, 26: 0 },
+      data: { 253: ts + dur, 2: ts, 5: 2, 7: dur * 1000, 8: timer * 1000, 9: dist, 14: 0, 16: 0, 17: 0, 26: 0 },
     };
   }
 
@@ -583,16 +630,15 @@ const FIT = (() => {
     const lastTs = all[all.length - 1].data[REC.timestamp];
     const dur = lastTs - firstTs;
     const dist = distanceMeters(all) ?? 0;   // cm；无效时 GPS 兜底
+    const moveSec = calcMoveTime(all);
     msgs.push(makeEvent(MSG.event, all[0].data, firstTs));
-    msgs.push(makeLap(all[0].data, firstTs, dur, dist));
-    msgs.push(makeSession(all[0].data, firstTs, dur, dist));
+    msgs.push(makeLap(all[0].data, firstTs, dur, dist, moveSec));
+    msgs.push(makeSession(all[0].data, firstTs, dur, dist, moveSec));
 
     return { bytes: serialize(msgs, { protocolVer: parsed[0].protocolVer }), count: all.length, files: offset };
   }
 
   // ======================= 工具 4：FIT → GPX / TCX =======================
-  const SEMI = Math.pow(2, 31) / 180;   // 半圆/度：度 = 半圆 ÷ SEMI（FIT: 180° = 2^31 半圆）
-
   function toGpx(u8, name) {
     const p = tagDefs(parse(u8));
     const recs = p.messages.filter(m => m.type === 'data' && m.global === MSG.record && m.data[REC.timestamp] != null);
@@ -735,16 +781,35 @@ ${trkpts}
       if (d[REC.position_lat] != null) has.lat = true;
       if (d[REC.altitude] != null) has.ele = true;
     }
+    const duration = recs.length > 1 ? lastTs - recs[0].data[REC.timestamp] : 0;
+    const maxG = recs.length > 1 ? maxGap(recs) : 0;
+
+    // 移动时间：先从 records 计算（过滤停表与长断点）
+    let moveTime = calcMoveTime(recs);
+    // 若原文件包含官方 session 消息且有效：没有大断点 (maxGap < 20) 时优先尊重官方码表自带计时
+    const sess = p.messages.find(m => m.type === 'data' && m.global === MSG.session);
+    if (sess && sess.data) {
+      const sessMoving = sess.data[20] != null && Number.isFinite(sess.data[20]) && sess.data[20] > 0
+        ? Math.round(sess.data[20] / 1000) : null;
+      const sessTimer = sess.data[8] != null && Number.isFinite(sess.data[8]) && sess.data[8] > 0
+        ? Math.round(sess.data[8] / 1000) : null;
+      const sessVal = sessMoving ?? sessTimer;
+      if (sessVal != null && sessVal > 0 && sessVal <= duration && maxG < 20) {
+        moveTime = sessVal;
+      }
+    }
+
     return {
       size: u8.length, crcOk: p.crcOk,
       points: recs.length,
       startUnix: recs.length ? FIT.fitToUnix(recs[0].data[REC.timestamp]) : null,
       endUnix: lastTs != null ? FIT.fitToUnix(lastTs) : null,
-      duration: recs.length > 1 ? recs[recs.length - 1].data[REC.timestamp] - recs[0].data[REC.timestamp] : 0,
+      duration,
+      moveTime,
       distanceKm: distCm != null ? distCm / 100000 : null,   // cm → km
       manufacturer: fid ? fid.data[1] : null,
       product: fid ? fid.data[2] : null,
-      maxGap: recs.length > 1 ? maxGap(recs) : 0,
+      maxGap: maxG,
       has,
     };
   }

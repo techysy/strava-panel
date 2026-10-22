@@ -37,10 +37,15 @@ const FitUI = (() => {
       const cropTag = (cur ? '<b class="t-crop">' + escapeHtml(t('fit_cropTarget')) + '</b>' : '')
         + (dft && !cur ? '<b class="t-crop t-draft">' + escapeHtml(t('fit_cropDraft')) + '</b>' : '');
       const clickAttr = cropMode ? ` onclick="FitUI.cropSelectFile(${i})" style="cursor:pointer" title="${escapeHtml(t('fit_cropTargetHint'))}"` : '';
+      const dur = s.duration || 0;
+      const mov = s.moveTime;
+      const timePart = (mov != null && mov > 0 && Math.abs(dur - mov) >= 10)
+        ? `${escapeHtml(t('fit_elapsed'))} ${fmtDur(dur)} · ${escapeHtml(t('fit_moving'))} ${fmtDur(mov)}`
+        : (mov != null && mov > 0 ? `${escapeHtml(t('fit_moving'))} ${fmtDur(mov)}` : fmtDur(dur));
       return `<div class="fit-file${cropCls}" data-i="${i}"${clickAttr}>
         <div class="ff-main">
           <div class="ff-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
-          <div class="ff-meta">${s.points} ${escapeHtml(t('fit_tagPoints'))} · ${fmtDur(s.duration)} · ${s.distanceKm != null ? s.distanceKm.toFixed(2) + ' km' : escapeHtml(t('fit_noDist'))} · ${fmtSize(s.size)}</div>
+          <div class="ff-meta">${s.points} ${escapeHtml(t('fit_tagPoints'))} · ${timePart} · ${s.distanceKm != null ? s.distanceKm.toFixed(2) + ' km' : escapeHtml(t('fit_noDist'))} · ${fmtSize(s.size)}</div>
           <div class="ff-tags">${cropTag}${tags.join('')}${s.crcOk ? '' : '<b class="t-bad">' + escapeHtml(t('fit_tagCrcBad')) + '</b>'}</div>
         </div>
         <div class="ff-time">${fmtTime(s.startUnix)}</div>

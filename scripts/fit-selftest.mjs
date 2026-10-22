@@ -185,6 +185,7 @@ const sum = FIT.summarize(fSplit);
 ok(sum.points === 10, '概览采样点数', sum.points);
 ok(sum.has.power && sum.has.hr && sum.has.cadence, '概览识别到功率/心率/踏频');
 ok(sum.duration === 1009, '概览时长(秒，含1000秒断点)', sum.duration);
+ok(sum.moveTime === 8, '概览移动时间(秒，已排除1000秒断点)', sum.moveTime);
 ok(sum.maxGap === 1001, '概览最大时间断点(秒)', sum.maxGap);
 
 // ================= 压缩时间戳 + 大端 =================
