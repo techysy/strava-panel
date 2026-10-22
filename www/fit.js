@@ -443,6 +443,65 @@ const FIT = (() => {
     return files;
   }
 
+  // 把 records[lo,hi) 片段重建为一条合法 FIT 字节（split / cropRange / splitAt 共用）：
+  // 保留 file_id/device_info 元数据，末尾按本段合成 event/lap/session（含真实移动时间）。
+  // 原文件的 event/lap/session 一律不复制，避免出现重复计时事件。
+  function emitSegment(p, dataMsgs, records, lo, hi) {
+    const slice = records.slice(lo, hi);
+    if (!slice.length) return null;
+    const first = slice[0], last = slice[slice.length - 1];
+    const msgs = [];
+    for (const m of dataMsgs) {
+      if (m.global === MSG.file_id || m.global === MSG.device_info) msgs.push(m);
+    }
+    for (const r of slice) {
+      const c = Object.assign({}, r);
+      c.data = Object.assign({}, r.data);
+      msgs.push(c);
+    }
+    const baseTs = first.data[REC.timestamp];
+    const dur = last.data[REC.timestamp] - baseTs;
+    const dist = distanceMeters(slice) ?? 0;   // cm；无效时 GPS 兜底
+    const moveSec = calcMoveTime(slice);
+    msgs.push(makeEvent(MSG.event, first.data, baseTs));
+    msgs.push(makeLap(first.data, baseTs, dur, dist, moveSec));
+    msgs.push(makeSession(first.data, baseTs, dur, dist, moveSec));
+    return serialize(msgs, { protocolVer: p.protocolVer });
+  }
+
+  // 时间断点下标：相邻记录间隔 ≥ gapSeconds 秒处的「后一条」下标。
+  // 供 UI 自动建议切点；下标语义与 splitAt 的 cuts 完全一致（绝对 record 下标）。
+  function gapIndices(u8, gapSeconds = 300) {
+    const p = tagDefs(parse(u8));
+    const records = p.messages.filter(m => m.type === 'data' && m.global === MSG.record && m.data[REC.timestamp] != null);
+    const cuts = [];
+    for (let i = 1; i < records.length; i++) {
+      const dt = records[i].data[REC.timestamp] - records[i - 1].data[REC.timestamp];
+      if (dt >= gapSeconds) cuts.push(i);
+    }
+    return cuts;
+  }
+
+  // 可视化拆分：可选先裁到 [i0, i1]（闭区间，同 cropRange），再按绝对切点 cuts 切开。
+  // 切点去重排序、仅保留区间内部的；返回多个合法 FIT 字节数组。
+  function splitAt(u8, { i0 = 0, i1 = null, cuts = [] } = {}) {
+    const p = tagDefs(parse(u8));
+    const dataMsgs = p.messages.filter(m => m.type === 'data');
+    const records = dataMsgs.filter(m => m.global === MSG.record && m.data[REC.timestamp] != null);
+    if (records.length < 2) throw new Error('该文件的采样点不足 2 条，无法拆分');
+    const start = Math.max(0, Math.min(records.length - 1, Math.floor(i0) || 0));
+    const end = Math.max(start + 1, Math.min(records.length, i1 == null ? records.length : (Math.floor(i1) + 1)));
+    const abs = [...new Set((cuts || []).map(c => Math.floor(c)).filter(c => c > start && c < end))].sort((a, b) => a - b);
+    const bounds = [start, ...abs, end];
+    const files = [];
+    for (let s = 0; s < bounds.length - 1; s++) {
+      const bytes = emitSegment(p, dataMsgs, records, bounds[s], bounds[s + 1]);
+      if (bytes) files.push(bytes);
+    }
+    if (!files.length) throw new Error('拆分结果为空');
+    return { files, segments: files.length, start, end, cuts: abs };
+  }
+
   // ======================= 工具 5：按记录区间裁剪（地图拖端点） =======================
   // [startIdx, endIdx) 为 record 数组下标区间；复用 split 的片段重建逻辑
   // （保留 file_id/device_info 元数据，末尾合成 event/lap/session）。
@@ -452,27 +511,9 @@ const FIT = (() => {
     const records = dataMsgs.filter(m => m.global === MSG.record && m.data[REC.timestamp] != null);
     const s = Math.max(0, Math.min(records.length - 1, Math.floor(startIdx) || 0));
     const e = Math.max(s + 1, Math.min(records.length, Math.floor(endIdx) || records.length));
-    const slice = records.slice(s, e);
-    if (!slice.length) throw new Error('裁剪区间为空');
-    const first = slice[0], last = slice[slice.length - 1];
-    const msgs = [];
-    const baseTs = first.data[REC.timestamp];
-    for (const m of dataMsgs) {
-      if (m.global === MSG.file_id || m.global === MSG.device_info) msgs.push(m);
-    }
-    for (const r of slice) {
-      const c = Object.assign({}, r);
-      c.data = Object.assign({}, r.data);
-      msgs.push(c);
-    }
-    const lastTs = last.data[REC.timestamp];
-    const dur = lastTs - baseTs;
-    const dist = distanceMeters(slice) ?? 0;
-    const moveSec = calcMoveTime(slice);
-    msgs.push(makeEvent(MSG.event, first.data, baseTs));
-    msgs.push(makeLap(first.data, baseTs, dur, dist, moveSec));
-    msgs.push(makeSession(first.data, baseTs, dur, dist, moveSec));
-    return serialize(msgs, { protocolVer: p.protocolVer });
+    const bytes = emitSegment(p, dataMsgs, records, s, e);
+    if (!bytes) throw new Error('裁剪区间为空');
+    return bytes;
   }
 
   // 供 UI 拖端点用：返回按索引抽稀的轨迹点（点原始下标随行，拖动端点映射回 record 区间）
@@ -817,7 +858,7 @@ ${trkpts}
   return {
     crc16, parse, serialize, tagDefs, BASE, MSG, REC,
     fitToUnix, unixToFit, FIT_EPOCH,
-    stripFields, split, combine, toGpx, toTcx, summarize, trackPoints, cropRange, trackPointsIndexed,
+    stripFields, split, splitAt, gapIndices, combine, toGpx, toTcx, summarize, trackPoints, cropRange, trackPointsIndexed,
   };
 })();
 

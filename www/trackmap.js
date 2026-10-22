@@ -54,7 +54,7 @@ const TrackMap = (() => {
       zoomSnap: 1, zoomDelta: 0.5, wheelPxPerZoomLevel: 120,
     });
     // 默认浅色（Esri 素底，不花）；偏好键 sp-tiles（旧键 sp-map-tiles 作废）
-    st = { map, layers: [], tile: null, tileKey: localStorage.getItem('sp-tiles') || 'light', markers: [], fullscreen: false, savedView: null };
+    st = { map, layers: [], tile: null, tileKey: localStorage.getItem('sp-tiles') || 'light', markers: [], cropHandles: [], cutMarkers: [], fullscreen: false, savedView: null };
     maps.set(id, st);
     setTile(st, st.tileKey);
     buildZoomCtl(st);
@@ -300,6 +300,8 @@ const TrackMap = (() => {
     const { all } = paintTracks(st, list, opts);
     // 可拖裁剪端点（fit 裁剪模式）：opts.handles = { a, b, onDrag(kind,ll), onDrop(kind,ll) }
     if (opts.handles) addHandles(st, opts.handles);
+    // 拆切点（fit 拆分模式）：opts.cuts = { points, onMapClick, onCutDrag, onCutDrop, onCutDelete }
+    if (opts.cuts) addCuts(st, opts.cuts);
     // 记录最近一次绘制参数：进入全屏 / 退出全屏兜底重绘用
     st.lastShow = { tracks: list.map(tr => ({ latlngs: tr.latlngs, color: tr.color })), markers: opts.markers || [] };
     if (!all.length) { st.map.setView([30.5, 104.0], 5); }
@@ -309,13 +311,40 @@ const TrackMap = (() => {
   }
 
   function mk(st, p, kind, label, draggable) {
-    const html = kind === 's' ? '<b>S</b>' : kind === 'e' ? '<b>E</b>' : '<i></i>';
+    const html = kind === 's' ? '<b>S</b>' : kind === 'e' ? '<b>E</b>'
+      : kind === 'c' ? '<b>' + (label || '✂') + '</b>' : '<i></i>';
     const opts = { icon: divIcon(html, 'tm-' + kind + (draggable ? ' tm-crop-handle' : '')), interactive: true };
     if (draggable) { opts.draggable = true; opts.zIndexOffset = 1000; }
     const m = L.marker([p.lat, p.lon], opts).addTo(st.map);
-    if (label) m.bindTooltip(label, { direction: 'top', offset: [0, -8] });
+    if (label && kind !== 'c') m.bindTooltip(label, { direction: 'top', offset: [0, -8] });
     st.markers.push(m);
     return m;
+  }
+
+  // ---- 可拖拆切点（split 模式）：一组可拖拽 C1/C2… 标记 ----
+  // cfg = { points:[{id,lat,lon,label}], onMapClick(ll), onCutDrag(id,ll), onCutDrop(id,ll), onCutDelete(id) }
+  // 标记与地图点击监听都归实例管理，clearLayers 统一清理（切点丢失/残留的根因）。
+  function addCuts(st, cfg) {
+    (st.cutMarkers || []).forEach(m => m.remove());
+    st.cutMarkers = [];
+    if (st._cutClick) { try { st.map.off('click', st._cutClick); } catch (e) {} st._cutClick = null; }
+    if (!cfg) return;
+    (cfg.points || []).forEach(c => {
+      if (!c || !Number.isFinite(c.lat)) return;
+      const m = mk(st, c, 'c', c.label, true);
+      m.on('click', (e) => {
+        // 阻止冒泡到地图（否则点切点会既删又加）
+        if (e && e.originalEvent) { try { L.DomEvent.stopPropagation(e); } catch (x) {} }
+        try { cfg.onCutDelete && cfg.onCutDelete(c.id); } catch (x) { console.error('cutDelete', x); }
+      });
+      m.on('drag', () => { const ll = m.getLatLng(); try { cfg.onCutDrag && cfg.onCutDrag(c.id, { lat: ll.lat, lon: ll.lng }); } catch (x) {} });
+      m.on('dragend', () => { const ll = m.getLatLng(); try { cfg.onCutDrop && cfg.onCutDrop(c.id, { lat: ll.lat, lon: ll.lng }); } catch (x) { console.error('cutDrop', x); } });
+      st.cutMarkers.push(m);
+    });
+    if (cfg.onMapClick) {
+      st._cutClick = (e) => { try { cfg.onMapClick({ lat: e.latlng.lat, lon: e.latlng.lng }); } catch (x) { console.error('cutClick', x); } };
+      st.map.on('click', st._cutClick);
+    }
   }
 
   // ---- 可拖裁剪端点：S/E 标记本身就是抓手（不画笨重徽章）----
@@ -378,6 +407,9 @@ const TrackMap = (() => {
     clearMarkers(st);
     (st.cropHandles || []).forEach(m => m.remove());
     st.cropHandles = [];
+    (st.cutMarkers || []).forEach(m => m.remove());
+    st.cutMarkers = [];
+    if (st._cutClick) { try { st.map.off('click', st._cutClick); } catch (e) {} st._cutClick = null; }
   }
 
   function clear(idOrEl) {
@@ -405,6 +437,7 @@ const TrackMap = (() => {
     const { made, all } = paintTracks(st, normTracks(tracks), opts);
     if (all.length && opts.fit !== false) map.fitBounds(L.latLngBounds(all).pad(0.12), { animate: false });
     if (opts.handles) addHandles(st, opts.handles);
+    if (opts.cuts) addCuts(st, opts.cuts);
     map.invalidateSize();
     return made;
   }
@@ -419,6 +452,7 @@ const TrackMap = (() => {
     clearLayers(st);
     paintTracks(st, normTracks(tracks), opts);
     if (opts.handles) addHandles(st, opts.handles);
+    if (opts.cuts) addCuts(st, opts.cuts);
     st.map.invalidateSize();
   }
 

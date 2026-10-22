@@ -122,6 +122,18 @@ const FitUI = (() => {
 
   const baseName = (n) => n.replace(/\.fit$/i, '');
 
+  // 派生产物入列表（合并/拆分结果）：命名去重（combined-2.fit 等），解析摘要，可选中/上传。
+  // 不清裁剪草稿——列表新增文件不影响既有裁剪会话（按 fid 引用）。
+  function pushDerived(name, bytes) {
+    let sum; try { sum = FIT.summarize(bytes); } catch (e) { return null; }
+    if (!sum.points) return null;
+    let nm = name, n = 1; const stem = baseName(name);
+    while (fitFiles.some(f => f.name === nm)) { n++; nm = `${stem}-${n}.fit`; }
+    const f = { id: ++seq, name: nm, bytes, sum };
+    fitFiles.push(f);
+    return f;
+  }
+
   // ---- 各工具执行 ----
   function runStrip() {
     const f = getSelectedFile();
@@ -135,15 +147,24 @@ const FitUI = (() => {
     } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); }
   }
 
-  function runSplit() {
+  function runSplit(mode) {
     const f = getSelectedFile();
     if (!f) return;
-    const mode = $('fitSplitMode').value;
-    const opt = mode === 'gap'
+    const smode = $('fitSplitMode').value;
+    const opt = smode === 'gap'
       ? { mode: 'gap', gapSeconds: Number($('fitSplitGap').value) || 300 }
       : { mode: 'count', chunkSize: Number($('fitSplitCount').value) || 1000 };
     try {
       const files = FIT.split(f.bytes, opt);
+      if (mode === 'list') {
+        const added = [];
+        files.forEach((b, i) => { const a = pushDerived(baseName(f.name) + `-part${i + 1}.fit`, b); if (a) added.push(a); });
+        if (!added.length) { toast(t('fit_parseFail'), false); return; }
+        selectedFid = added[added.length - 1].id;
+        renderList(); renderPanel();
+        toast(t('fit_splitInList', { n: added.length }), true);
+        return;
+      }
       files.forEach((b, i) => {
         setTimeout(() => download(new Blob([b], { type: 'application/octet-stream' }),
           baseName(f.name) + `-part${i + 1}.fit`), i * 250);
@@ -153,13 +174,22 @@ const FitUI = (() => {
     } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); }
   }
 
-  function runCombine() {
+  // 合并产物。mode='dl' 下载；mode='list' 作为一个新文件并入列表（可被选中上传/再处理）。
+  function runCombine(mode) {
     if (fitFiles.length < 2) { toast(t('fit_needMulti'), false); return; }
     try {
       const r = FIT.combine(fitFiles.map(f => f.bytes));
-      download(new Blob([r.bytes], { type: 'application/octet-stream' }), 'combined.fit');
-      renderMap([r.bytes]);   // 合并产物在地图上渲染
-      toast(t('fit_doneCombine', { n: r.count }), true);
+      if (mode === 'list') {
+        const added = pushDerived('combined.fit', r.bytes);
+        if (!added) { toast(t('fit_parseFail'), false); return; }
+        selectedFid = added.id;
+        renderList(); renderPanel();
+        toast(t('fit_combineInList', { name: added.name }), true);
+      } else {
+        download(new Blob([r.bytes], { type: 'application/octet-stream' }), 'combined.fit');
+        renderMap([r.bytes]);   // 合并产物在地图上渲染
+        toast(t('fit_doneCombine', { n: r.count }), true);
+      }
     } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); }
   }
 
@@ -180,6 +210,8 @@ const FitUI = (() => {
   // 轨迹小地图：多文件多色；拆分/合并/删除后的产物同样可渲染
   // 裁剪模式（cropMode=true）：单文件轨迹 + 可拖 S/E 端点，实时预览保留区间
   let cropMode = false;
+  let splitMode = false;   // 在裁剪会话基础上叠加拆切点编辑（S/E 裁首尾 + C 切点）
+  let _cutSeq = 0;         // 切点 id 计数（仅 UI 标记用）
   let cropHandles = null;   // { s: marker, e: marker } Leaflet 可拖端点
   function renderMap(bytesList) {
     const wrap = $('fitMapWrap');
@@ -196,13 +228,16 @@ const FitUI = (() => {
   }
 
   // ---- 裁剪模式：地图拖端点调整起止（草稿层 + 全局应用）----
-  // crop = { i0, i1, pts, fid } 当前编辑会话；cropDraft: Map<fileId,{i0,i1}> 未应用草稿。
+  // crop = { i0, i1, pts, fid, cuts? } 当前编辑会话；cropDraft: Map<fileId,{i0,i1}> 未应用草稿。
   // 草稿语义：拖动松手即写入；切文件/退出都保留（内存级，刷新页面即失）；
   // 「全部应用」把所有草稿落到列表字节（后续可直接合并）；「应用此文件」单发。
+  // splitMode 在裁剪会话上叠加拆切点（cuts = 保留区间内的 record 下标数组）：
+  // 点地图加切点、点切点删、拖切点移动，S/E 仍是裁首尾 —— 选切点 + 同时裁剪。
   let crop = null;
   const cropDraft = new Map();
   let lastCropFid = 0;
   const fileByFid = () => (crop ? fitFiles.find(f => f.id === crop.fid) : null);
+  const cropCuts = () => (crop && crop.cuts ? crop.cuts.filter(c => c > crop.i0 && c < crop.i1).sort((a, b) => a - b) : []);
   function openSessionFor(f) {
     try {
       const pts = FIT.trackPointsIndexed(f.bytes);

@@ -1083,14 +1083,20 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
               <span id="fitCountRow" class="row" style="display:none"><input type="number" id="fitSplitCount" value="1000" min="2" step="10"><span class="tt" data-i18n="fit_pointsEach">点/份</span></span>
             </div>
             <div class="tt" data-i18n="fit_target">目标：</div><span id="fitSplitTarget" class="tt">-</span>
-            <button class="btn" onclick="FitUI.runSplit()" data-i18n="fit_actionSplit">执行并下载</button>
+            <div class="row">
+              <button class="btn" onclick="FitUI.runSplit()" data-i18n="fit_actionSplit">执行并下载</button>
+              <button class="btn" onclick="FitUI.runSplit('list')" data-i18n="fit_toList">应用到列表</button>
+            </div>
           </div>
 
           <div class="fit-tool" id="fitToolCombine">
             <h3><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span data-i18n="fit_combine">合并</span></h3>
             <div class="tt" id="fitCombineHint">-</div>
             <div class="tt" data-i18n="fit_combineHint2">按时间自动衔接并去重；每段起止时间不会重叠。每个文件按导入顺序拼接。</div>
-            <button class="btn" onclick="FitUI.runCombine()" data-i18n="fit_actionCombine">执行并下载</button>
+            <div class="row">
+              <button class="btn" onclick="FitUI.runCombine()" data-i18n="fit_actionCombine">执行并下载</button>
+              <button class="btn" onclick="FitUI.runCombine('list')" data-i18n="fit_toList">应用到列表</button>
+            </div>
           </div>
 
           <div class="fit-tool" id="fitToolConvert">
@@ -1299,6 +1305,7 @@ const I18N = {
     fit_secGap:'秒以上视为断点', fit_pointsEach:'点/份', fit_combine:'合并', fit_combineHint:'已选 {n} 个文件', fit_combineHint2:'按时间自动衔接并去重；每段起止时间不会重叠。',
     fit_convert:'转换为 GPX / TCX', fit_convertHint:'轨迹、高程、心率、踏频、功率全部映射；GPX 供大多数平台上传，TCX 兼容 Garmin。', fit_namePh:'活动名称（留空用文件名）', fit_target:'目标：',
     fit_actionStrip:'执行并下载', fit_actionSplit:'执行并下载', fit_actionCombine:'执行并下载',
+    fit_toList:'应用到列表', fit_combineInList:'合并结果已加入列表：{name}（可选中上传/再处理）', fit_splitInList:'拆分产物 {n} 段已加入列表（可选中上传/再处理）',
     fit_upload:'上传到 Strava', fit_uploadHint:'把选中的文件（含裁剪结果）直接推送到 Strava；经本地服务代理，处理完成后自动同步入库。', fit_uploadCrop:'应用裁剪区间', fit_uploadPrivate:'私密活动', fit_uploadCommute:'通勤', fit_uploadDo:'上传',
     fit_uploading:'上传中…', fit_uploadProcessing:'Strava 处理中…', fit_uploadBusy:'已有上传进行中，请稍候', fit_uploadDoneT:'上传完成', fit_uploadView:'在 Strava 查看', fit_uploadFail:'上传失败：', fit_uploadDup:'Strava 判定为重复数据（该起始时间的活动已存在）。', fit_uploadTimeout:'处理超时，稍后可在活动列表确认是否已生成。',
     fit_uploadAuthNeed:'当前授权缺少上传权限（activity:write）。', fit_uploadReauth:'重新授权', fit_uploadReauthWait:'完成新窗口授权后将自动继续上传…', fit_uploadReauthOk:'权限已更新，继续上传…', fit_uploadReauthFail:'授权超时或失败，请重试',
@@ -1436,6 +1443,7 @@ const I18N = {
     fit_secGap:'sec+ counts as a gap', fit_pointsEach:'points/file', fit_combine:'Combine', fit_combineHint:'{n} files selected', fit_combineHint2:'Times are stitched and de-duplicated automatically; segments never overlap.',
     fit_convert:'Convert to GPX / TCX', fit_convertHint:'Tracks, elevation, HR, cadence and power are all mapped. GPX suits most upload targets; TCX suits Garmin.', fit_namePh:'Activity name (blank = filename)', fit_target:'Target: ',
     fit_actionStrip:'Run & download', fit_actionSplit:'Run & download', fit_actionCombine:'Run & download',
+    fit_toList:'Apply to list', fit_combineInList:'Merged result added to list: {name} (select to upload / process again)', fit_splitInList:'{n} split parts added to list (select to upload / process again)',
     fit_upload:'Upload to Strava', fit_uploadHint:'Push the selected file (crop included) straight to Strava via the local server; it auto-syncs once processed.', fit_uploadCrop:'Apply crop range', fit_uploadPrivate:'Private activity', fit_uploadCommute:'Commute', fit_uploadDo:'Upload',
     fit_uploading:'Uploading…', fit_uploadProcessing:'Strava is processing…', fit_uploadBusy:'An upload is already running, please wait', fit_uploadDoneT:'Upload complete', fit_uploadView:'View on Strava', fit_uploadFail:'Upload failed: ', fit_uploadDup:'Strava flagged it as a duplicate (an activity with this start time exists).', fit_uploadTimeout:'Processing timed out; check your activity list later.',
     fit_uploadAuthNeed:'Current authorization lacks upload permission (activity:write).', fit_uploadReauth:'Re-authorize', fit_uploadReauthWait:'Upload resumes automatically once you finish the new authorization…', fit_uploadReauthOk:'Permission granted, resuming upload…', fit_uploadReauthFail:'Authorization timed out or failed, please retry',

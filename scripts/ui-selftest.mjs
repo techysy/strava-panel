@@ -43,7 +43,7 @@ function makeStub() {
 
 const MODULES = [
   ['../www/trackmap.js', 'TrackMap', ['show', 'clear', 'available', 'setTile', 'toggleFullscreen', 'rerenderFullscreen', 'state', 'drawOn', 'redrawTracks']],
-  ['../www/fit.js', 'FIT', ['parse', 'summarize', 'cropRange', 'trackPointsIndexed', 'split', 'combine', 'toGpx', 'toTcx']],
+  ['../www/fit.js', 'FIT', ['parse', 'summarize', 'cropRange', 'trackPointsIndexed', 'split', 'splitAt', 'gapIndices', 'combine', 'toGpx', 'toTcx']],
   ['../www/gpx.js', 'GPX', ['parse', 'sample', 'profile', 'etaMinutes']],
   ['../www/fit-ui.js', 'FitUI', ['init', 'toggleCrop', 'cropApply', 'cropReset']],
 ];
