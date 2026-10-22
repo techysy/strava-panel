@@ -181,6 +181,8 @@ const FitUI = (() => {
     if (!tracks.length || typeof TrackMap === 'undefined' || !TrackMap.available()) { wrap.style.display = 'none'; return; }
     wrap.style.display = '';
     TrackMap.show('fitMap', tracks);
+    const st = TrackMap.state('fitMap');
+    if (st) registerFs(st);
   }
 
   // ---- 裁剪模式：地图拖端点调整起止（草稿层 + 全局应用）----
@@ -243,23 +245,30 @@ const FitUI = (() => {
     renderCropBar();
     renderFsSide();
   }
-  // 全屏回调注册（须在地图实例存在后调用；首次进全屏前若未注册，enterCrop 里兜底再试）
+  // 全屏回调注册（须在地图实例存在后调用；首次建图或进全屏前自动注册）
   function registerFs(st) {
-    if (!st || st.fsRenderer) return;
+    if (!st || st._fsRegistered) return;
+    st._fsRegistered = true;
     st.onFullscreen = (on) => {
       cropHandles = null;
       if (on && cropMode) {
         const bar = document.getElementById('fitCropBar');
-        const head = st.fsShell.querySelector('.tm-fs-head');
+        const head = st.fsShell?.querySelector('.tm-fs-head');
         if (bar && head) { head.appendChild(bar); head.style.display = 'flex'; }
-      } else if (cropMode) {
-        const bar = document.getElementById('fitCropBar');
-        const head = st.fsShell && st.fsShell.querySelector('.tm-fs-head');
-        if (head) head.style.display = 'none';
-        if (bar) $('fitMapWrap').insertAdjacentElement('afterend', bar);
+        renderCropMap(); renderCropBar();
+        renderFsSide();
+      } else if (!on) {
+        if (cropMode) {
+          const bar = document.getElementById('fitCropBar');
+          const head = st.fsShell && st.fsShell.querySelector('.tm-fs-head');
+          if (head) head.style.display = 'none';
+          if (bar) $('fitMapWrap')?.insertAdjacentElement('afterend', bar);
+          renderCropMap();
+          renderCropBar();
+        } else {
+          renderMap();
+        }
       }
-      renderCropMap(); renderCropBar();
-      if (on) renderFsSide();
     };
     st.fsRenderer = (map, _el, _extra, opts) => {
       if (!cropMode || !crop) {

@@ -162,11 +162,30 @@ const TrackMap = (() => {
     if (st.onFullscreen) { try { st.onFullscreen(true, shell); } catch (e) { console.error('onFullscreen', e); } }
     setTimeout(() => { map2.invalidateSize(); rerenderFullscreen(st); }, 50);
   }
+  function ensureLoading(host) {
+    if (!host) return null;
+    let el = host.querySelector(':scope > .tm-loading') || host.parentElement?.querySelector(':scope > .tm-loading');
+    if (!el && host.parentElement) {
+      el = document.createElement('div');
+      el.className = 'tm-loading';
+      el.innerHTML = '<div class="tm-spin"></div>';
+      host.parentElement.appendChild(el);
+    }
+    return el;
+  }
+  function setLoading(hostOrSt, loading) {
+    const host = hostOrSt?.map ? hostOrSt.map.getContainer() : el(hostOrSt);
+    const ld = ensureLoading(host);
+    if (ld) ld.classList.toggle('show', !!loading);
+  }
+
   function exitFullscreen(st) {
     if (!st.fullscreen) return;
     const orig = st.savedView;
     const cb = st.onFullscreen;
     st.fullscreen = false;
+    // 退出时显示加载状态，给容器回迁重绘提供平滑反馈
+    setLoading(orig.host, true);
     // 顺序要紧：先摘图层再拆 shell。若先移除 shell，Leaflet 仍持有已脱离 DOM 的标记，
     // remove() 过程中重算位置会抛 `_leaflet_pos`（真机退出全屏必现）。
     clearLayers(st);
@@ -206,7 +225,8 @@ const TrackMap = (() => {
       // 注意：不在此处 setView 覆盖——场景回调的 show() 已做过 fitBounds；
       // 只有在没有任何重绘时才回落保存视图，避免「退出后地图空白/跳回错误位置」
       if (!redrawn) map2.setView(orig.center, orig.zoom, { animate: false });
-    }, 80);
+      setTimeout(() => setLoading(orig.host, false), 80);
+    }, 40);
   }
   // 全屏（重）绘当前轨迹：优先 fsRenderer（场景自定义），否则按 lastShow 重绘
   function rerenderFullscreen(st, opts) {
@@ -405,7 +425,7 @@ const TrackMap = (() => {
   // 取实例（供 UI 注册 onFullscreen/fsRenderer、拖端点后续操作）；未建图返回 null
   function state(idOrEl) { const host = el(idOrEl); return host ? maps.get(host.id) : null; }
 
-  return { show, clear, available, setTile, toggleFullscreen, rerenderFullscreen, state, drawOn, redrawTracks };
+  return { show, clear, available, setTile, toggleFullscreen, rerenderFullscreen, state, drawOn, redrawTracks, setLoading };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = TrackMap;

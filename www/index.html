@@ -146,6 +146,11 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .fit-drop.has-file span{display:none}
 /* 轨迹小地图（Leaflet 本地库；瓦片为运行时数据请求） */
 .tm-wrap{position:relative;margin-top:10px;border:1px solid var(--border-subtle);border-radius:12px;overflow:hidden;background:var(--tertiary)}
+/* 地图加载/重构遮罩指示器 */
+.tm-loading{position:absolute;inset:0;background:color-mix(in srgb,var(--surface) 65%,transparent);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:450;opacity:0;pointer-events:none;transition:opacity .15s}
+.tm-loading.show{opacity:1;pointer-events:auto}
+.tm-loading .tm-spin{width:22px;height:22px;border:2.5px solid var(--border-subtle);border-top-color:var(--brand,#fc4c02);border-radius:50%;animation:tmSpin .7s linear infinite}
+@keyframes tmSpin{to{transform:rotate(360deg)}}
 /* 地图左下工具（裁剪入口）——避开左上缩放/全屏、右上图层切换、右下 Leaflet 版权位 */
 .tm-tools{position:absolute;left:8px;bottom:8px;z-index:500;display:flex;gap:6px}
 .tm-tools .btn{padding:5px 12px;font-size:11.5px;font-weight:600;border-radius:8px;background:var(--surface);border:1px solid var(--border-subtle);box-shadow:var(--shadow-sm);cursor:pointer}
