@@ -4,7 +4,8 @@
  * ==========================================================================*/
 
 const FitUI = (() => {
-  const fitFiles = [];    // { name, bytes, sum }
+  let seq = 0;
+  const fitFiles = [];    // { id, name, bytes, sum }
   const $ = id => document.getElementById(id);
 
   const fmtDur = s => {
@@ -29,9 +30,12 @@ const FitUI = (() => {
       if (s.has.hr) tags.push('<b class="t-hr">' + escapeHtml(t('fit_stripHr')) + '</b>');
       if (s.has.cadence) tags.push('<b class="t-cad">' + escapeHtml(t('fit_tagCad')) + '</b>');
       if (s.has.lat) tags.push('<b class="t-geo">' + escapeHtml(t('fit_tagGeo')) + '</b>');
-      // 裁剪模式：卡片可点切换裁剪目标，当前目标高亮
-      const cropCls = cropMode && crop && crop.fileIdx === i ? ' ff-crop-target' : '';
-      const cropTag = cropMode && crop && crop.fileIdx === i ? '<b class="t-crop">' + escapeHtml(t('fit_cropTarget')) + '</b>' : '';
+      // 裁剪模式：卡片可点切换裁剪目标，当前目标高亮，有草稿标「待应用」
+      const cur = cropMode && crop && crop.fid === f.id;
+      const dft = cropMode && cropDraft.has(f.id);
+      const cropCls = cur ? ' ff-crop-target' : '';
+      const cropTag = (cur ? '<b class="t-crop">' + escapeHtml(t('fit_cropTarget')) + '</b>' : '')
+        + (dft && !cur ? '<b class="t-crop t-draft">' + escapeHtml(t('fit_cropDraft')) + '</b>' : '');
       const clickAttr = cropMode ? ` onclick="FitUI.cropSelectFile(${i})" style="cursor:pointer" title="${escapeHtml(t('fit_cropTargetHint'))}"` : '';
       return `<div class="fit-file${cropCls}" data-i="${i}"${clickAttr}>
         <div class="ff-main">
@@ -54,21 +58,21 @@ const FitUI = (() => {
       catch (e) { toast(t('fit_parseFail') + ': ' + file.name + ' - ' + e.message, false); continue; }
       if (!sum.points) { toast(t('fit_noPoints') + ': ' + file.name, false); continue; }
       if (!sum.crcOk) { toast(t('fit_crcBad') + ': ' + file.name, false); }
-      fitFiles.push({ name: file.name, bytes: buf, sum });
+      fitFiles.push({ id: ++seq, name: file.name, bytes: buf, sum });
     }
-    crop = null;   // 文件集合变化，裁剪目标失效（下次进裁剪重新初始化）
+    crop = null; cropDraft.clear();   // 文件集合变化，裁剪状态失效
     renderList();
     renderPanel();
   }
 
   function remove(i) {
-    fitFiles.splice(i, 1);
-    if (crop && crop.fileIdx === i) crop = null;              // 删的是裁剪目标 → 失效
-    else if (crop && crop.fileIdx > i) crop.fileIdx--;        // 删的是前面的文件 → 索引前移
+    const [gone] = fitFiles.splice(i, 1);
+    if (gone) cropDraft.delete(gone.id);
+    if (crop && crop.fid === gone.id) crop = null;
     if (!fitFiles.length) exitCrop();
     renderList(); renderPanel();
   }
-  function clearAll() { fitFiles.length = 0; crop = null; exitCrop(); renderList(); renderPanel(); }
+  function clearAll() { fitFiles.length = 0; crop = null; cropDraft.clear(); exitCrop(); renderList(); renderPanel(); }
 
   function download(blob, name) {
     const a = document.createElement('a');
@@ -151,41 +155,62 @@ const FitUI = (() => {
     TrackMap.show('fitMap', tracks);
   }
 
-  // ---- 裁剪模式：地图拖端点调整起止 ----
-  // crop = { i0, i1 } 当前记录索引区间（含），持久到下一次进入裁剪或换目标文件。
-  // 多文件时每个文件各自记忆裁剪区间（perFile 数组），点文件卡片切换裁剪目标。
-  let crop = null;   // { i0, i1, pts: [{lat,lon,idx}], fileIdx }
-  function initCropFor(fi) {
+  // ---- 裁剪模式：地图拖端点调整起止（草稿层 + 全局应用）----
+  // crop = { i0, i1, pts, fid } 当前编辑会话；cropDraft: Map<fileId,{i0,i1}> 未应用草稿。
+  // 草稿语义：拖动松手即写入；切文件/退出都保留（内存级，刷新页面即失）；
+  // 「全部应用」把所有草稿落到列表字节（后续可直接合并）；「应用此文件」单发。
+  let crop = null;
+  const cropDraft = new Map();
+  let lastCropFid = 0;
+  const fileByFid = () => (crop ? fitFiles.find(f => f.id === crop.fid) : null);
+  function openSessionFor(f) {
     try {
-      const pts = FIT.trackPointsIndexed(fitFiles[fi].bytes);
+      const pts = FIT.trackPointsIndexed(f.bytes);
       if (pts.length < 2) return false;
-      crop = { i0: 0, i1: pts[pts.length - 1].idx, pts, fileIdx: fi };
+      const maxIdx = pts[pts.length - 1].idx;
+      const d = cropDraft.get(f.id);
+      crop = { i0: d ? Math.min(d.i0, maxIdx) : 0, i1: d ? Math.min(d.i1, maxIdx) : maxIdx, pts, fid: f.id };
       return true;
     } catch (e) { return false; }
+  }
+  // 当前会话状态落草稿（全区间视为无草稿）
+  function saveDraft() {
+    if (!crop) return;
+    const f = fileByFid(); if (!f) return;
+    const full = crop.i0 === 0 && crop.i1 === crop.pts[crop.pts.length - 1].idx;
+    if (full) cropDraft.delete(f.id); else cropDraft.set(f.id, { i0: crop.i0, i1: crop.i1 });
   }
   function enterCrop() {
     if (!fitFiles.length) return;
     cropMode = true;
-    // 上次的裁剪目标仍在文件列表里就沿用（区间也保留），否则落到第一个有 GPS 的文件
-    if (!crop || !fitFiles[crop.fileIdx]) {
-      const fi = fitFiles.findIndex(f => { try { return FIT.trackPointsIndexed(f.bytes).length >= 2; } catch (e) { return false; } });
-      if (fi < 0 || !initCropFor(fi)) { cropMode = false; toast(t('fit_fail') + ' — no GPS', false); return; }
+    if (!crop || !fileByFid()) {
+      // 优先回到上次编辑的文件（草稿也在），否则第一个有 GPS 的
+      let f = lastCropFid ? fitFiles.find(x => x.id === lastCropFid) : null;
+      if (!f || !openSessionFor(f)) {
+        f = fitFiles.find(ff => { try { return FIT.trackPointsIndexed(ff.bytes).length >= 2; } catch (e) { return false; } });
+        if (!f || !openSessionFor(f)) { cropMode = false; toast(t('fit_fail') + ' — no GPS', false); return; }
+      }
     }
+    if (cropDraft.size) toast(t('fit_cropDraftBack', { n: cropDraft.size }), true);
     const st = (typeof TrackMap !== 'undefined') ? TrackMap.state('fitMap') : null;
     if (st) registerFs(st);
+    lastCropFid = crop.fid;
     renderList();
     renderPanel();
     renderCropMap();
     renderCropBar();
   }
-  // 切换裁剪目标文件（点文件卡片）；再点当前目标 = 应用裁剪到列表
+  // 切换裁剪目标文件（卡片/全屏侧栏点击）：当前会话存入草稿
   function cropSelectFile(i) {
     if (!cropMode || !fitFiles[i]) return;
-    if (crop && crop.fileIdx === i) { cropApply(); return; }
-    if (!initCropFor(i)) { toast(t('fit_fail') + ' — no GPS', false); return; }
+    if (crop && crop.fid === fitFiles[i].id) return;
+    saveDraft();
+    if (!openSessionFor(fitFiles[i])) { toast(t('fit_fail') + ' — no GPS', false); return; }
+    lastCropFid = fitFiles[i].id;
     renderList();
     renderCropMap();
     renderCropBar();
+    renderFsSide();
   }
   // 全屏回调注册（须在地图实例存在后调用；首次进全屏前若未注册，enterCrop 里兜底再试）
   function registerFs(st) {
@@ -194,12 +219,16 @@ const FitUI = (() => {
       cropHandles = null;
       if (on && cropMode) {
         const bar = document.getElementById('fitCropBar');
-        if (bar) st.fsShell.querySelector('.tm-fs-head').appendChild(bar);
+        const head = st.fsShell.querySelector('.tm-fs-head');
+        if (bar && head) { head.appendChild(bar); head.style.display = 'flex'; }
       } else if (cropMode) {
         const bar = document.getElementById('fitCropBar');
+        const head = st.fsShell && st.fsShell.querySelector('.tm-fs-head');
+        if (head) head.style.display = 'none';
         if (bar) $('fitMapWrap').insertAdjacentElement('afterend', bar);
       }
       renderCropMap(); renderCropBar();
+      if (on) renderFsSide();
     };
     st.fsRenderer = (map) => {
       if (!cropMode || !crop) {
@@ -210,13 +239,66 @@ const FitUI = (() => {
       // 全屏裁剪：三色轨迹 + 可拖 S/E 端点（drawOn 会把端点挂到实例上）
       st.fsLayers = TrackMap.drawOn(map, cropTracks(), { fit: true, noAutoSE: true, handles: cropHandlesOpts() });
     };
+    // 退出全屏拦截：有未应用草稿时给友好提示（全部应用 / 仅退出保留草稿 / 取消）
+    st.confirmExit = (proceed) => {
+      saveDraft();
+      if (!cropMode || !cropDraft.size) { proceed(); return; }
+      appConfirm3(t('fit_cropExitTitle'), t('fit_cropExitBody', { n: cropDraft.size }),
+        t('fit_cropExitOk'), t('fit_cropExitKeep'), t('modal_cancel')).then((v) => {
+          if (v === 'ok') { cropApplyAll(); proceed(); }
+          else if (v === 'third') { proceed(); }
+        });
+    };
   }
-  function exitCrop() {
+  // 全屏裁剪文件浮窗（地图左下）：列表 + 当前目标 + 待应用徽标，点击快速切换编辑对象。
+  // 右下留给海拔剖面类浮窗；空态（非裁剪/退出）自动移除。
+  function renderFsSide() {
+    const st = (typeof TrackMap !== 'undefined') ? TrackMap.state('fitMap') : null;
+    const host = st && st.fullscreen ? st.fsMapEl : null;
+    let fl = host && host.querySelector('.tm-files');
+    if (!host || !cropMode || !fitFiles.length) {
+      const any = document.querySelector('.tm-files');
+      if (any) any.remove();
+      return;
+    }
+    if (!fl) {
+      fl = document.createElement('div');
+      fl.className = 'tm-float tm-float-glass tm-files';
+      host.appendChild(fl);
+    }
+    fl.innerHTML = '<div class="tm-float-t">' + escapeHtml(t('fit_cropFiles')) + '</div>'
+      + fitFiles.map((f, i) => {
+          const cur = crop && crop.fid === f.id;
+          const d = cropDraft.get(f.id);
+          const badge = cur ? '<span class="si-badge edit">' + escapeHtml(t('fit_cropCur')) + '</span>'
+            : d ? '<span class="si-badge draft">' + escapeHtml(t('fit_cropDraft')) + '</span>' : '';
+          const range = d ? ' · ' + escapeHtml(t('fit_cropRange', { a: d.i0 + 1, b: d.i1 + 1, n: f.sum.points })) : '';
+          return '<button class="tm-side-item' + (cur ? ' cur' : '') + '" onclick="FitUI.cropSelectFile(' + i + ')">'
+            + '<span class="si-main"><span class="si-name" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + '</span>'
+            + '<span class="si-meta">' + f.sum.points + ' pt · ' + (f.sum.distanceKm != null ? f.sum.distanceKm.toFixed(1) + ' km' : '-') + range + '</span></span>'
+            + badge + '</button>';
+        }).join('');
+  }
+  async function exitCrop() {
+    // 退出裁剪也先拦截未应用草稿（与退出全屏同一提示）
+    if (cropMode) {
+      saveDraft();
+      if (cropDraft.size) {
+        const v = await appConfirm3(t('fit_cropExitTitle'), t('fit_cropExitBody', { n: cropDraft.size }),
+          t('fit_cropExitOk'), t('fit_cropExitKeep'), t('modal_cancel'));
+        if (v === false) return;
+        if (v === 'ok') cropApplyAll();
+      }
+      lastCropFid = crop ? crop.fid : lastCropFid;
+    }
     cropMode = false;
     cropHandles = null;
+    renderList();
     renderPanel();
+    renderCropBar();
+    renderFsSide();
   }
-  function toggleCrop() { cropMode ? exitCrop() : enterCrop(); syncCropBtn(); }
+  async function toggleCrop() { if (cropMode) await exitCrop(); else enterCrop(); syncCropBtn(); }
   // 裁剪入口按钮态（无文件/裁剪中禁用与高亮）
   function syncCropBtn() {
     const b = document.getElementById('fitCropToggle');
@@ -238,7 +320,7 @@ const FitUI = (() => {
     bar.style.display = '';
     updateCropBarText();
   }
-  // 只刷新区间/里程文本（拖拽中用），不动按钮
+  // 只刷新区间/里程/计数（拖拽中用），不重建按钮
   function updateCropBarText() {
     const bar = document.getElementById('fitCropBar');
     if (!bar || !cropMode || !crop) return;
@@ -246,6 +328,9 @@ const FitUI = (() => {
     const pts = crop.pts;
     bar.querySelector('.fc-range').textContent = t('fit_cropRange', { a: crop.i0 + 1, b: crop.i1 + 1, n: pts[pts.length - 1].idx + 1 });
     bar.querySelector('.fc-meta').textContent = cropKm(crop.i0, crop.i1).toFixed(1) + ' km';
+    const n = cropDraft.size;
+    const all = bar.querySelector('.fc-apply-all');
+    if (all) { all.disabled = !n; all.querySelector('.fc-n').textContent = n; }
   }
   function cropKm(i0, i1) {
     let d = 0, prev = null;
@@ -254,11 +339,13 @@ const FitUI = (() => {
   }
   function renderCropBarFull(bar) {
     const pts = crop.pts;
+    const n = cropDraft.size;
     bar.style.display = '';
     bar.innerHTML = '<span class="fc-t">' + escapeHtml(t('fit_cropTitle')) + '</span>'
       + '<span class="fc-range">' + escapeHtml(t('fit_cropRange', { a: crop.i0 + 1, b: crop.i1 + 1, n: pts[pts.length-1].idx + 1 })) + '</span>'
       + '<span class="fc-meta">' + cropKm(crop.i0, crop.i1).toFixed(1) + ' km</span>'
-      + '<button class="btn" onclick="FitUI.cropApply()" style="padding:4px 12px">' + escapeHtml(t('fit_cropApply')) + '</button>'
+      + '<button class="btn fc-apply-all" ' + (n ? '' : 'disabled ') + 'onclick="FitUI.cropApplyAll()" style="padding:4px 12px">' + escapeHtml(t('fit_cropApplyAll')) + ' <b class="fc-n">' + n + '</b></button>'
+      + '<button class="btn" onclick="FitUI.cropApply()" style="padding:4px 10px">' + escapeHtml(t('fit_cropApplyOne')) + '</button>'
       + '<button class="btn" onclick="FitUI.cropDownload()" style="padding:4px 10px">' + escapeHtml(t('fit_cropDl')) + '</button>'
       + '<button class="btn" onclick="FitUI.cropReset()" style="padding:4px 10px">' + escapeHtml(t('fit_cropReset')) + '</button>'
       + '<button class="btn" onclick="FitUI.toggleCrop()" style="padding:4px 10px">' + escapeHtml(t('fit_cropDone')) + '</button>';
@@ -279,8 +366,8 @@ const FitUI = (() => {
     const segKeep = pts.filter(p => p.idx >= crop.i0 && p.idx <= crop.i1);
     const segB = pts.filter(p => p.idx > crop.i1);
     const tracks = [];
-    fitFiles.forEach((f, i) => {
-      if (i === crop.fileIdx) return;
+    fitFiles.forEach((f) => {
+      if (f.id === crop.fid) return;
       try {
         const bg = FIT.trackPointsIndexed(f.bytes, 400);
         if (bg.length > 1) tracks.push({ latlngs: bg, color: '#c9c9c9', weight: 2.2, opacity: 0.55 });
@@ -327,11 +414,13 @@ const FitUI = (() => {
     return {
       a: nearestPt(pts, crop.i0), b: nearestPt(pts, crop.i1),
       onDrag: (kind, ll) => { if (apply(kind, ll)) updateCropBarText(); },
-      // 松手：重画折线并按新区间重建端点（a/b 本身就是吸附后的最近轨迹点）。
+      // 松手：区间落草稿 → 重画折线并重建端点（a/b 本身就是吸附后的最近轨迹点）。
       // 拖拽已结束，重建不打断下一次拖拽；不传 handles 会让 clearLayers 把端点删掉不补（S/E 消失的根因）。
       onDrop: (kind, ll) => {
         apply(kind, ll);
+        saveDraft();
         updateCropBarText();
+        renderFsSide();
         const st = TrackMap.state('fitMap');
         if (!st) return;
         TrackMap.redrawTracks(st, cropTracks(), { fit: false, noAutoSE: true, handles: cropHandlesOpts() });
@@ -349,13 +438,16 @@ const FitUI = (() => {
     return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
   }
 
-  // 生成裁剪产物（cropRange 出合法 FIT 字节）；失败返回 null
-  function buildCrop() {
-    if (!crop || !fitFiles[crop.fileIdx]) return null;
-    const f = fitFiles[crop.fileIdx];
+  // 生成裁剪产物（cropRange 出合法 FIT 字节）；区间一律取草稿
+  // （调用前须先 saveDraft()，当前会话也已在草稿里）；无草稿返回 null
+  function buildCrop(f) {
+    f = f || fileByFid();
+    if (!f) return null;
+    const range = cropDraft.get(f.id);
+    if (!range) return null;
     // 已裁过的文件不再叠加 -crop 后缀（二次裁剪沿用原名）
     const stem = cropBytesRev.has(f) ? baseName(f.name) : baseName(f.name) + '-crop';
-    try { return { bytes: FIT.cropRange(f.bytes, crop.i0, crop.i1 + 1), name: stem + '.fit', f }; }
+    try { return { bytes: FIT.cropRange(f.bytes, range.i0, range.i1 + 1), name: stem + '.fit', f }; }
     catch (e) { toast(t('fit_fail') + ' ' + e.message, false); return null; }
   }
   // 下载裁剪产物（原行为保留）
@@ -372,26 +464,48 @@ const FitUI = (() => {
   }
   // 应用到列表：裁剪结果原地替换文件字节，多文件「各自裁完 → 直接合并」不出页面
   function cropApply() {
-    const r = buildCrop();
-    if (!r) return;
-    const dropped = crop.i1 - crop.i0 + 1 !== r.f.sum.points;   // 区间是否真的裁过
-    const fi = crop.fileIdx;
-    r.f.bytes = r.bytes;
-    r.f.sum = FIT.summarize(r.bytes);
-    r.f.name = r.name;
-    cropBytesRev.add(r.f);            // 标记已裁剪（防止重复命名叠加）
-    // 字节已换：以新字节重建当前文件的裁剪会话（回到全区间）。
-    // 不能把 crop 置 null 留着 cropMode——全屏态 fsRenderer/cropTracks 读 crop.pts 会炸，
-    // 地图状态从此不一致（应用后退出全屏容器崩溃的根因）。
-    if (!initCropFor(fi)) { crop = null; exitCrop(); }
-    renderList(); renderPanel();
-    toast(t('fit_cropApplied', { n: r.f.sum.points }), true);
-    if (!dropped) toast(t('fit_cropNoop'), false);
+    saveDraft();
+    const f = fileByFid();
+    if (!f) return;
+    const r = buildCrop(f);
+    if (!r) { toast(t('fit_cropNoop'), false); return; }   // 全区间：没有草稿可言
+    applyFileBytes(r);
+    renderList(); renderPanel(); renderCropMap(); renderCropBar(); renderFsSide();
+    toast(t('fit_cropApplied', { n: f.sum.points }), true);
+  }
+  // 全局应用：所有草稿（含当前会话）一次落到列表，退出裁剪态回到普通多轨迹渲染
+  function cropApplyAll() {
+    saveDraft();
+    if (!cropDraft.size) { toast(t('fit_cropNoop'), false); return; }
+    let n = 0;
+    for (const [fid] of [...cropDraft]) {
+      const f = fitFiles.find(x => x.id === fid);
+      if (!f) { cropDraft.delete(fid); continue; }
+      const r = buildCrop(f);
+      if (r) { applyFileBytes(r); n++; }
+    }
+    cropDraft.clear();
+    crop = null;
+    cropMode = false; cropHandles = null;
+    // 顺序要紧：先清裁剪态再重绘，renderPanel→renderMap 才会走普通多轨迹渲染
+    renderList(); renderPanel(); renderCropBar(); renderFsSide(); syncCropBtn();
+    toast(t('fit_cropAppliedAll', { n }), true);
+  }
+  // 字节替换 + 元数据刷新（单个文件）
+  function applyFileBytes(r) {
+    const f = r.f;
+    f.bytes = r.bytes;
+    f.sum = FIT.summarize(r.bytes);
+    f.name = r.name;
+    cropBytesRev.add(f);
+    cropDraft.delete(f.id);
+    if (crop && crop.fid === f.id) openSessionFor(f);   // 新字节重建会话（回全区间）
   }
   function cropReset() {
     if (!crop) return;
     crop.i0 = 0; crop.i1 = crop.pts[crop.pts.length - 1].idx;
-    renderCropMap(); renderCropBar();
+    cropDraft.delete(crop.fid);
+    renderList(); renderCropMap(); renderCropBar(); renderFsSide();
   }
 
   function renderPanel() {
@@ -429,5 +543,5 @@ const FitUI = (() => {
     renderList(); renderPanel();
   }
 
-  return { init, addFiles, remove, clearAll, runStrip, runSplit, runCombine, runConvert, toggleCrop, cropApply, cropDownload, cropReset, cropSelectFile };
+  return { init, addFiles, remove, clearAll, runStrip, runSplit, runCombine, runConvert, toggleCrop, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile };
 })();

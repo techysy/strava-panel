@@ -119,6 +119,7 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 /* 裁剪模式：当前裁剪目标高亮 */
 .fit-file.ff-crop-target{border-color:var(--brand,#fc4c02)}
 .ff-tags .t-crop{margin-right:6px;padding:1px 6px;border-radius:6px;background:var(--brand,#fc4c02);color:#fff;font-size:10px}
+.ff-tags .t-draft{background:var(--viz);opacity:.85}
 .fit-file:hover{border-color:var(--border-strong)}
 .ff-main{flex:1;min-width:0}
 .ff-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:20px}
@@ -172,24 +173,28 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .fit-cropbar .fc-t{font-size:12px;color:var(--text-2);font-weight:600}
 .fit-cropbar .fc-range{font-size:11.5px;color:var(--text-3);font-variant-numeric:tabular-nums}
 .fit-cropbar .fc-meta{font-size:12px;font-weight:700;color:var(--viz);font-variant-numeric:tabular-nums;margin-right:auto}
-/* 可拖端点（略大于 S/E 标记，带描边提示可拖） */
-.tm-crop-handle b{width:24px;height:24px;border:2px solid var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:grab}
-.tm-crop-handle:active b{cursor:grabbing}
-/* 全屏覆盖壳 */
+/* 全屏覆盖壳（实体头部工具带，避免悬浮工具条压住左上地图控件） */
 .tm-shell{position:fixed;inset:0;z-index:9000;background:var(--bg,#f5f5f5);display:flex;flex-direction:column}
 html[data-theme="dark"] .tm-shell{background:var(--bg-dark,#111)}
-/* 全屏头部不占位：悬浮在地图上（工具条/裁剪栏需要时仍可 append 进来）。
-   无 ✕——⛶ 同键进出（橙色线框高亮），退出入口唯一且可发现 */
-.tm-shell .tm-fs-head{position:absolute;top:10px;left:0;right:0;z-index:9500;display:flex;align-items:center;gap:10px;padding:0 14px;pointer-events:none}
-.tm-shell .tm-fs-title{font-size:13.5px;font-weight:700;color:var(--text);text-shadow:0 1px 3px rgba(255,255,255,.6)}
-html[data-theme="dark"] .tm-shell .tm-fs-title{text-shadow:0 1px 3px rgba(0,0,0,.6)}
-.tm-shell .tm-fs-head>*{pointer-events:auto}
-/* 悬浮头里 append 的场景工具条（如 FIT 裁剪栏）：自带底色可读 */
-.tm-shell .tm-fs-head .fit-cropbar{background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(6px);border-color:var(--border-subtle);box-shadow:var(--shadow)}
-.tm-shell .tm-fs-close:hover{border-color:var(--border-strong);color:var(--text)}
+.tm-shell .tm-fs-head{flex:none;display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--surface);border-bottom:1px solid var(--border-subtle)}
+.tm-shell .tm-fs-head .fit-cropbar{margin:0;padding:0;border:0;background:transparent;width:100%;flex-wrap:wrap}
+.tm-shell .tm-fs-title{font-size:13.5px;font-weight:700;color:var(--text)}
+/* 全屏地图（文件浮窗/海拔浮窗挂在地图内侧角落） */
 .tm-shell .tm-fs-map{flex:1;min-height:0;width:100%}
 .tm-shell .tm-fs-extra{flex:none;max-height:38%;overflow-y:auto;border-top:1px solid var(--border-subtle);background:var(--surface);padding:10px 14px}
 .tm-shell .tm-fs-extra:empty{display:none}
+/* 全屏裁剪文件浮窗（地图右下，与海拔剖面浮窗同位——裁剪态无剖面，不冲突） */
+.tm-float.tm-files{left:auto;right:12px;bottom:14px;width:min(270px,58%);max-height:58%;overflow-y:auto}
+/* 全屏裁剪文件浮窗条目 */
+.tm-side-item{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:7px 8px;border:1px solid transparent;border-radius:9px;background:transparent;cursor:pointer;margin-bottom:4px}
+.tm-side-item:hover{background:var(--tertiary)}
+.tm-side-item.cur{border-color:#fc4c02;background:color-mix(in srgb,#fc4c02 6%,var(--surface))}
+.tm-side-item .si-main{flex:1;min-width:0}
+.tm-side-item .si-name{display:block;font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tm-side-item .si-meta{display:block;font-size:10.5px;color:var(--text-3);margin-top:2px;font-variant-numeric:tabular-nums}
+.tm-side-item .si-badge{flex:none;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px}
+.tm-side-item .si-badge.draft{background:#fc4c02;color:#fff}
+.tm-side-item .si-badge.edit{background:var(--tertiary);color:var(--text-2)}
 /* 全屏浮窗（海拔剖面等 extra 浮层挂地图上） */
 .tm-float{position:absolute;right:12px;bottom:14px;z-index:800;width:min(520px,calc(100% - 24px));background:var(--surface);border:1px solid var(--border-subtle);border-radius:12px;box-shadow:var(--shadow);padding:10px 12px}
 .tm-float .tm-float-t{font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px}
@@ -198,12 +203,22 @@ html[data-theme="dark"] .tm-shell .tm-fs-title{text-shadow:0 1px 3px rgba(0,0,0,
 .trip-profile .prof-tip,.tm-float .prof-tip{position:absolute;transform:translate(-50%,-110%);background:var(--text);color:var(--surface);font-size:11px;font-weight:600;padding:3px 8px;border-radius:7px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .1s;font-variant-numeric:tabular-nums;z-index:5}
 /* 全屏海拔浮窗：半透明玻璃底，容器收紧，少遮挡地图 */
 .tm-float.tm-float-glass{width:min(400px,calc(100% - 24px));background:color-mix(in srgb,var(--surface) 72%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-color:transparent;box-shadow:0 4px 18px rgba(0,0,0,.18);padding:8px 10px}
+/* 暗夜模式：深色卫星/街道底图上，半透明黑底 + 透明描边会「融进」地图看不清——
+   提高不透明度、加淡亮描边勾边、阴影加重 */
+html[data-theme="dark"] .tm-float.tm-float-glass{background:color-mix(in srgb,var(--surface) 84%,transparent);border-color:rgba(255,255,255,.16);box-shadow:0 6px 22px rgba(0,0,0,.55)}
+html[data-theme="dark"] .tm-float.tm-float-glass .tm-float-t{color:var(--text)}
 .tm-float.tm-float-glass .tm-float-t{font-size:11.5px;margin-bottom:2px}
 .trip-profile svg circle.prof-dot{transition:r .08s}
 .tm-icon{display:flex;align-items:center;justify-content:center}
 .tm-icon b{width:20px;height:20px;border-radius:50%;background:#10b981;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
 .tm-icon.tm-e b{background:#ef4444}
 .tm-icon.tm-wp i{width:12px;height:12px;border-radius:50%;background:var(--viz);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+/* 裁剪抓手 = S/E 标记本身：低调不遮挡轨迹，鼠标响应高亮提示可拖 */
+.tm-icon.tm-crop-handle{opacity:.78;transition:opacity .12s}
+.tm-icon.tm-crop-handle:hover{opacity:1}
+.tm-icon.tm-crop-handle b{cursor:grab}
+.tm-icon.tm-crop-handle:hover b{box-shadow:0 0 0 3px color-mix(in srgb,#fc4c02 60%,transparent),0 1px 4px rgba(0,0,0,.4)}
+.tm-icon.tm-crop-handle:active b{cursor:grabbing;opacity:1;box-shadow:0 0 0 4px color-mix(in srgb,#fc4c02 75%,transparent)}
 .leaflet-container{font:inherit;background:var(--tertiary)}
 .ff-del:hover{background:rgba(239,68,68,.14);color:#ef4444}
 .fit-tools{margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
@@ -454,7 +469,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 .llm-warn{display:none;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;background:var(--warn-soft);color:var(--warn);font-size:12.5px;font-weight:600;margin-bottom:10px}
 .llm-warn a{color:inherit;text-decoration:underline;cursor:pointer}
 /* 应用内确认模态(替代原生 confirm) */
-.modal-mask{position:fixed;inset:0;z-index:80;background:rgba(10,10,13,.45);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;padding:20px}
+.modal-mask{position:fixed;inset:0;z-index:9600;background:rgba(10,10,13,.45);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;padding:20px}
 .modal-mask.show{display:flex}
 .modal{width:min(400px,92vw);background:var(--surface);border:1px solid var(--border-subtle);border-radius:18px;box-shadow:var(--shadow);padding:22px;animation:modalIn .18s ease-out}
 @keyframes modalIn{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
@@ -581,7 +596,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 @keyframes dotBounce{0%,60%,100%{transform:translateY(0);opacity:.35}30%{transform:translateY(-4px);opacity:1}}
 @media (prefers-reduced-motion: reduce){.dots i{animation:none;opacity:.6}}
 /* toast */
-#toast{position:fixed;bottom:26px;left:50%;transform:translate(-50%,8px);z-index:70;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 16px;font-size:13px;font-weight:600;color:var(--text);box-shadow:var(--toast-shadow);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:80vw}
+#toast{position:fixed;bottom:26px;left:50%;transform:translate(-50%,8px);z-index:9700;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 16px;font-size:13px;font-weight:600;color:var(--text);box-shadow:var(--toast-shadow);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:80vw}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 #toast.err{border-color:var(--err);color:var(--err)}
 #toast.ok{border-color:var(--ok);color:var(--ok)}
@@ -1169,6 +1184,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
     <h3 id="modalTitle"></h3>
     <p id="modalBody"></p>
     <div class="modal-actions">
+      <button class="btn" id="modalThird" style="display:none"></button>
       <button class="btn" id="modalCancel"></button>
       <button class="btn primary" id="modalOk"></button>
     </div>
@@ -1254,9 +1270,13 @@ const I18N = {
     fit_convert:'转换为 GPX / TCX', fit_convertHint:'轨迹、高程、心率、踏频、功率全部映射；GPX 供大多数平台上传，TCX 兼容 Garmin。', fit_namePh:'活动名称（留空用文件名）', fit_target:'目标：',
     fit_actionStrip:'执行并下载', fit_actionSplit:'执行并下载', fit_actionCombine:'执行并下载',
     fit_doneStrip:'已删除功率/心率，共处理 {n} 个采样点', fit_doneSplit:'已拆分为 {n} 个文件', fit_doneCombine:'合并完成，共 {n} 个采样点', fit_doneConvert:'转换完成，已开始下载',
-    fit_crop:'地图裁剪', fit_cropTitle:'拖动地图上 S/E 端点选择保留区间', fit_cropRange:'点 {a}–{b} / 共 {n}', fit_cropApply:'下载裁剪', fit_cropReset:'重置', fit_cropDone:'退出裁剪', fit_cropDone2:'裁剪完成，已开始下载',
-    fit_cropTarget:'裁剪目标', fit_cropTargetHint:'点击切换裁剪目标；再点一次应用当前裁剪',
-    fit_cropApply:'应用裁剪', fit_cropDl:'下载', fit_cropApplied:'已应用：列表中的文件已替换为裁剪结果（{n} 点）', fit_cropNoop:'区间为全段，未做裁剪',
+    fit_crop:'地图裁剪', fit_cropTitle:'拖动地图上 S/E 端点选择保留区间', fit_cropRange:'点 {a}–{b} / 共 {n}', fit_cropReset:'重置', fit_cropDone:'退出裁剪', fit_cropDone2:'裁剪完成，已开始下载',
+    fit_cropTarget:'裁剪目标', fit_cropTargetHint:'点击切换裁剪目标',
+    fit_cropApplyOne:'应用此文件', fit_cropApplyAll:'全部应用', fit_cropDl:'下载', fit_cropApplied:'已应用：列表中的文件已替换为裁剪结果（{n} 点）', fit_cropNoop:'区间为全段，未做裁剪',
+    fit_cropAppliedAll:'已应用 {n} 个文件的裁剪', fit_cropDraft:'待应用', fit_cropFiles:'裁剪文件', fit_cropCur:'编辑中', fit_cropSaved:'已应用',
+    fit_cropExitTitle:'有未应用的裁剪', fit_cropExitBody:'{n} 个文件的裁剪区间尚未应用。全部应用将替换列表中的文件；保留草稿下次进入裁剪可继续编辑；丢弃将恢复原始区间。',
+    fit_cropExitOk:'全部应用并退出', fit_cropExitKeep:'保留草稿', fit_cropExitDiscard:'丢弃草稿并退出',
+    fit_cropDraftBack:'已恢复 {n} 个待应用的裁剪草稿',
     fit_needMulti:'合并至少需要 2 个文件',
     coach_sports:'运动方式', coach_sportsSave:'保存', coach_sportsSaved:'运动方式已保存，教练将只在该范围内推荐训练', coach_sportsSaveFail:'保存失败: ', coach_sportsNeedOne:'至少选择一种运动',
     nav_trip:'出行计划', trip_title:'户外出行计划', trip_hint:'骑行 / 徒步 / 越野跑出行方案：查目的地周末天气、高铁余票与装备清单。数据来自 Open-Meteo 与 12306。',
@@ -1384,9 +1404,13 @@ const I18N = {
     fit_convert:'Convert to GPX / TCX', fit_convertHint:'Tracks, elevation, HR, cadence and power are all mapped. GPX suits most upload targets; TCX suits Garmin.', fit_namePh:'Activity name (blank = filename)', fit_target:'Target: ',
     fit_actionStrip:'Run & download', fit_actionSplit:'Run & download', fit_actionCombine:'Run & download',
     fit_doneStrip:'Power/HR stripped from {n} samples', fit_doneSplit:'Split into {n} files', fit_doneCombine:'Combined {n} samples', fit_doneConvert:'Converted — download started',
-    fit_crop:'Crop on map', fit_cropTitle:'Drag S/E handles on the map to choose the range', fit_cropRange:'pts {a}–{b} / {n}', fit_cropApply:'Download crop', fit_cropReset:'Reset', fit_cropDone:'Exit crop', fit_cropDone2:'Crop ready — download started',
-    fit_cropTarget:'cropping', fit_cropTargetHint:'Click to switch the crop target; click again to apply the crop',
-    fit_cropApply:'Apply crop', fit_cropDl:'Download', fit_cropApplied:'Applied: file in the list replaced with the crop ({n} pts)', fit_cropNoop:'Range covers the whole file — nothing cropped',
+    fit_crop:'Crop on map', fit_cropTitle:'Drag S/E handles on the map to choose the range', fit_cropRange:'pts {a}–{b} / {n}', fit_cropReset:'Reset', fit_cropDone:'Exit crop', fit_cropDone2:'Crop ready — download started',
+    fit_cropTarget:'cropping', fit_cropTargetHint:'Click to switch the crop target',
+    fit_cropApplyOne:'Apply this file', fit_cropApplyAll:'Apply all', fit_cropDl:'Download', fit_cropApplied:'Applied: file in the list replaced with the crop ({n} pts)', fit_cropNoop:'Range covers the whole file — nothing cropped',
+    fit_cropAppliedAll:'Applied crops of {n} file(s)', fit_cropDraft:'pending', fit_cropFiles:'Crop files', fit_cropCur:'editing', fit_cropSaved:'applied',
+    fit_cropExitTitle:'Unapplied crops', fit_cropExitBody:'{n} file(s) have crop ranges not yet applied. Apply all replaces the files in the list; keeping drafts lets you resume next time; discarding restores full ranges.',
+    fit_cropExitOk:'Apply all & exit', fit_cropExitKeep:'Keep drafts', fit_cropExitDiscard:'Discard & exit',
+    fit_cropDraftBack:'Restored {n} pending crop draft(s)',
     fit_needMulti:'Combining needs at least 2 files',
     coach_sports:'Sports', coach_sportsSave:'Save', coach_sportsSaved:'Sports saved — the coach will now only recommend within these', coach_sportsSaveFail:'Save failed: ', coach_sportsNeedOne:'Pick at least one sport',
     nav_trip:'Trip Planner', trip_title:'Outdoor Trip Planner', trip_hint:'Cycling / hiking / trail-run trip plans: weekend weather at the destination, 12306 train seats and a gear checklist. Data from Open-Meteo and 12306.',
@@ -2970,6 +2994,23 @@ function appConfirm(title, body, danger){
     ok.className = 'btn ' + (danger ? 'danger' : 'primary');
     const done = (v) => { mask.classList.remove('show'); ok.onclick = cancel.onclick = null; mask.onclick = null; resolve(v); };
     ok.onclick = () => done(true); cancel.onclick = () => done(false);
+    mask.onclick = (e) => { if(e.target === mask) done(false); };
+    mask.classList.add('show');
+  });
+}
+// 三选确认（裁剪退出等场景）：返回 'ok' | 'third' | false
+function appConfirm3(title, body, okText, thirdText, cancelText){
+  return new Promise((resolve)=>{
+    const mask = document.getElementById('modalMask');
+    const third = document.getElementById('modalThird');
+    document.getElementById('modalTitle').innerHTML =
+      '<svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg>' + escapeHtml(title);
+    document.getElementById('modalBody').textContent = body;
+    const ok = document.getElementById('modalOk'), cancel = document.getElementById('modalCancel');
+    ok.textContent = okText; cancel.textContent = cancelText; third.textContent = thirdText;
+    ok.className = 'btn primary'; third.style.display = '';
+    const done = (v) => { mask.classList.remove('show'); ok.onclick = cancel.onclick = third.onclick = null; mask.onclick = null; third.style.display = 'none'; resolve(v); };
+    ok.onclick = () => done('ok'); third.onclick = () => done('third'); cancel.onclick = () => done(false);
     mask.onclick = (e) => { if(e.target === mask) done(false); };
     mask.classList.add('show');
   });

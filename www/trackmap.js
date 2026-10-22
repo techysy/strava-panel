@@ -117,17 +117,20 @@ const TrackMap = (() => {
   }
 
   // ---- 全屏：fixed 覆盖层方案（Electron 窗口内不依赖浏览器 Fullscreen API 权限）----
+  // 退出可被场景钩子拦截：st.confirmExit(proceed) 存在时先问场景（如 FIT 未应用草稿提示）
   function toggleFullscreen(st) {
-    if (st.fullscreen) exitFullscreen(st);
-    else enterFullscreen(st);
+    if (st.fullscreen) {
+      if (st.confirmExit) st.confirmExit(() => exitFullscreen(st));
+      else exitFullscreen(st);
+    } else enterFullscreen(st);
   }
   function enterFullscreen(st) {
     const host = st.map.getContainer();
-    // 浮层壳：铺满视口。头部不占位（absolute 悬浮在地图上），供场景 append 工具条。
-    // 无 ✕ 关闭按钮——⛶ 同键进出（全屏态橙色高亮），退出路径唯一且可发现。
+    // 浮层壳：实体头部（不悬浮，避免压住左上地图控件）+ 地图 + extra。
+    // head 默认隐藏，场景 append 内容时显示（GPX 等无头部内容的场景保持隐藏）
     const shell = document.createElement('div');
     shell.className = 'tm-shell';
-    shell.innerHTML = '<div class="tm-fs-head"><span class="tm-fs-title"></span></div>'
+    shell.innerHTML = '<div class="tm-fs-head" style="display:none"><span class="tm-fs-title"></span></div>'
       + '<div class="tm-fs-map"></div>'
       + '<div class="tm-fs-extra"></div>';
     document.body.appendChild(shell);
@@ -192,6 +195,7 @@ const TrackMap = (() => {
     buildZoomCtl(st);
     buildFullCtl(st);
     st.fsMapEl = null;
+    st.fsSideEl = null;
     setTimeout(() => {
       map2.invalidateSize();
       let redrawn = false;
@@ -283,14 +287,17 @@ const TrackMap = (() => {
     return true;
   }
 
-  function mk(st, p, kind, label) {
+  function mk(st, p, kind, label, draggable) {
     const html = kind === 's' ? '<b>S</b>' : kind === 'e' ? '<b>E</b>' : '<i></i>';
-    const m = L.marker([p.lat, p.lon], { icon: divIcon(html, 'tm-' + kind), interactive: !!label }).addTo(st.map);
+    const opts = { icon: divIcon(html, 'tm-' + kind + (draggable ? ' tm-crop-handle' : '')), interactive: true };
+    if (draggable) { opts.draggable = true; opts.zIndexOffset = 1000; }
+    const m = L.marker([p.lat, p.lon], opts).addTo(st.map);
     if (label) m.bindTooltip(label, { direction: 'top', offset: [0, -8] });
     st.markers.push(m);
+    return m;
   }
 
-  // ---- 可拖裁剪端点：记在 st.cropHandles，随地图实例存续 ----
+  // ---- 可拖裁剪端点：S/E 标记本身就是抓手（不画笨重徽章）----
   // opts.handles = { a:{lat,lon}, b:{lat,lon}, onDrag(kind,{lat,lon}), onDrop(kind,{lat,lon}) }
   // onDrag 拖动中持续触发（场景只更新工具条文本，禁止重建地图对象，否则拖拽被打断）；
   // onDrop 松手触发（场景提交索引并 redrawTracks 重绘折线 + 吸附端点）。
@@ -300,8 +307,7 @@ const TrackMap = (() => {
     if (!h) return;
     [['a', 's', h.a], ['b', 'e', h.b]].forEach(([key, kind, p]) => {
       if (!p || !Number.isFinite(p.lat)) return;
-      const icon = L.divIcon({ html: '<b>' + kind.toUpperCase() + '</b>', className: 'tm-icon tm-crop-handle', iconSize: [24, 24], iconAnchor: [12, 12] });
-      const hm = L.marker([p.lat, p.lon], { icon, draggable: true, zIndexOffset: 1000 }).addTo(st.map);
+      const hm = mk(st, p, kind, null, true);   // S/E 标记 = 抓手
       hm.on('drag', () => {
         const ll = hm.getLatLng();
         try { h.onDrag && h.onDrag(key, { lat: ll.lat, lon: ll.lng }); } catch (e) { console.error('handleDrag', e); }
@@ -337,32 +343,6 @@ const TrackMap = (() => {
     });
     (opts.markers || []).forEach(m => mk(st, m, m.kind || 'wp', m.label));
     return { made, all };
-  }
-
-  /**
-   * 在既有地图实例上直接绘制轨迹（不创建地图）——全屏 fsRenderer 用。
-   * map 为 L.Map 实例；tracks/opts 形状同 show()。返回绘制的图层（调用方管理生命周期）。
-   */
-  function drawOn(map, tracks, opts = {}) {
-    if (!available() || !map) return [];
-    let st = null;
-    for (const s of maps.values()) { if (s.map === map) { st = s; break; } }
-    const made = [];
-    if (st) {
-      const { made: m1, all } = paintTracks(st, normTracks(tracks), opts);
-      made.push(...m1);
-      if (all.length && opts.fit !== false) map.fitBounds(L.latLngBounds(all).pad(0.12), { animate: false });
-      if (opts.handles) addHandles(st, opts.handles);
-    } else {
-      // 非常规路径（map 不属于任何 TrackMap 实例）：退化为仅画折线
-      normTracks(tracks).forEach((tr, ti) => {
-        const pts = (tr.latlngs || []).filter(p => p && Number.isFinite(p.lat) && Number.isFinite(p.lon));
-        if (!pts.length) return;
-        made.push(L.polyline(pts.map(p => [p.lat, p.lon]), { color: tr.color || PALETTE[ti % PALETTE.length], weight: 3.5, opacity: 0.9, lineJoin: 'round' }).addTo(map));
-      });
-    }
-    map.invalidateSize();
-    return made;
   }
 
   function clearLayers(st) {
