@@ -183,16 +183,16 @@ html[data-theme="dark"] .tm-shell{background:var(--bg-dark,#111)}
 .tm-shell .tm-fs-map{flex:1;min-height:0;width:100%}
 .tm-shell .tm-fs-extra{flex:none;max-height:38%;overflow-y:auto;border-top:1px solid var(--border-subtle);background:var(--surface);padding:10px 14px}
 .tm-shell .tm-fs-extra:empty{display:none}
-/* 全屏裁剪文件浮窗（地图右下，与海拔剖面浮窗同位——裁剪态无剖面，不冲突） */
-.tm-float.tm-files{left:auto;right:12px;bottom:14px;width:min(270px,58%);max-height:58%;overflow-y:auto}
+/* 全屏裁剪文件浮窗（地图右下：紧凑半透明玻璃卡片） */
+.tm-float.tm-files{left:auto;right:12px;bottom:14px;width:min(200px,46%);max-height:55%;overflow-y:auto;padding:5px 6px}
 /* 全屏裁剪文件浮窗条目 */
-.tm-side-item{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:7px 8px;border:1px solid transparent;border-radius:9px;background:transparent;cursor:pointer;margin-bottom:4px}
+.tm-side-item{display:flex;align-items:center;gap:6px;width:100%;text-align:left;padding:5px 6px;border:1px solid transparent;border-radius:8px;background:transparent;cursor:pointer;margin-bottom:2px}
 .tm-side-item:hover{background:var(--tertiary)}
-.tm-side-item.cur{border-color:#fc4c02;background:color-mix(in srgb,#fc4c02 6%,var(--surface))}
+.tm-side-item.cur{border-color:#fc4c02;background:color-mix(in srgb,#fc4c02 12%,transparent)}
 .tm-side-item .si-main{flex:1;min-width:0}
-.tm-side-item .si-name{display:block;font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tm-side-item .si-meta{display:block;font-size:10.5px;color:var(--text-3);margin-top:2px;font-variant-numeric:tabular-nums}
-.tm-side-item .si-badge{flex:none;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px}
+.tm-side-item .si-name{display:block;font-size:11.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tm-side-item .si-meta{display:block;font-size:10px;color:var(--text-3);margin-top:1px;font-variant-numeric:tabular-nums}
+.tm-side-item .si-badge{flex:none;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:99px}
 .tm-side-item .si-badge.draft{background:#fc4c02;color:#fff}
 .tm-side-item .si-badge.edit{background:var(--tertiary);color:var(--text-2)}
 /* 全屏浮窗（海拔剖面等 extra 浮层挂地图上） */
@@ -201,11 +201,10 @@ html[data-theme="dark"] .tm-shell{background:var(--bg-dark,#111)}
 /* 海拔剖面 hover 联动 */
 .trip-profile{cursor:crosshair;position:relative}
 .trip-profile .prof-tip,.tm-float .prof-tip{position:absolute;transform:translate(-50%,-110%);background:var(--text);color:var(--surface);font-size:11px;font-weight:600;padding:3px 8px;border-radius:7px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .1s;font-variant-numeric:tabular-nums;z-index:5}
-/* 全屏海拔浮窗：半透明玻璃底，容器收紧，少遮挡地图 */
-.tm-float.tm-float-glass{width:min(400px,calc(100% - 24px));background:color-mix(in srgb,var(--surface) 72%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-color:transparent;box-shadow:0 4px 18px rgba(0,0,0,.18);padding:8px 10px}
-/* 暗夜模式：深色卫星/街道底图上，半透明黑底 + 透明描边会「融进」地图看不清——
-   提高不透明度、加淡亮描边勾边、阴影加重 */
-html[data-theme="dark"] .tm-float.tm-float-glass{background:color-mix(in srgb,var(--surface) 84%,transparent);border-color:rgba(255,255,255,.16);box-shadow:0 6px 22px rgba(0,0,0,.55)}
+/* 全屏浮窗：半透明玻璃底（毛玻璃透出底图，不遮挡地图） */
+.tm-float.tm-float-glass{background:color-mix(in srgb,var(--surface) 52%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(0,0,0,.08);box-shadow:0 4px 16px rgba(0,0,0,.15);border-radius:10px}
+/* 暗夜模式半透明玻璃底 */
+html[data-theme="dark"] .tm-float.tm-float-glass{background:color-mix(in srgb,var(--surface) 52%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-color:rgba(255,255,255,.14);box-shadow:0 4px 18px rgba(0,0,0,.45)}
 html[data-theme="dark"] .tm-float.tm-float-glass .tm-float-t{color:var(--text)}
 .tm-float.tm-float-glass .tm-float-t{font-size:11.5px;margin-bottom:2px}
 .trip-profile svg circle.prof-dot{transition:r .08s}

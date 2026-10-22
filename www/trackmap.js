@@ -63,7 +63,8 @@ const TrackMap = (() => {
     const ro = new ResizeObserver(() => {
       const w = host.clientWidth, h = host.clientHeight;
       if (!w || !h) return;
-      map.invalidateSize();
+      if (st.fullscreen || !st.map || st.map._container !== host) return;
+      try { st.map.invalidateSize(); } catch (e) {}
       if (st.pendingShow) {
         const p = st.pendingShow;
         st.pendingShow = null;
@@ -208,9 +209,9 @@ const TrackMap = (() => {
     }, 80);
   }
   // 全屏（重）绘当前轨迹：优先 fsRenderer（场景自定义），否则按 lastShow 重绘
-  function rerenderFullscreen(st) {
-    if (st.fsRenderer) { try { st.fsRenderer(st.map, st.fsMapEl, st.fsShell?.querySelector('.tm-fs-extra')); } catch (e) { console.error('fsRenderer', e); } return; }
-    if (st.lastShow) drawOn(st.map, st.lastShow.tracks, { markers: st.lastShow.markers, fit: true });
+  function rerenderFullscreen(st, opts) {
+    if (st.fsRenderer) { try { st.fsRenderer(st.map, st.fsMapEl, st.fsShell?.querySelector('.tm-fs-extra'), opts); } catch (e) { console.error('fsRenderer', e); } return; }
+    if (st.lastShow) drawOn(st.map, st.lastShow.tracks, { markers: st.lastShow.markers, fit: opts?.fit !== false });
   }
 
   function setTile(st, key) {

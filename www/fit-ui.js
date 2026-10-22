@@ -213,7 +213,7 @@ const FitUI = (() => {
     if (!openSessionFor(fitFiles[i])) { toast(t('fit_fail') + ' — no GPS', false); return; }
     lastCropFid = fitFiles[i].id;
     renderList();
-    renderCropMap();
+    renderCropMap(false);   // 切换文件不重设缩放
     renderCropBar();
     renderFsSide();
   }
@@ -235,14 +235,15 @@ const FitUI = (() => {
       renderCropMap(); renderCropBar();
       if (on) renderFsSide();
     };
-    st.fsRenderer = (map) => {
+    st.fsRenderer = (map, _el, _extra, opts) => {
       if (!cropMode || !crop) {
         const tracks = fitFiles.map(f => { try { return FIT.trackPoints(f.bytes); } catch (e) { return []; } }).filter(p => p.length);
-        if (tracks.length) { st.fsLayers = TrackMap.drawOn(map, tracks, { fit: true }); }
+        if (tracks.length) { st.fsLayers = TrackMap.drawOn(map, tracks, { fit: opts?.fit !== false }); }
         return;
       }
-      // 全屏裁剪：三色轨迹 + 可拖 S/E 端点（drawOn 会把端点挂到实例上）
-      st.fsLayers = TrackMap.drawOn(map, cropTracks(), { fit: true, noAutoSE: true, handles: cropHandlesOpts() });
+      // 全屏裁剪：三色轨迹 + 可拖 S/E 端点；切换文件或重绘时保持用户当前缩放比例，不重新 fitBounds
+      const shouldFit = (opts && opts.fit !== undefined) ? opts.fit : (!st.cropHandles || !st.cropHandles.length);
+      st.fsLayers = TrackMap.drawOn(map, cropTracks(), { fit: shouldFit, noAutoSE: true, handles: cropHandlesOpts() });
     };
     // 退出全屏拦截：有未应用草稿时给友好提示（全部应用 / 仅退出保留草稿 / 取消）
     st.confirmExit = (proceed) => {
@@ -271,18 +272,17 @@ const FitUI = (() => {
       fl.className = 'tm-float tm-float-glass tm-files';
       host.appendChild(fl);
     }
-    fl.innerHTML = '<div class="tm-float-t">' + escapeHtml(t('fit_cropFiles')) + '</div>'
-      + fitFiles.map((f, i) => {
-          const cur = crop && crop.fid === f.id;
-          const d = cropDraft.get(f.id);
-          const badge = cur ? '<span class="si-badge edit">' + escapeHtml(t('fit_cropCur')) + '</span>'
-            : d ? '<span class="si-badge draft">' + escapeHtml(t('fit_cropDraft')) + '</span>' : '';
-          const range = d ? ' · ' + escapeHtml(t('fit_cropRange', { a: d.i0 + 1, b: d.i1 + 1, n: f.sum.points })) : '';
-          return '<button class="tm-side-item' + (cur ? ' cur' : '') + '" onclick="FitUI.cropSelectFile(' + i + ')">'
-            + '<span class="si-main"><span class="si-name" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + '</span>'
-            + '<span class="si-meta">' + f.sum.points + ' pt · ' + (f.sum.distanceKm != null ? f.sum.distanceKm.toFixed(1) + ' km' : '-') + range + '</span></span>'
-            + badge + '</button>';
-        }).join('');
+    fl.innerHTML = fitFiles.map((f, i) => {
+      const cur = crop && crop.fid === f.id;
+      const d = cropDraft.get(f.id);
+      const badge = cur ? '<span class="si-badge edit">' + escapeHtml(t('fit_cropCur')) + '</span>'
+        : d ? '<span class="si-badge draft">' + escapeHtml(t('fit_cropDraft')) + '</span>' : '';
+      const range = d ? ' · ' + escapeHtml(t('fit_cropRange', { a: d.i0 + 1, b: d.i1 + 1, n: f.sum.points })) : '';
+      return '<button class="tm-side-item' + (cur ? ' cur' : '') + '" onclick="FitUI.cropSelectFile(' + i + ')">'
+        + '<span class="si-main"><span class="si-name" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + '</span>'
+        + '<span class="si-meta">' + f.sum.points + ' pt · ' + (f.sum.distanceKm != null ? f.sum.distanceKm.toFixed(1) + ' km' : '-') + range + '</span></span>'
+        + badge + '</button>';
+    }).join('');
   }
   async function exitCrop() {
     // 退出裁剪也先拦截未应用草稿（与退出全屏同一提示）
@@ -384,17 +384,16 @@ const FitUI = (() => {
     return tracks;
   }
 
-  function renderCropMap() {
+  function renderCropMap(fit) {
     const wrap = $('fitMapWrap');
     if (!wrap || !crop || typeof TrackMap === 'undefined' || !TrackMap.available()) { if (wrap) wrap.style.display = 'none'; return; }
     const st = TrackMap.state('fitMap');
+    const st0 = TrackMap.state('fitMap');
+    const firstFit = fit !== undefined ? fit : (!st0 || !st0.cropHandles || !st0.cropHandles.length);
     // 全屏态：由 st.fsRenderer 绘制到全屏地图（含可拖端点）
-    if (st && st.fullscreen) { wrap.style.display = ''; TrackMap.rerenderFullscreen(st); return; }
+    if (st && st.fullscreen) { wrap.style.display = ''; TrackMap.rerenderFullscreen(st, { fit: firstFit }); return; }
     wrap.style.display = '';
     const tracks = cropTracks();
-    // 首次进入裁剪才自动缩放；之后（拖拽松手/重绘）保留用户当前视图
-    const st0 = TrackMap.state('fitMap');
-    const firstFit = !st0 || !st0.cropHandles || !st0.cropHandles.length;
     TrackMap.show('fitMap', tracks, { fit: firstFit, noAutoSE: true, handles: cropHandlesOpts() });
   }
   // 吸附最近轨迹点，返回 { idx }（找不到则 null）
