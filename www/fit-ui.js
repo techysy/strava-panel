@@ -16,6 +16,10 @@ const FitUI = (() => {
   const fmtSize = b => b < 1024 ? b + ' B' : (b / 1024).toFixed(1) + ' KB';
   const fmtTime = u => u ? new Date(u * 1000).toLocaleString() : '-';
   const cropBytesRev = new WeakSet();   // 已应用过裁剪的文件（避免文件名反复叠加 -crop）
+  let selectedFid = 0;   // 当前选中的目标文件 ID（单文件操作：删除字段/拆分/转GPX/裁剪）
+  const getSelectedFile = () => {
+    return fitFiles.find(f => f.id === selectedFid) || fitFiles[0] || null;
+  };
 
   function renderList() {
     const box = $('fitFileList');
@@ -23,6 +27,7 @@ const FitUI = (() => {
       box.innerHTML = '<div class="fit-empty" data-i18n="fit_empty">拖入 .fit 文件，或点击选择</div>';
       return;
     }
+    const sel = getSelectedFile();
     box.innerHTML = fitFiles.map((f, i) => {
       const s = f.sum;
       const tags = [];
@@ -30,13 +35,14 @@ const FitUI = (() => {
       if (s.has.hr) tags.push('<b class="t-hr">' + escapeHtml(t('fit_stripHr')) + '</b>');
       if (s.has.cadence) tags.push('<b class="t-cad">' + escapeHtml(t('fit_tagCad')) + '</b>');
       if (s.has.lat) tags.push('<b class="t-geo">' + escapeHtml(t('fit_tagGeo')) + '</b>');
-      // 裁剪模式：卡片可点切换裁剪目标，当前目标高亮，有草稿标「待应用」
+      // 目标选中：裁剪模式以 crop.fid 为准；非裁剪模式以 selectedFid 为准
       const cur = cropMode && crop && crop.fid === f.id;
+      const isSel = (!cropMode && sel && sel.id === f.id) || cur;
       const dft = cropMode && cropDraft.has(f.id);
-      const cropCls = cur ? ' ff-crop-target' : '';
+      const cropCls = (cur ? ' ff-crop-target' : '') + (isSel ? ' ff-selected' : '');
       const cropTag = (cur ? '<b class="t-crop">' + escapeHtml(t('fit_cropTarget')) + '</b>' : '')
         + (dft && !cur ? '<b class="t-crop t-draft">' + escapeHtml(t('fit_cropDraft')) + '</b>' : '');
-      const clickAttr = cropMode ? ` onclick="FitUI.cropSelectFile(${i})" style="cursor:pointer" title="${escapeHtml(t('fit_cropTargetHint'))}"` : '';
+      const clickAttr = ` onclick="FitUI.selectFile(${i})" style="cursor:pointer" title="${escapeHtml(cropMode ? t('fit_cropTargetHint') : f.name)}"`;
       const dur = s.duration || 0;
       const mov = s.moveTime;
       const timePart = (mov != null && mov > 0 && Math.abs(dur - mov) >= 10)
@@ -49,9 +55,20 @@ const FitUI = (() => {
           <div class="ff-tags">${cropTag}${tags.join('')}${s.crcOk ? '' : '<b class="t-bad">' + escapeHtml(t('fit_tagCrcBad')) + '</b>'}</div>
         </div>
         <div class="ff-time">${fmtTime(s.startUnix)}</div>
-        <button class="ff-del" onclick="FitUI.remove(${i})" title="${escapeHtml(t('fit_remove'))}">×</button>
+        <button class="ff-del" onclick="FitUI.remove(${i}); event.stopPropagation();" title="${escapeHtml(t('fit_remove'))}">×</button>
       </div>`;
     }).join('');
+  }
+
+  function selectFile(i) {
+    if (!fitFiles[i]) return;
+    selectedFid = fitFiles[i].id;
+    if (cropMode) {
+      cropSelectFile(i);
+      return;
+    }
+    renderList();
+    renderPanel();
   }
 
   async function addFiles(fileList) {
@@ -65,6 +82,7 @@ const FitUI = (() => {
       if (!sum.crcOk) { toast(t('fit_crcBad') + ': ' + file.name, false); }
       fitFiles.push({ id: ++seq, name: file.name, bytes: buf, sum });
     }
+    if (!selectedFid && fitFiles.length) selectedFid = fitFiles[0].id;
     crop = null; cropDraft.clear();   // 文件集合变化，裁剪状态失效
     renderList();
     renderPanel();
@@ -72,12 +90,15 @@ const FitUI = (() => {
 
   function remove(i) {
     const [gone] = fitFiles.splice(i, 1);
-    if (gone) cropDraft.delete(gone.id);
-    if (crop && crop.fid === gone.id) crop = null;
+    if (gone) {
+      cropDraft.delete(gone.id);
+      if (selectedFid === gone.id) selectedFid = fitFiles[0] ? fitFiles[0].id : 0;
+    }
+    if (crop && crop.fid === gone?.id) crop = null;
     if (!fitFiles.length) exitCrop();
     renderList(); renderPanel();
   }
-  function clearAll() { fitFiles.length = 0; crop = null; cropDraft.clear(); exitCrop(); renderList(); renderPanel(); }
+  function clearAll() { selectedFid = 0; fitFiles.length = 0; crop = null; cropDraft.clear(); exitCrop(); renderList(); renderPanel(); }
 
   function download(blob, name) {
     const a = document.createElement('a');
@@ -91,7 +112,7 @@ const FitUI = (() => {
 
   // ---- 各工具执行 ----
   function runStrip() {
-    const f = fitFiles[0];
+    const f = getSelectedFile();
     const dropPw = $('fitDropPower').checked, dropHr = $('fitDropHr').checked;
     if (!f) return;
     try {
@@ -103,7 +124,7 @@ const FitUI = (() => {
   }
 
   function runSplit() {
-    const f = fitFiles[0];
+    const f = getSelectedFile();
     if (!f) return;
     const mode = $('fitSplitMode').value;
     const opt = mode === 'gap'
@@ -131,7 +152,7 @@ const FitUI = (() => {
   }
 
   function runConvert(fmt) {
-    const f = fitFiles[0];
+    const f = getSelectedFile();
     if (!f) return;
     try {
       const name = $('fitActName').value.trim() || baseName(f.name);
@@ -189,11 +210,14 @@ const FitUI = (() => {
     if (!fitFiles.length) return;
     cropMode = true;
     if (!crop || !fileByFid()) {
-      // 优先回到上次编辑的文件（草稿也在），否则第一个有 GPS 的
-      let f = lastCropFid ? fitFiles.find(x => x.id === lastCropFid) : null;
+      // 优先当前卡片选中的文件，其次上次编辑的文件，最后第一个有 GPS 的文件
+      let f = selectedFid ? fitFiles.find(x => x.id === selectedFid) : null;
       if (!f || !openSessionFor(f)) {
-        f = fitFiles.find(ff => { try { return FIT.trackPointsIndexed(ff.bytes).length >= 2; } catch (e) { return false; } });
-        if (!f || !openSessionFor(f)) { cropMode = false; toast(t('fit_fail') + ' — no GPS', false); return; }
+        f = lastCropFid ? fitFiles.find(x => x.id === lastCropFid) : null;
+        if (!f || !openSessionFor(f)) {
+          f = fitFiles.find(ff => { try { return FIT.trackPointsIndexed(ff.bytes).length >= 2; } catch (e) { return false; } });
+          if (!f || !openSessionFor(f)) { cropMode = false; toast(t('fit_fail') + ' — no GPS', false); return; }
+        }
       }
     }
     if (cropDraft.size) toast(t('fit_cropDraftBack', { n: cropDraft.size }), true);
@@ -522,9 +546,11 @@ const FitUI = (() => {
     $('fitToolConvert').style.display = one ? '' : 'none';
     $('fitToolCombine').style.display = n >= 2 ? '' : 'none';
     $('fitCombineHint').textContent = t('fit_combineHint', { n });
-    $('fitStripTarget').textContent = fitFiles[0] ? baseName(fitFiles[0].name) : '-';
-    $('fitSplitTarget').textContent = fitFiles[0] ? baseName(fitFiles[0].name) : '-';
-    $('fitConvertTarget').textContent = fitFiles[0] ? baseName(fitFiles[0].name) : '-';
+    const sf = getSelectedFile();
+    const sfName = sf ? baseName(sf.name) : '-';
+    $('fitStripTarget').textContent = sfName;
+    $('fitSplitTarget').textContent = sfName;
+    $('fitConvertTarget').textContent = sfName;
     renderMap();
   }
 
@@ -547,5 +573,5 @@ const FitUI = (() => {
     renderList(); renderPanel();
   }
 
-  return { init, addFiles, remove, clearAll, runStrip, runSplit, runCombine, runConvert, toggleCrop, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile };
+  return { init, addFiles, remove, clearAll, runStrip, runSplit, runCombine, runConvert, toggleCrop, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile };
 })();

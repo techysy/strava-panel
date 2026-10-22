@@ -115,9 +115,9 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .fit-list{margin-top:10px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:300px;overflow-y:auto}
 @media (max-width:900px){.fit-list{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:600px){.fit-list{grid-template-columns:1fr}}
-.fit-file{position:relative;display:flex;flex-direction:column;gap:6px;padding:10px 12px 8px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface);transition:border-color .15s}
-/* 裁剪模式：当前裁剪目标高亮 */
-.fit-file.ff-crop-target{border-color:var(--brand,#fc4c02)}
+.fit-file{position:relative;display:flex;flex-direction:column;gap:6px;padding:10px 12px 8px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface);transition:border-color .15s,box-shadow .15s;cursor:pointer}
+/* 选中态（单文件工具操作目标）与裁剪目标高亮 */
+.fit-file.ff-selected, .fit-file.ff-crop-target{border-color:var(--brand,#fc4c02);box-shadow:0 0 0 1px color-mix(in srgb,var(--brand,#fc4c02) 45%,transparent)}
 .ff-tags .t-crop{margin-right:6px;padding:1px 6px;border-radius:6px;background:var(--brand,#fc4c02);color:#fff;font-size:10px}
 .ff-tags .t-draft{background:var(--viz);opacity:.85}
 .fit-file:hover{border-color:var(--border-strong)}
@@ -212,12 +212,12 @@ html[data-theme="dark"] .tm-float.tm-float-glass .tm-float-t{color:var(--text)}
 .tm-icon b{width:20px;height:20px;border-radius:50%;background:#10b981;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
 .tm-icon.tm-e b{background:#ef4444}
 .tm-icon.tm-wp i{width:12px;height:12px;border-radius:50%;background:var(--viz);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.35)}
-/* 裁剪抓手 = S/E 标记本身：低调不遮挡轨迹，鼠标响应高亮提示可拖 */
-.tm-icon.tm-crop-handle{opacity:.78;transition:opacity .12s}
-.tm-icon.tm-crop-handle:hover{opacity:1}
-.tm-icon.tm-crop-handle b{cursor:grab}
-.tm-icon.tm-crop-handle:hover b{box-shadow:0 0 0 3px color-mix(in srgb,#fc4c02 60%,transparent),0 1px 4px rgba(0,0,0,.4)}
-.tm-icon.tm-crop-handle:active b{cursor:grabbing;opacity:1;box-shadow:0 0 0 4px color-mix(in srgb,#fc4c02 75%,transparent)}
+/* 裁剪抓手 = S/E 标记本身：悬停平滑微放大高亮，光标保持普通 pointer 手势（不再显示白色抓手手套） */
+.tm-icon.tm-crop-handle{opacity:.88;transition:opacity .12s;cursor:pointer !important}
+.tm-icon.tm-crop-handle b{cursor:pointer !important;transition:transform .14s ease,box-shadow .14s ease}
+.tm-icon.tm-crop-handle:hover b{transform:scale(1.22);box-shadow:0 0 0 3px color-mix(in srgb,#fc4c02 70%,transparent),0 2px 6px rgba(0,0,0,.4)}
+.tm-icon.tm-crop-handle:active b{transform:scale(1.28);box-shadow:0 0 0 4px color-mix(in srgb,#fc4c02 85%,transparent)}
+.leaflet-marker-draggable.tm-crop-handle, .leaflet-marker-draggable.tm-crop-handle *{cursor:pointer !important}
 .leaflet-container{font:inherit;background:var(--tertiary)}
 .ff-del:hover{background:rgba(239,68,68,.14);color:#ef4444}
 .fit-tools{margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
