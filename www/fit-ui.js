@@ -244,7 +244,7 @@ const FitUI = (() => {
       if (pts.length < 2) return false;
       const maxIdx = pts[pts.length - 1].idx;
       const d = cropDraft.get(f.id);
-      crop = { i0: d ? Math.min(d.i0, maxIdx) : 0, i1: d ? Math.min(d.i1, maxIdx) : maxIdx, pts, fid: f.id };
+      crop = { i0: d ? Math.min(d.i0, maxIdx) : 0, i1: d ? Math.min(d.i1, maxIdx) : maxIdx, pts, fid: f.id, cuts: [] };
       return true;
     } catch (e) { return false; }
   }
@@ -255,9 +255,10 @@ const FitUI = (() => {
     const full = crop.i0 === 0 && crop.i1 === crop.pts[crop.pts.length - 1].idx;
     if (full) cropDraft.delete(f.id); else cropDraft.set(f.id, { i0: crop.i0, i1: crop.i1 });
   }
-  function enterCrop() {
+  // 进入编辑态（crop=仅裁剪；split=裁剪+切点）。二者共用单文件会话 + S/E 端点。
+  function openEditor(split) {
     if (!fitFiles.length) return;
-    cropMode = true;
+    cropMode = true; splitMode = !!split;
     if (!crop || !fileByFid()) {
       // 优先当前卡片选中的文件，其次上次编辑的文件，最后第一个有 GPS 的文件
       let f = selectedFid ? fitFiles.find(x => x.id === selectedFid) : null;
@@ -265,10 +266,11 @@ const FitUI = (() => {
         f = lastCropFid ? fitFiles.find(x => x.id === lastCropFid) : null;
         if (!f || !openSessionFor(f)) {
           f = fitFiles.find(ff => { try { return FIT.trackPointsIndexed(ff.bytes).length >= 2; } catch (e) { return false; } });
-          if (!f || !openSessionFor(f)) { cropMode = false; toast(t('fit_fail') + ' — no GPS', false); return; }
+          if (!f || !openSessionFor(f)) { cropMode = false; splitMode = false; toast(t('fit_fail') + ' — no GPS', false); return; }
         }
       }
     }
+    if (crop && !Array.isArray(crop.cuts)) crop.cuts = [];
     if (cropDraft.size) toast(t('fit_cropDraftBack', { n: cropDraft.size }), true);
     const st = (typeof TrackMap !== 'undefined') ? TrackMap.state('fitMap') : null;
     if (st) registerFs(st);
@@ -278,7 +280,9 @@ const FitUI = (() => {
     renderCropMap();
     renderCropBar();
   }
-  // 切换裁剪目标文件（卡片/全屏侧栏点击）：当前会话存入草稿
+  function enterCrop() { openEditor(false); }
+  function enterSplit() { openEditor(true); }
+  // 切换编辑目标文件（卡片/全屏侧栏点击）：当前会话存入草稿；拆分模式保留切点为空
   function cropSelectFile(i) {
     if (!cropMode || !fitFiles[i]) return;
     if (crop && crop.fid === fitFiles[i].id) return;
@@ -322,9 +326,10 @@ const FitUI = (() => {
         if (tracks.length) { st.fsLayers = TrackMap.drawOn(map, tracks, { fit: opts?.fit !== false }); }
         return;
       }
-      // 全屏裁剪：三色轨迹 + 可拖 S/E 端点；切换文件或重绘时保持用户当前缩放比例，不重新 fitBounds
+      // 全屏裁剪/拆分：三色轨迹 + 可拖 S/E 端点；拆分模式叠加可拖切点。
+      // 切换文件或重绘时保持用户当前缩放比例，不重新 fitBounds
       const shouldFit = (opts && opts.fit !== undefined) ? opts.fit : (!st.cropHandles || !st.cropHandles.length);
-      st.fsLayers = TrackMap.drawOn(map, cropTracks(), { fit: shouldFit, noAutoSE: true, handles: cropHandlesOpts() });
+      st.fsLayers = TrackMap.drawOn(map, cropTracks(), { fit: shouldFit, noAutoSE: true, handles: cropHandlesOpts(), cuts: cropCutsOpts() });
     };
     // 退出全屏拦截：有未应用草稿时给友好提示（全部应用 / 仅退出保留草稿 / 取消）
     st.confirmExit = (proceed) => {
@@ -378,20 +383,38 @@ const FitUI = (() => {
       lastCropFid = crop ? crop.fid : lastCropFid;
     }
     cropMode = false;
+    splitMode = false;
     cropHandles = null;
+    if (crop) crop.cuts = [];
     renderList();
     renderPanel();
     renderCropBar();
     renderFsSide();
   }
-  async function toggleCrop() { if (cropMode) await exitCrop(); else enterCrop(); syncCropBtn(); }
+  // 两个入口互切：拆分态点「地图裁剪」→ 回纯裁剪；裁剪态点「地图拆分」→ 叠加切点
+  async function toggleCrop() {
+    if (splitMode) { openEditor(false); syncCropBtn(); return; }
+    if (cropMode) await exitCrop(); else enterCrop(); syncCropBtn();
+  }
+  function toggleSplit() {
+    if (splitMode) { exitCrop(); syncCropBtn(); return; }
+    if (cropMode) { openEditor(true); syncCropBtn(); return; }
+    enterSplit(); syncCropBtn();
+  }
   // 裁剪入口按钮态（无文件/裁剪中禁用与高亮）
   function syncCropBtn() {
     const b = document.getElementById('fitCropToggle');
-    if (!b) return;
-    b.classList.toggle('on', cropMode);
-    b.disabled = !fitFiles.length;
-    b.textContent = cropMode ? t('fit_cropDone') : t('fit_crop');
+    if (b) {
+      b.classList.toggle('on', cropMode && !splitMode);
+      b.disabled = !fitFiles.length;
+      b.textContent = (cropMode && !splitMode) ? t('fit_cropDone') : t('fit_crop');
+    }
+    const s = document.getElementById('fitSplitToggle');
+    if (s) {
+      s.classList.toggle('on', splitMode);
+      s.disabled = !fitFiles.length;
+      s.textContent = splitMode ? t('fit_splitDone') : t('fit_splitViz');
+    }
   }
 
   function renderCropBar() {
@@ -410,13 +433,19 @@ const FitUI = (() => {
   function updateCropBarText() {
     const bar = document.getElementById('fitCropBar');
     if (!bar || !cropMode || !crop) return;
-    if (!bar.querySelector('.fc-range')) { renderCropBarFull(bar); return; }
+    // 语言变化也要全量重建（fc-t/按钮文案不是 .fc-range/.fc-segs 这类局部节点）
+    const wantMode = (splitMode ? 's' : 'c') + currentLang;
+    if (!bar.querySelector('.fc-range') || bar.dataset.mode !== wantMode) { renderCropBarFull(bar); return; }
     const pts = crop.pts;
     bar.querySelector('.fc-range').textContent = t('fit_cropRange', { a: crop.i0 + 1, b: crop.i1 + 1, n: pts[pts.length - 1].idx + 1 });
     bar.querySelector('.fc-meta').textContent = cropKm(crop.i0, crop.i1).toFixed(1) + ' km';
     const n = cropDraft.size;
     const all = bar.querySelector('.fc-apply-all');
     if (all) { all.disabled = !n; all.querySelector('.fc-n').textContent = n; }
+    const segs = bar.querySelector('.fc-segs');
+    if (segs) segs.textContent = t('fit_splitSegs', { n: cropCuts().length + 1 });
+    const cutBtn = bar.querySelector('.fc-cutcount');
+    if (cutBtn) cutBtn.textContent = cropCuts().length;
     refreshUploadTarget();   // 拖出新草稿后同步上传卡的「应用裁剪区间」可见性（签名去重，开销低）
   }
   function cropKm(i0, i1) {
@@ -427,10 +456,21 @@ const FitUI = (() => {
   function renderCropBarFull(bar) {
     const pts = crop.pts;
     const n = cropDraft.size;
+    bar.dataset.mode = (splitMode ? 's' : 'c') + currentLang;   // 语言入 key：切语言自动全量重建
     bar.style.display = '';
-    bar.innerHTML = '<span class="fc-t">' + escapeHtml(t('fit_cropTitle')) + '</span>'
-      + '<span class="fc-range">' + escapeHtml(t('fit_cropRange', { a: crop.i0 + 1, b: crop.i1 + 1, n: pts[pts.length-1].idx + 1 })) + '</span>'
-      + '<span class="fc-meta">' + cropKm(crop.i0, crop.i1).toFixed(1) + ' km</span>'
+    const range = '<span class="fc-range">' + escapeHtml(t('fit_cropRange', { a: crop.i0 + 1, b: crop.i1 + 1, n: pts[pts.length-1].idx + 1 })) + '</span>'
+      + '<span class="fc-meta">' + cropKm(crop.i0, crop.i1).toFixed(1) + ' km</span>';
+    if (splitMode) {
+      bar.innerHTML = '<span class="fc-t">' + escapeHtml(t('fit_splitVizTitle')) + '</span>' + range
+        + '<span class="fc-segs" style="font-weight:700;color:var(--viz)">' + escapeHtml(t('fit_splitSegs', { n: cropCuts().length + 1 })) + '</span>'
+        + '<button class="btn" onclick="FitUI.splitSuggest()" style="padding:4px 10px">' + escapeHtml(t('fit_splitSuggest')) + '</button>'
+        + '<button class="btn" onclick="FitUI.splitClearCuts()" style="padding:4px 10px">' + escapeHtml(t('fit_cropReset')) + ' <b class="fc-cutcount">' + cropCuts().length + '</b></button>'
+        + '<button class="btn" onclick="FitUI.splitGo()" style="padding:4px 10px">' + escapeHtml(t('fit_splitGoDl')) + '</button>'
+        + '<button class="btn" onclick="FitUI.splitGo(\'list\')" style="padding:4px 10px">' + escapeHtml(t('fit_splitGoList')) + '</button>'
+        + '<button class="btn" onclick="FitUI.toggleSplit()" style="padding:4px 10px">' + escapeHtml(t('fit_splitDone')) + '</button>';
+      return;
+    }
+    bar.innerHTML = '<span class="fc-t">' + escapeHtml(t('fit_cropTitle')) + '</span>' + range
       + '<button class="btn fc-apply-all" ' + (n ? '' : 'disabled ') + 'onclick="FitUI.cropApplyAll()" style="padding:4px 12px">' + escapeHtml(t('fit_cropApplyAll')) + ' <b class="fc-n">' + n + '</b></button>'
       + '<button class="btn" onclick="FitUI.cropApply()" style="padding:4px 10px">' + escapeHtml(t('fit_cropApplyOne')) + '</button>'
       + '<button class="btn" onclick="FitUI.cropDownload()" style="padding:4px 10px">' + escapeHtml(t('fit_cropDl')) + '</button>'
@@ -476,7 +516,7 @@ const FitUI = (() => {
     if (st && st.fullscreen) { wrap.style.display = ''; TrackMap.rerenderFullscreen(st, { fit: firstFit }); return; }
     wrap.style.display = '';
     const tracks = cropTracks();
-    TrackMap.show('fitMap', tracks, { fit: firstFit, noAutoSE: true, handles: cropHandlesOpts() });
+    TrackMap.show('fitMap', tracks, { fit: firstFit, noAutoSE: true, handles: cropHandlesOpts(), cuts: cropCutsOpts() });
   }
   // 吸附最近轨迹点，返回 { idx }（找不到则 null）
   function snapIdx(ll) {
@@ -509,9 +549,101 @@ const FitUI = (() => {
         renderFsSide();
         const st = TrackMap.state('fitMap');
         if (!st) return;
-        TrackMap.redrawTracks(st, cropTracks(), { fit: false, noAutoSE: true, handles: cropHandlesOpts() });
+        TrackMap.redrawTracks(st, cropTracks(), { fit: false, noAutoSE: true, handles: cropHandlesOpts(), cuts: cropCutsOpts() });
       },
     };
+  }
+  // ---- 拆切点配置（split 模式内嵌/全屏共用）----
+  // 点地图空白处 → 吸附加切点；点切点 → 删除；拖切点 → 移动。S/E 端点照常裁首尾。
+  // 切点存 crop.cuts（保留区间内的 record 下标数组），label 按排序后的序号显示。
+  function cropCutsOpts() {
+    if (!splitMode || !crop) return null;
+    const pts = crop.pts;
+    const clamp = (idx) => Math.max(crop.i0 + 1, Math.min(crop.i1 - 1, idx));
+    const commit = (cuts) => {
+      crop.cuts = [...new Set(cuts.filter(c => c > crop.i0 && c < crop.i1))].sort((a, b) => a - b);
+      const st = TrackMap.state('fitMap');
+      if (!st) return;
+      // 重绘切点与分段着色，视图不动（不 fit）
+      if (st.fullscreen) TrackMap.rerenderFullscreen(st, { fit: false });
+      else TrackMap.redrawTracks(st, cropTracks(), { fit: false, noAutoSE: true, handles: cropHandlesOpts(), cuts: cropCutsOpts() });
+      updateCropBarText();
+    };
+    return {
+      points: cropCuts().map((idx, i) => {
+        const p = nearestPt(pts, idx);
+        return p && Number.isFinite(p.lat) ? { id: 'c' + idx, lat: p.lat, lon: p.lon, label: String(i + 1) } : null;
+      }).filter(Boolean),
+      onMapClick: (ll) => {
+        const idx = snapIdx(ll);
+        if (idx == null) return;
+        const c = clamp(idx);
+        if (crop.cuts.includes(c)) return;
+        commit([...crop.cuts, c]);
+      },
+      onCutDrag: () => {},
+      onCutDrop: (id, ll) => {
+        const idx = snapIdx(ll);
+        const old = Number(String(id).slice(1));
+        const at = crop.cuts.indexOf(old);
+        if (at < 0) return;
+        if (idx != null) crop.cuts[at] = clamp(idx);
+        commit(crop.cuts);
+      },
+      onCutDelete: (id) => {
+        const old = Number(String(id).slice(1));
+        commit(crop.cuts.filter(c => c !== old));
+      },
+    };
+  }
+  // 一键按时间断点（沿用拆分卡的秒数输入）自动铺切点（并入已有，去重排序）
+  function splitSuggest() {
+    if (!splitMode || !crop) return;
+    const f = fileByFid(); if (!f) return;
+    const gs = Number($('fitSplitGap') && $('fitSplitGap').value) || 300;
+    let cuts = [];
+    try { cuts = FIT.gapIndices(f.bytes, gs); } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); return; }
+    cuts = cuts.filter(c => c > crop.i0 && c < crop.i1);
+    if (!cuts.length) { toast(t('fit_splitSuggestNone', { s: gs }), false); return; }
+    crop.cuts = [...new Set([...(crop.cuts || []), ...cuts])].sort((a, b) => a - b);
+    redrawEditorMap();
+    updateCropBarText();
+  }
+  function splitClearCuts() {
+    if (!splitMode || !crop) return;
+    crop.cuts = [];
+    redrawEditorMap(); updateCropBarText();
+  }
+  // 拆分执行：mode 省略=下载全部；'list'=产物入列表并选中最后一个
+  function splitGo(mode) {
+    if (!splitMode || !crop) return;
+    const f = fileByFid(); if (!f) return;
+    const cuts = cropCuts();
+    if (!cuts.length) { toast(t('fit_splitNoCuts'), false); return; }
+    try {
+      const r = FIT.splitAt(f.bytes, { i0: crop.i0, i1: crop.i1, cuts });
+      const stem = baseName(f.name);
+      if (mode === 'list') {
+        const added = [];
+        r.files.forEach((b, i) => { const a = pushDerived(`${stem}-part${i + 1}.fit`, b); if (a) added.push(a); });
+        if (!added.length) { toast(t('fit_parseFail'), false); return; }
+        selectedFid = added[added.length - 1].id;
+        renderList(); renderPanel();
+        toast(t('fit_splitInList', { n: added.length }), true);
+        return;
+      }
+      r.files.forEach((b, i) => {
+        setTimeout(() => download(new Blob([b], { type: 'application/octet-stream' }), `${stem}-part${i + 1}.fit`), i * 250);
+      });
+      toast(t('fit_doneSplit', { n: r.files.length }), true);
+    } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); }
+  }
+  // 编辑态局部重绘（加/删/拖切点后；不 fit 视图）
+  function redrawEditorMap() {
+    const st = TrackMap.state('fitMap');
+    if (!st) return;
+    if (st.fullscreen) { TrackMap.rerenderFullscreen(st, { fit: false }); return; }
+    TrackMap.redrawTracks(st, cropTracks(), { fit: false, noAutoSE: true, handles: cropHandlesOpts(), cuts: cropCutsOpts() });
   }
   function nearestPt(pts, idx) {
     let best = null;
@@ -572,7 +704,7 @@ const FitUI = (() => {
     }
     cropDraft.clear();
     crop = null;
-    cropMode = false; cropHandles = null;
+    cropMode = false; cropHandles = null; splitMode = false;
     // 顺序要紧：先清裁剪态再重绘，renderPanel→renderMap 才会走普通多轨迹渲染
     renderList(); renderPanel(); renderCropBar(); renderFsSide(); syncCropBtn();
     toast(t('fit_cropAppliedAll', { n }), true);
@@ -592,6 +724,22 @@ const FitUI = (() => {
     crop.i0 = 0; crop.i1 = crop.pts[crop.pts.length - 1].idx;
     cropDraft.delete(crop.fid);
     renderList(); renderCropMap(); renderCropBar(); renderFsSide();
+  }
+
+  // 语言切换重渲染（index.html setLang 调用）：卡片标签/工具条/裁剪条/底图按钮
+  // 都是运行时用 t() 拼的动态 DOM，applyI18n 的静态 data-i18n 覆盖不到。
+  // _upSig 缓存的是含语言文案的 DOM 状态，须一并失效。renderMap 在裁剪模式下
+  // 走 renderCropMap（fit:false），视图与切点状态保持不变。
+  function relang() {
+    _upSig = '';
+    renderList();
+    renderPanel();   // → renderMap：非裁剪全量重绘 / 裁剪态走 renderCropMap + syncCropBtn
+    if (cropMode) { renderCropBar(); renderFsSide(); }
+    // 底图切换按钮文案在 setTile 首建时写死，语言切换只刷这里（含全屏壳）
+    const labKey = { light: 'map_light', street: 'map_street', sat: 'map_sat' };
+    document.querySelectorAll('.tm-tiles button[data-k]').forEach(b => {
+      if (labKey[b.dataset.k]) b.textContent = t(labKey[b.dataset.k]);
+    });
   }
 
   function renderPanel() {
@@ -754,5 +902,5 @@ const FitUI = (() => {
     renderList(); renderPanel();
   }
 
-  return { init, addFiles, remove, clearAll, pickFiles, runStrip, runSplit, runCombine, runConvert, toggleCrop, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, runUpload, reauthForUpload };
+  return { init, relang, addFiles, remove, clearAll, pickFiles, runStrip, runSplit, runCombine, runConvert, toggleCrop, toggleSplit, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, splitSuggest, splitClearCuts, splitGo, runUpload, reauthForUpload };
 })();

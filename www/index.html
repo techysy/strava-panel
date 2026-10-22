@@ -226,6 +226,7 @@ html[data-theme="dark"] .tm-float.tm-float-glass .tm-float-t{color:var(--text)}
 .tm-icon{display:flex;align-items:center;justify-content:center}
 .tm-icon b{width:20px;height:20px;border-radius:50%;background:#10b981;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
 .tm-icon.tm-e b{background:#ef4444}
+.tm-icon.tm-c b{background:var(--viz,#00b3a4)}
 .tm-icon.tm-wp i{width:12px;height:12px;border-radius:50%;background:var(--viz);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.35)}
 /* 裁剪抓手 = S/E 标记本身：悬停平滑微放大高亮，光标保持普通 pointer 手势（不再显示白色抓手手套） */
 .tm-icon.tm-crop-handle{opacity:.88;transition:opacity .12s;cursor:pointer !important}
@@ -1056,6 +1057,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
           <div class="tm-map tall" id="fitMap"></div>
           <div class="tm-tools">
             <button type="button" class="btn btn-sm" id="fitCropToggle" onclick="FitUI.toggleCrop()" data-i18n="fit_crop">地图裁剪</button>
+            <button type="button" class="btn btn-sm" id="fitSplitToggle" onclick="FitUI.toggleSplit()" data-i18n="fit_splitViz">地图拆分</button>
           </div>
         </div>
 
@@ -1306,6 +1308,7 @@ const I18N = {
     fit_convert:'转换为 GPX / TCX', fit_convertHint:'轨迹、高程、心率、踏频、功率全部映射；GPX 供大多数平台上传，TCX 兼容 Garmin。', fit_namePh:'活动名称（留空用文件名）', fit_target:'目标：',
     fit_actionStrip:'执行并下载', fit_actionSplit:'执行并下载', fit_actionCombine:'执行并下载',
     fit_toList:'应用到列表', fit_combineInList:'合并结果已加入列表：{name}（可选中上传/再处理）', fit_splitInList:'拆分产物 {n} 段已加入列表（可选中上传/再处理）',
+    fit_splitViz:'地图拆分', fit_splitVizTitle:'点击地图加切点 · 点切点删除 · 拖动微调（S/E 仍可裁首尾）', fit_splitSegs:'{n} 段', fit_splitSuggest:'建议断点', fit_splitGoDl:'切分并下载', fit_splitGoList:'切分入列表', fit_splitDone:'退出拆分', fit_splitNoCuts:'请先在地图上至少点选 1 个切点', fit_splitSuggestNone:'未发现 ≥{s} 秒的时间断点，请手动点选切点',
     fit_upload:'上传到 Strava', fit_uploadHint:'把选中的文件（含裁剪结果）直接推送到 Strava；经本地服务代理，处理完成后自动同步入库。', fit_uploadCrop:'应用裁剪区间', fit_uploadPrivate:'私密活动', fit_uploadCommute:'通勤', fit_uploadDo:'上传',
     fit_uploading:'上传中…', fit_uploadProcessing:'Strava 处理中…', fit_uploadBusy:'已有上传进行中，请稍候', fit_uploadDoneT:'上传完成', fit_uploadView:'在 Strava 查看', fit_uploadFail:'上传失败：', fit_uploadDup:'Strava 判定为重复数据（该起始时间的活动已存在）。', fit_uploadTimeout:'处理超时，稍后可在活动列表确认是否已生成。',
     fit_uploadAuthNeed:'当前授权缺少上传权限（activity:write）。', fit_uploadReauth:'重新授权', fit_uploadReauthWait:'完成新窗口授权后将自动继续上传…', fit_uploadReauthOk:'权限已更新，继续上传…', fit_uploadReauthFail:'授权超时或失败，请重试',
@@ -1444,6 +1447,7 @@ const I18N = {
     fit_convert:'Convert to GPX / TCX', fit_convertHint:'Tracks, elevation, HR, cadence and power are all mapped. GPX suits most upload targets; TCX suits Garmin.', fit_namePh:'Activity name (blank = filename)', fit_target:'Target: ',
     fit_actionStrip:'Run & download', fit_actionSplit:'Run & download', fit_actionCombine:'Run & download',
     fit_toList:'Apply to list', fit_combineInList:'Merged result added to list: {name} (select to upload / process again)', fit_splitInList:'{n} split parts added to list (select to upload / process again)',
+    fit_splitViz:'Map Split', fit_splitVizTitle:'Click the map to add a cut · click a cut to remove · drag to fine-tune (S/E still crop ends)', fit_splitSegs:'{n} segment(s)', fit_splitSuggest:'Suggest breaks', fit_splitGoDl:'Split & download', fit_splitGoList:'Split to list', fit_splitDone:'Exit split', fit_splitNoCuts:'Add at least one cut on the map first', fit_splitSuggestNone:'No time gaps ≥ {s}s found; add cuts manually',
     fit_upload:'Upload to Strava', fit_uploadHint:'Push the selected file (crop included) straight to Strava via the local server; it auto-syncs once processed.', fit_uploadCrop:'Apply crop range', fit_uploadPrivate:'Private activity', fit_uploadCommute:'Commute', fit_uploadDo:'Upload',
     fit_uploading:'Uploading…', fit_uploadProcessing:'Strava is processing…', fit_uploadBusy:'An upload is already running, please wait', fit_uploadDoneT:'Upload complete', fit_uploadView:'View on Strava', fit_uploadFail:'Upload failed: ', fit_uploadDup:'Strava flagged it as a duplicate (an activity with this start time exists).', fit_uploadTimeout:'Processing timed out; check your activity list later.',
     fit_uploadAuthNeed:'Current authorization lacks upload permission (activity:write).', fit_uploadReauth:'Re-authorize', fit_uploadReauthWait:'Upload resumes automatically once you finish the new authorization…', fit_uploadReauthOk:'Permission granted, resuming upload…', fit_uploadReauthFail:'Authorization timed out or failed, please retry',
@@ -1564,6 +1568,8 @@ function setLang(lang){
   reRenderPowerCurve();
   if(typeof reRenderTrip === 'function') reRenderTrip();
   if(typeof renderAtypeSeg === 'function') renderAtypeSeg();
+  // 注意：FitUI 是 classic script 的顶层 const，不挂 window —— 必须用 typeof 探测
+  if(typeof FitUI !== 'undefined' && typeof FitUI.relang === 'function') FitUI.relang();   // FIT 动态 DOM（卡片/工具条/裁剪条/底图按钮）
   if(document.getElementById('cardsMask')?.classList.contains('show')) openCardSettings();   // 重渲染弹窗内名称
 }
 

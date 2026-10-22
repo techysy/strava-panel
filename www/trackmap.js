@@ -332,13 +332,18 @@ const TrackMap = (() => {
     (cfg.points || []).forEach(c => {
       if (!c || !Number.isFinite(c.lat)) return;
       const m = mk(st, c, 'c', c.label, true);
+      // Leaflet 拖拽标记后浏览器会补发一次 click（已知行为，小位移拖尤其必现）——
+      // 不屏蔽的话，拖切点可能变成「重定位 + 误删」。时间戳记在 st 上：drop 里
+      // commit 会同步重建标记，补发的 click 落在新标记上，实例级变量挡不住。
+      // 500ms 只屏蔽刚拖完这一刻，之后想删随时再点。
+      m.on('drag', () => { const ll = m.getLatLng(); try { cfg.onCutDrag && cfg.onCutDrag(c.id, { lat: ll.lat, lon: ll.lng }); } catch (x) {} });
+      m.on('dragend', () => { st._cutDragAt = Date.now(); const ll = m.getLatLng(); try { cfg.onCutDrop && cfg.onCutDrop(c.id, { lat: ll.lat, lon: ll.lng }); } catch (x) { console.error('cutDrop', x); } });
       m.on('click', (e) => {
         // 阻止冒泡到地图（否则点切点会既删又加）
         if (e && e.originalEvent) { try { L.DomEvent.stopPropagation(e); } catch (x) {} }
+        if (Date.now() - (st._cutDragAt || 0) < 500) return;
         try { cfg.onCutDelete && cfg.onCutDelete(c.id); } catch (x) { console.error('cutDelete', x); }
       });
-      m.on('drag', () => { const ll = m.getLatLng(); try { cfg.onCutDrag && cfg.onCutDrag(c.id, { lat: ll.lat, lon: ll.lng }); } catch (x) {} });
-      m.on('dragend', () => { const ll = m.getLatLng(); try { cfg.onCutDrop && cfg.onCutDrop(c.id, { lat: ll.lat, lon: ll.lng }); } catch (x) { console.error('cutDrop', x); } });
       st.cutMarkers.push(m);
     });
     if (cfg.onMapClick) {
