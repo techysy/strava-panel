@@ -139,7 +139,20 @@ console.log('# GPX selftest');
   ok(threw, '空串抛错');
 }
 
-// ---- 12. ETA ----
+// ---- 12. 多非连续段（多个 trkseg）----
+{
+  const g = `<gpx><trk>
+    <trkseg><trkpt lat="30" lon="120"/><trkpt lat="30.01" lon="120"/></trkseg>
+    <trkseg><trkpt lat="31" lon="121"/><trkpt lat="31.01" lon="121"/></trkseg>
+  </trk></gpx>`;
+  const r = GPX.parse(g);
+  ok(r.tracks && r.tracks.length === 2, '识别到 2 个非连续轨迹段', r.tracks?.length);
+  ok(r.tracks[0].length === 2 && r.tracks[1].length === 2, '各段点数正确');
+  // 距离不应跨越 30,120 到 31,121 的 100 多公里断点
+  ok(r.distanceKm < 5, '非连续段距离不虚增跨段间隔', r.distanceKm);
+}
+
+// ---- 13. ETA ----
 {
   ok(GPX.etaMinutes(40, 20) === 120, 'ETA 40km@20km/h=120min', GPX.etaMinutes(40, 20));
   ok(GPX.etaMinutes(0, 20) === 0, 'ETA 0km=0');

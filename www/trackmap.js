@@ -335,11 +335,17 @@ const TrackMap = (() => {
       if (!pts.length) return;
       const ll = pts.map(p => [p.lat, p.lon]);
       all.push(...ll);
-      made.push(L.polyline(ll, { color: tr.color || PALETTE[ti % PALETTE.length], weight: 3.5, opacity: 0.9, lineJoin: 'round' }).addTo(st.map));
-      // 仅第一条轨迹自动 S/E；裁剪模式 noAutoSE 关闭（端点即拖点，S/E 会误导）
+      const color = tr.color || opts.color || PALETTE[ti % PALETTE.length];
+      const layer = L.polyline(ll, { color, weight: tr.weight || 3.5, opacity: tr.opacity || 0.9, lineJoin: 'round' }).addTo(st.map);
+      made.push(layer);
+      if (st.layers) st.layers.push(layer);
+      // 自动 S/E 标记：第 1 段开头标 S，最后 1 段结尾标 E（避免多段轨迹出现多个 S/E）
       if (ti === 0 && !opts.noAutoSE) {
         mk(st, pts[0], 's');
-        if (pts.length > 1) mk(st, pts[pts.length - 1], 'e');
+        if (pts.length > 1 && list.length === 1) mk(st, pts[pts.length - 1], 'e');
+      }
+      if (ti === list.length - 1 && list.length > 1 && !opts.noAutoSE) {
+        if (pts.length) mk(st, pts[pts.length - 1], 'e');
       }
     });
     (opts.markers || []).forEach(m => mk(st, m, m.kind || 'wp', m.label));

@@ -72,7 +72,9 @@ const FitUI = (() => {
   }
 
   async function addFiles(fileList) {
-    for (const file of fileList) {
+    const list = Array.from(fileList || []);
+    if (!list.length) return;
+    for (const file of list) {
       if (!/\.fit$/i.test(file.name)) { toast(t('fit_onlyFit') + ': ' + file.name, false); continue; }
       const buf = new Uint8Array(await file.arrayBuffer());
       let sum;
@@ -559,7 +561,11 @@ const FitUI = (() => {
     const input = $('fitInput');
     if (!drop || !input) return;
     drop.addEventListener('click', () => input.click());
-    input.addEventListener('change', e => { addFiles(e.target.files); input.value = ''; });
+    input.addEventListener('change', e => {
+      const files = Array.from(e.target.files || []);
+      input.value = '';
+      if (files.length) addFiles(files);
+    });
     ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
     ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
     drop.addEventListener('drop', e => { if (e.dataTransfer.files) addFiles(e.dataTransfer.files); });

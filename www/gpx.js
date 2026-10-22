@@ -53,6 +53,38 @@ const GPX = (() => {
     return extractByTag(xml, 'rtept');   // 无轨迹段时回退路由点
   }
 
+  // ---- 提取轨迹片段（支持多 <trkseg>、多 <trk>、多 <rte>）----
+  // 分离非连续段，避免 Leaflet 在断开的两段之间画直线穿帮
+  function extractSegments(xml) {
+    const segments = [];
+    const segRe = /<trkseg\b[\s\S]*?<\/trkseg>/gi;
+    let sm;
+    while ((sm = segRe.exec(xml))) {
+      const pts = extractByTag(sm[0], 'trkpt');
+      if (pts.length) segments.push(pts);
+    }
+    if (segments.length) return segments;
+
+    const trkRe = /<trk\b[\s\S]*?<\/trk>/gi;
+    let tm;
+    while ((tm = trkRe.exec(xml))) {
+      const pts = extractByTag(tm[0], 'trkpt');
+      if (pts.length) segments.push(pts);
+    }
+    if (segments.length) return segments;
+
+    const rteRe = /<rte\b[\s\S]*?<\/rte>/gi;
+    let rm;
+    while ((rm = rteRe.exec(xml))) {
+      const pts = extractByTag(rm[0], 'rtept');
+      if (pts.length) segments.push(pts);
+    }
+    if (segments.length) return segments;
+
+    const all = extractPoints(xml);
+    return all.length ? [all] : [];
+  }
+
   // ---- 大圆距离（米）----
   function haversine(a, b) {
     const rad = Math.PI / 180;
@@ -87,15 +119,23 @@ const GPX = (() => {
    */
   function parse(text) {
     const xml = String(text == null ? '' : text);
-    const raw = extractPoints(xml);
-    if (!raw.length) throw new Error('no track points');
+    const rawSegments = extractSegments(xml);
+    if (!rawSegments.length || !rawSegments[0].length) throw new Error('no track points');
 
-    // 累计里程
+    // 累计里程：在各独立 segment 内部累计，跨非连续段不虚增距离
     let distM = 0;
-    const points = raw.map((p, i) => {
-      if (i > 0) distM += haversine(raw[i - 1], p);
-      return { lat: p.lat, lon: p.lon, ele: p.ele, cumKm: distM / 1000 };
-    });
+    const points = [];
+    const tracks = [];
+    for (const seg of rawSegments) {
+      const segPts = [];
+      for (let i = 0; i < seg.length; i++) {
+        if (i > 0) distM += haversine(seg[i - 1], seg[i]);
+        const pt = { lat: seg[i].lat, lon: seg[i].lon, ele: seg[i].ele, cumKm: distM / 1000 };
+        segPts.push(pt);
+        points.push(pt);
+      }
+      if (segPts.length) tracks.push(segPts);
+    }
 
     const gl = elevationGainLoss(points, ELE_THRESHOLD);
     const eles = points.map(p => p.ele).filter(v => v != null);
@@ -114,6 +154,8 @@ const GPX = (() => {
 
     return {
       points,
+      tracks,
+      segments: tracks,
       distanceKm: distM / 1000,
       elevGain: gl.gain,
       elevLoss: gl.loss,

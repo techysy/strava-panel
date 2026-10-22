@@ -378,6 +378,7 @@ function createWindow() {
             sandbox: true,
         },
     });
+    win.removeMenu();
     win.once('ready-to-show', () => win.show());
     win.webContents.setWindowOpenHandler(({ url }) => {
         if (/^https?:/i.test(url)) shell.openExternal(url);   // Strava 授权/外链走系统浏览器

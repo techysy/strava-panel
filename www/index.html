@@ -4103,6 +4103,7 @@ async function savePrefs(){
 let tripDests = [];           // 服务端预设目的地
 let tripRecentDests = [];     // 自定义/最近使用（localStorage sp-trip-dests，≤8 条）
 let tripGpx = null;           // GPX.parse 结果
+let tripRouteWeatherMarkers = null; // 沿途天气采样点标记（持久化供全屏/重绘/切图）
 let tripWeatherData = null;   // /api/trip/weather 响应缓存（含逐时）
 let tripHourlyDay = null;     // 逐时图表当前选中日
 let tripTrainData = null;     // /api/trip/trains 响应缓存
@@ -4245,10 +4246,15 @@ async function tripGpxFile(file){
     const text = await file.text();
     tripGpx = GPX.parse(text);
     tripGpx.fileName = file.name;
+    tripRouteWeatherMarkers = null;   // 更换路线，旧天气锚点作废
+    if(typeof TrackMap !== 'undefined') TrackMap.clear('tripMap');
+    const rw = document.getElementById('tripRouteWxBox'); if(rw) rw.innerHTML = '';
     tripRenderGpx();
     if(tripWeatherData) tripRenderWeather();   // 运动窗口随 ETA 更新
   }catch(e){
     tripGpx = null;
+    tripRouteWeatherMarkers = null;
+    if(typeof TrackMap !== 'undefined') TrackMap.clear('tripMap');
     info.innerHTML = '<div class="tt" style="color:var(--err);margin-top:8px">'+escapeHtml(t('trip_gpxParseFail')+(e.message==='no track points' ? t('trip_gpxNoPoints') : e.message))+'</div>';
     document.getElementById('tripRouteWxBtn').style.display = 'none';
     const mw = document.getElementById('tripMapWrap'); if(mw) mw.style.display = 'none';
@@ -4272,9 +4278,14 @@ function tripRenderGpxFileCard(){
   document.getElementById('tripGpxMeta').textContent = parts.join(' · ');
   if(drop){ drop.classList.add('has-file'); drop.querySelector('b').textContent = t('trip_gpxReplaceHint'); }
 }
-function tripGpxReplace(){ document.getElementById('tripGpxInput').click(); }
+function tripGpxReplace(){
+  if(typeof TrackMap !== 'undefined') TrackMap.clear('tripMap');
+  document.getElementById('tripGpxInput').click();
+}
 function tripGpxRemove(){
   tripGpx = null;
+  tripRouteWeatherMarkers = null;
+  if(typeof TrackMap !== 'undefined') TrackMap.clear('tripMap');
   tripRenderGpx();
   tripRenderGpxFileCard();
   const rw = document.getElementById('tripRouteWxBox'); if(rw) rw.innerHTML = '';
@@ -4359,14 +4370,18 @@ function tripRenderGpx(){
   if(wrap){
     if(typeof TrackMap !== 'undefined' && TrackMap.available() && g.points && g.points.length){
       wrap.style.display = '';
-      TrackMap.show('tripMap', g.points);
+      const trk = (g.tracks && g.tracks.length > 1) ? g.tracks : g.points;
+      TrackMap.show('tripMap', trk, { markers: tripRouteWeatherMarkers || [] });
       // 注册须在 show() 之后（show 内部 ensureMap 惰性建图，之前 state() 拿不到实例）
       const st = TrackMap.state('tripMap');
       if(st && !st.fsRenderer){
         st.onFullscreen = (on) => {
           if(on) tripFsDraw(st);
           // 退出全屏：按当前 GPX 现取（不闭包旧 g，换过文件也能正确恢复）
-          else if(tripGpx && tripGpx.points && tripGpx.points.length) TrackMap.show('tripMap', tripGpx.points);
+          else if(tripGpx && tripGpx.points && tripGpx.points.length){
+            const t2 = (tripGpx.tracks && tripGpx.tracks.length > 1) ? tripGpx.tracks : tripGpx.points;
+            TrackMap.show('tripMap', t2, { markers: tripRouteWeatherMarkers || [] });
+          }
         };
         st.fsRenderer = (map) => tripFsDraw(st, map);
       }
@@ -4379,8 +4394,9 @@ function tripFsDraw(st, map){
   const g = tripGpx;
   if(!g || !g.points || !g.points.length) return;
   const target = map || st.map;
+  const trk = (g.tracks && g.tracks.length > 1) ? g.tracks : g.points;
   // 直接在既有地图实例上绘制（show() 会尝试新建地图，容器已初始化会抛错）
-  st.fsLayers = TrackMap.drawOn(target, g.points, { fit: true });
+  st.fsLayers = TrackMap.drawOn(target, trk, { fit: true, markers: tripRouteWeatherMarkers || [] });
   const fsMapEl = st.fsMapEl;
   let float = fsMapEl && fsMapEl.querySelector('.tm-float');
   if(float) float.remove();
@@ -4542,13 +4558,15 @@ async function tripLoadRouteWeather(){
       + escapeHtml(t('trip_routeWxNote', { v: speed, t: start, d: 2 })) + '</div>'
       + (outOfRange.length ? '<div class="tt" style="color:var(--warn,#f59e0b);font-size:11.5px;margin-bottom:4px">⚠ '+escapeHtml(t('trip_outOfRange'))+'</div>' : '')
       + '<div style="overflow-x:auto"><table class="trip-table"><tr><th>'+t('trip_tlDist')+'</th><th>'+t('trip_tlEta')+'</th><th>'+t('trip_weather')+'</th><th>'+t('trip_temp')+'</th><th>'+t('trip_rain')+'</th><th>'+t('trip_wind')+'</th></tr>'+trs+'</table></div>';
-    // 采样点标到地图上（tooltip 显示里程+预计时刻+天气）
+    // 采样点标到地图上（tooltip 显示里程+预计时刻+天气，并持久化到内存）
     if(typeof TrackMap !== 'undefined' && TrackMap.available() && tripGpx){
       const hhmm = d2 => String(d2.getHours()).padStart(2,'0')+':'+String(d2.getMinutes()).padStart(2,'0');
-      TrackMap.show('tripMap', tripGpx.points, { markers: rows.map((r,i)=>({
+      tripRouteWeatherMarkers = rows.map((r,i)=>({
         lat: pts[i].lat, lon: pts[i].lon, kind: 'wp',
         label: r.distKm.toFixed(1)+' km · '+hhmm(r.when)+' · '+(r.wx ? ((d.wmo[r.wx.code]||'')+' '+Math.round(r.wx.temp)+'°C') : ''),
-      })) });
+      }));
+      const trk = (tripGpx.tracks && tripGpx.tracks.length > 1) ? tripGpx.tracks : tripGpx.points;
+      TrackMap.show('tripMap', trk, { markers: tripRouteWeatherMarkers });
     }
   }catch(e){ box.innerHTML = '<div class="tt" style="color:var(--err)">'+escapeHtml(t('trip_fail')+shortErr(e.message))+'</div>'; }
 }
