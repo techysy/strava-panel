@@ -110,7 +110,17 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .fit-drop .ic{width:26px;height:26px;color:var(--text-3);margin-bottom:6px}
 .fit-drop b{display:block;font-size:13.5px;margin-bottom:3px}
 .fit-drop span{font-size:12px;color:var(--text-3)}
-.fit-empty{padding:16px;text-align:center;color:var(--text-3);font-size:12.5px}
+/* 「添加文件」入口卡：与文件卡同排同规格，虚线框表示可点击/可拖放。
+   必须用 .fit-file.fit-add 双类选择器：.fit-add 单独写会被后面的 .fit-file
+   （同为单类、源码序在后）覆盖掉虚线边框与透明底——这正是「卡片看不见」的原因 */
+.fit-list.over .fit-file.fit-add{border-color:var(--accent);background:var(--hover)}
+.fit-file.fit-add{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:1.5px dashed var(--border-strong);background:transparent;cursor:pointer;min-height:86px;padding:10px;text-align:center;transition:border-color .15s,background .15s}
+.fit-file.fit-add:hover{border-color:var(--accent);background:var(--hover)}
+.fit-file.fit-add .ic{width:20px;height:20px;color:var(--text-3)}
+.fit-file.fit-add:hover .ic{color:var(--accent)}
+.fit-file.fit-add .fa-t{font-size:12.5px;font-weight:600;color:var(--text-2)}
+.fit-file.fit-add .fa-s{font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+html[data-theme="dark"] .fit-file.fit-add{background:transparent}
 /* 文件列表：1/3 宽卡片网格（窄屏降为 2/1 列） */
 .fit-list{margin-top:10px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:300px;overflow-y:auto}
 @media (max-width:900px){.fit-list{grid-template-columns:repeat(2,1fr)}}
@@ -641,6 +651,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
 <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
 <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></symbol>
 <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></symbol>
 <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol>
 <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></symbol>
@@ -1037,18 +1048,12 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         <h2><svg class="ic" aria-hidden="true"><use href="#i-file"/></svg><span data-i18n="fit_title">FIT 文件工具</span>
           <button class="btn" onclick="FitUI.clearAll()" style="margin-left:auto;padding:4px 10px" data-i18n="fit_clearAll">清空</button>
         </h2>
-        <p class="hint" style="margin:-4px 0 12px" data-i18n="fit_hint">合并分段活动、拆分长记录、删除功率/心率、转 GPX/TCX。全部在本地浏览器完成，文件不会上传。</p>
+        <p class="hint" style="margin:-4px 0 12px" data-i18n="fit_hint">合并分段活动、拆分长记录、删除功率/心率、转 GPX/TCX、上传 Strava。解析与处理全在本地浏览器完成；仅当你点击「上传」时才把选中文件经本地服务推送到你自己的 Strava。</p>
 
-        <div class="fit-drop" id="fitDrop">
-          <svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>
-          <b data-i18n="fit_dropTitle">拖入 .fit 文件</b>
-          <span data-i18n="fit_dropSub">或点击选择（可多选）</span>
-        </div>
         <input type="file" id="fitInput" accept=".fit" multiple hidden>
-
         <div class="fit-list" id="fitFileList"></div>
         <div class="tm-wrap" id="fitMapWrap" style="display:none">
-          <div class="tm-map" id="fitMap"></div>
+          <div class="tm-map tall" id="fitMap"></div>
           <div class="tm-tools">
             <button type="button" class="btn btn-sm" id="fitCropToggle" onclick="FitUI.toggleCrop()" data-i18n="fit_crop">地图裁剪</button>
           </div>
@@ -1096,6 +1101,27 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
             <div class="row">
               <button class="btn" onclick="FitUI.runConvert('gpx')">GPX</button>
               <button class="btn" onclick="FitUI.runConvert('tcx')">TCX</button>
+            </div>
+          </div>
+
+          <div class="fit-tool" id="fitToolUpload">
+            <h3><svg class="ic" aria-hidden="true"><use href="#i-upload"/></svg><span data-i18n="fit_upload">上传到 Strava</span></h3>
+            <div class="tt" data-i18n="fit_uploadHint">把选中的文件（含裁剪结果）直接推送到 Strava；经本地服务代理，异步处理完成后活动入库。</div>
+            <div class="row">
+              <select id="fitUploadTarget" onchange="FitUI.selectFile(Number(this.value))" aria-label="upload target"></select>
+            </div>
+            <input type="text" id="fitUploadName" data-i18n-ph="fit_namePh" placeholder="活动名称（留空用文件名）">
+            <div class="row">
+              <label id="fitUploadCropRow" style="display:none"><input type="checkbox" id="fitUploadUseCrop" checked><span data-i18n="fit_uploadCrop">应用裁剪区间</span></label>
+              <label><input type="checkbox" id="fitUploadPrivate"><span data-i18n="fit_uploadPrivate">私密活动</span></label>
+              <label><input type="checkbox" id="fitUploadCommute"><span data-i18n="fit_uploadCommute">通勤</span></label>
+            </div>
+            <button class="btn primary" id="fitUploadBtn" onclick="FitUI.runUpload()" data-i18n="fit_uploadDo">上传</button>
+            <div class="tt" id="fitUploadProgress" style="display:none"></div>
+            <div class="tt" id="fitUploadResult" style="display:none"></div>
+            <div class="tt" id="fitUploadAuthHint" style="display:none">
+              <span data-i18n="fit_uploadAuthNeed">当前授权缺少上传权限（activity:write）。</span>
+              <button class="btn" onclick="FitUI.reauthForUpload()" style="padding:3px 10px;font-size:11.5px" data-i18n="fit_uploadReauth">重新授权</button>
             </div>
           </div>
         </div>
@@ -1265,14 +1291,17 @@ const I18N = {
     upd_download:'下载更新', upd_downloading:'下载中… {pct}%', upd_downloaded:'下载完成，点击安装', upd_install:'安装并重启',
     upd_error:'检查更新失败：{msg}', upd_retry:'重试', upd_openGithub:'打开 Releases 页面', upd_close:'关闭', upd_curVer:'当前版本 v{ver}', upd_size:'大小 {size}', upd_pub:'发布于 {date}', upd_noAsset:'未找到适用于当前平台的安装包',
     sg_ok:'正常', sg_attention:'需关注', sg_ready:'就绪', sg_empty:'空', sg_pending:'未生成',
-    nav_fit:'FIT 工具', fit_title:'FIT 文件工具', fit_hint:'合并分段活动、拆分长记录、删除功率/心率、转 GPX/TCX。全部在本地浏览器完成，文件不会上传。',
-    fit_clearAll:'清空', fit_dropTitle:'拖入 .fit 文件', fit_dropSub:'或点击选择（可多选）', fit_empty:'尚未添加文件', fit_onlyFit:'仅支持 .fit 文件',
+    nav_fit:'FIT 工具', fit_title:'FIT 文件工具', fit_hint:'合并分段活动、拆分长记录、删除功率/心率、转 GPX/TCX、上传 Strava。解析与处理全在本地浏览器完成；仅当你点击「上传」时才把选中文件经本地服务推送到你自己的 Strava。',
+    fit_clearAll:'清空', fit_dropTitle:'拖入 .fit 文件', fit_dropSub:'或点击选择（可多选）', fit_addCard:'添加文件', fit_addSub:'拖入 .fit 或点击选择（可多选）', fit_empty:'尚未添加文件', fit_onlyFit:'仅支持 .fit 文件',
     fit_parseFail:'无法解析', fit_noPoints:'文件中没有采样数据', fit_crcBad:'CRC 校验异常，文件可能已损坏', fit_fail:'处理失败：',
     fit_strip:'删除功率 / 心率', fit_stripHint:'从文件结构中彻底移除该字段（不是填 0），设备与平台将不再显示。', fit_stripPower:'功率', fit_stripHr:'心率',
     fit_split:'拆分', fit_splitHint:'按时间断点（码表分段记录）或固定条数切成多个文件。', fit_byGap:'按时间断点', fit_byCount:'按条数',
     fit_secGap:'秒以上视为断点', fit_pointsEach:'点/份', fit_combine:'合并', fit_combineHint:'已选 {n} 个文件', fit_combineHint2:'按时间自动衔接并去重；每段起止时间不会重叠。',
     fit_convert:'转换为 GPX / TCX', fit_convertHint:'轨迹、高程、心率、踏频、功率全部映射；GPX 供大多数平台上传，TCX 兼容 Garmin。', fit_namePh:'活动名称（留空用文件名）', fit_target:'目标：',
     fit_actionStrip:'执行并下载', fit_actionSplit:'执行并下载', fit_actionCombine:'执行并下载',
+    fit_upload:'上传到 Strava', fit_uploadHint:'把选中的文件（含裁剪结果）直接推送到 Strava；经本地服务代理，处理完成后自动同步入库。', fit_uploadCrop:'应用裁剪区间', fit_uploadPrivate:'私密活动', fit_uploadCommute:'通勤', fit_uploadDo:'上传',
+    fit_uploading:'上传中…', fit_uploadProcessing:'Strava 处理中…', fit_uploadBusy:'已有上传进行中，请稍候', fit_uploadDoneT:'上传完成', fit_uploadView:'在 Strava 查看', fit_uploadFail:'上传失败：', fit_uploadDup:'Strava 判定为重复数据（该起始时间的活动已存在）。', fit_uploadTimeout:'处理超时，稍后可在活动列表确认是否已生成。',
+    fit_uploadAuthNeed:'当前授权缺少上传权限（activity:write）。', fit_uploadReauth:'重新授权', fit_uploadReauthWait:'完成新窗口授权后将自动继续上传…', fit_uploadReauthOk:'权限已更新，继续上传…', fit_uploadReauthFail:'授权超时或失败，请重试',
     fit_doneStrip:'已删除功率/心率，共处理 {n} 个采样点', fit_doneSplit:'已拆分为 {n} 个文件', fit_doneCombine:'合并完成，共 {n} 个采样点', fit_doneConvert:'转换完成，已开始下载',
     fit_crop:'地图裁剪', fit_cropTitle:'拖动地图上 S/E 端点选择保留区间', fit_cropRange:'点 {a}–{b} / 共 {n}', fit_cropReset:'重置', fit_cropDone:'退出裁剪', fit_cropDone2:'裁剪完成，已开始下载',
     fit_cropTarget:'裁剪目标', fit_cropTargetHint:'点击切换裁剪目标',
@@ -1399,14 +1428,17 @@ const I18N = {
     upd_download:'Download Update', upd_downloading:'Downloading… {pct}%', upd_downloaded:'Download complete, click to install', upd_install:'Install & Restart',
     upd_error:'Update check failed: {msg}', upd_retry:'Retry', upd_openGithub:'Open Releases Page', upd_close:'Close', upd_curVer:'Current v{ver}', upd_size:'Size {size}', upd_pub:'Published {date}', upd_noAsset:'No installer found for current platform',
     sg_ok:'OK', sg_attention:'Attention', sg_ready:'Ready', sg_empty:'Empty', sg_pending:'Not generated',
-    nav_fit:'FIT Tools', fit_title:'FIT File Tools', fit_hint:'Combine split activities, split long recordings, strip power/heart-rate, convert to GPX/TCX. Runs entirely in your browser — files are never uploaded.',
-    fit_clearAll:'Clear', fit_dropTitle:'Drop .fit files here', fit_dropSub:'or click to browse (multiple allowed)', fit_empty:'No files added yet', fit_onlyFit:'Only .fit files are supported',
+    nav_fit:'FIT Tools', fit_title:'FIT File Tools', fit_hint:'Combine split activities, split long recordings, strip power/heart-rate, convert to GPX/TCX, upload to Strava. Parsing and processing run entirely in your browser; the selected file is pushed to your own Strava (via the local server) only when you click Upload.',
+    fit_clearAll:'Clear', fit_dropTitle:'Drop .fit files here', fit_dropSub:'or click to browse (multiple allowed)', fit_addCard:'Add files', fit_addSub:'Drop .fit or click (multi)', fit_empty:'No files added yet', fit_onlyFit:'Only .fit files are supported',
     fit_parseFail:'Cannot parse', fit_noPoints:'No sample data in file', fit_crcBad:'CRC check failed — file may be corrupted', fit_fail:'Failed: ',
     fit_strip:'Strip Power / Heart Rate', fit_stripHint:'Removes the field from the file structure entirely (not zero-filled), so devices and platforms stop showing it.', fit_stripPower:'Power', fit_stripHr:'Heart rate',
     fit_split:'Split', fit_splitHint:'Cut one long recording into multiple files by time gap or fixed sample count.', fit_byGap:'By time gap', fit_byCount:'By sample count',
     fit_secGap:'sec+ counts as a gap', fit_pointsEach:'points/file', fit_combine:'Combine', fit_combineHint:'{n} files selected', fit_combineHint2:'Times are stitched and de-duplicated automatically; segments never overlap.',
     fit_convert:'Convert to GPX / TCX', fit_convertHint:'Tracks, elevation, HR, cadence and power are all mapped. GPX suits most upload targets; TCX suits Garmin.', fit_namePh:'Activity name (blank = filename)', fit_target:'Target: ',
     fit_actionStrip:'Run & download', fit_actionSplit:'Run & download', fit_actionCombine:'Run & download',
+    fit_upload:'Upload to Strava', fit_uploadHint:'Push the selected file (crop included) straight to Strava via the local server; it auto-syncs once processed.', fit_uploadCrop:'Apply crop range', fit_uploadPrivate:'Private activity', fit_uploadCommute:'Commute', fit_uploadDo:'Upload',
+    fit_uploading:'Uploading…', fit_uploadProcessing:'Strava is processing…', fit_uploadBusy:'An upload is already running, please wait', fit_uploadDoneT:'Upload complete', fit_uploadView:'View on Strava', fit_uploadFail:'Upload failed: ', fit_uploadDup:'Strava flagged it as a duplicate (an activity with this start time exists).', fit_uploadTimeout:'Processing timed out; check your activity list later.',
+    fit_uploadAuthNeed:'Current authorization lacks upload permission (activity:write).', fit_uploadReauth:'Re-authorize', fit_uploadReauthWait:'Upload resumes automatically once you finish the new authorization…', fit_uploadReauthOk:'Permission granted, resuming upload…', fit_uploadReauthFail:'Authorization timed out or failed, please retry',
     fit_doneStrip:'Power/HR stripped from {n} samples', fit_doneSplit:'Split into {n} files', fit_doneCombine:'Combined {n} samples', fit_doneConvert:'Converted — download started',
     fit_crop:'Crop on map', fit_cropTitle:'Drag S/E handles on the map to choose the range', fit_cropRange:'pts {a}–{b} / {n}', fit_cropReset:'Reset', fit_cropDone:'Exit crop', fit_cropDone2:'Crop ready — download started',
     fit_cropTarget:'cropping', fit_cropTargetHint:'Click to switch the crop target',

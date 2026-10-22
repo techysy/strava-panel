@@ -1,6 +1,6 @@
 /* ============================================================================
- * FIT 工具 UI —— 合并 / 拆分 / 删除功率·心率 / 转换 GPX·TCX
- * 全部在本地浏览器完成，文件不上传任何服务器。
+ * FIT 工具 UI —— 合并 / 拆分 / 删除功率·心率 / 转换 GPX·TCX / 上传到 Strava
+ * 本地解析处理；上传仅把选定文件经本地服务代理推给 Strava（不经过其它服务器）。
  * ==========================================================================*/
 
 const FitUI = (() => {
@@ -21,14 +21,20 @@ const FitUI = (() => {
     return fitFiles.find(f => f.id === selectedFid) || fitFiles[0] || null;
   };
 
+  // 列表 = 「添加文件」入口卡（与文件卡同排同规格）+ 各文件卡。
+  // 拖放/点击都走隐藏的 <input>；fitFileList 本身也是拖放落点（整行可投）。
+  function addCardHtml() {
+    return `<div class="fit-file fit-add" id="fitAddCard" onclick="FitUI.pickFiles()" title="${escapeHtml(t('fit_addSub'))}">
+      <svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>
+      <div class="fa-t" data-i18n="fit_addCard">${escapeHtml(t('fit_addCard'))}</div>
+      <div class="fa-s" data-i18n="fit_addSub">${escapeHtml(t('fit_addSub'))}</div>
+    </div>`;
+  }
   function renderList() {
     const box = $('fitFileList');
-    if (!fitFiles.length) {
-      box.innerHTML = '<div class="fit-empty" data-i18n="fit_empty">拖入 .fit 文件，或点击选择</div>';
-      return;
-    }
+    if (!box) return;
     const sel = getSelectedFile();
-    box.innerHTML = fitFiles.map((f, i) => {
+    const fileCards = fitFiles.map((f, i) => {
       const s = f.sum;
       const tags = [];
       if (s.has.power) tags.push('<b class="t-pw">' + escapeHtml(t('fit_stripPower')) + '</b>');
@@ -58,7 +64,11 @@ const FitUI = (() => {
         <button class="ff-del" onclick="FitUI.remove(${i}); event.stopPropagation();" title="${escapeHtml(t('fit_remove'))}">×</button>
       </div>`;
     }).join('');
+    box.innerHTML = addCardHtml() + fileCards;
   }
+
+  // 打开文件选择器（供「添加」卡片点击调用）
+  function pickFiles() { const i = $('fitInput'); if (i) i.click(); }
 
   function selectFile(i) {
     if (!fitFiles[i]) return;
@@ -244,6 +254,7 @@ const FitUI = (() => {
     renderCropMap(false);   // 切换文件不重设缩放
     renderCropBar();
     renderFsSide();
+    refreshUploadTarget();
   }
   // 全屏回调注册（须在地图实例存在后调用；首次建图或进全屏前自动注册）
   function registerFs(st) {
@@ -371,6 +382,7 @@ const FitUI = (() => {
     const n = cropDraft.size;
     const all = bar.querySelector('.fc-apply-all');
     if (all) { all.disabled = !n; all.querySelector('.fc-n').textContent = n; }
+    refreshUploadTarget();   // 拖出新草稿后同步上传卡的「应用裁剪区间」可见性（签名去重，开销低）
   }
   function cropKm(i0, i1) {
     let d = 0, prev = null;
@@ -556,28 +568,147 @@ const FitUI = (() => {
     $('fitToolSplit').style.display = one ? '' : 'none';
     $('fitToolConvert').style.display = one ? '' : 'none';
     $('fitToolCombine').style.display = n >= 2 ? '' : 'none';
+    const upCard = $('fitToolUpload'); if (upCard) upCard.style.display = one ? '' : 'none';
     $('fitCombineHint').textContent = t('fit_combineHint', { n });
     const sf = getSelectedFile();
     const sfName = sf ? baseName(sf.name) : '-';
     $('fitStripTarget').textContent = sfName;
     $('fitSplitTarget').textContent = sfName;
     $('fitConvertTarget').textContent = sfName;
+    refreshUploadTarget();
     renderMap();
   }
 
+  // ---- 上传到 Strava（经本地服务代理，浏览器直连被 CORS 拦） ----
+  let _uploadPending = null;   // 缺 write scope 时暂存 {bytes,fields}，授权后自动续传
+  let _upSig = '';             // 上传卡上次渲染签名：无变化不动 DOM（拖拽高频回调下防重排）
+  function refreshUploadTarget() {
+    const sel = $('fitUploadTarget'); if (!sel) return;
+    const sf = getSelectedFile();
+    const sig = fitFiles.map(f => f.id + ':' + f.name).join('|') + '#' + (sf ? sf.id : 0) + '#' + (sf && cropDraft.has(sf.id) ? 1 : 0);
+    if (sig === _upSig) return;
+    _upSig = sig;
+    sel.innerHTML = fitFiles.map((f, i) =>
+      `<option value="${i}"${sf && f.id === sf.id ? ' selected' : ''}>${escapeHtml(f.name)}</option>`).join('');
+    const row = $('fitUploadCropRow');
+    if (row) row.style.display = (sf && cropDraft.has(sf.id)) ? '' : 'none';
+  }
+  function setUploadBusy(on) {
+    const b = $('fitUploadBtn'); if (!b) return;
+    b.disabled = on; b.textContent = on ? t('fit_uploading') : t('fit_uploadDo');
+  }
+  function showProg(msg) { const p = $('fitUploadProgress'); if (p) { p.style.display = ''; p.textContent = msg; } }
+  function hideProg() { const p = $('fitUploadProgress'); if (p) p.style.display = 'none'; }
+  function showResult(html, ok) {
+    const r = $('fitUploadResult'); if (!r) return;
+    r.style.display = ''; r.innerHTML = html; r.style.color = ok ? 'var(--ok,#16a34a)' : 'var(--err,#dc2626)';
+  }
+  async function pollUploadProgress() {
+    try {
+      const p = await apiGet('/api/strava/upload/progress');
+      if (!p || !p.running) return;
+      // 服务端 message 是固定中文；前端按 state 映射本地化文案
+      showProg(p.state === 'uploading' ? t('fit_uploading') : t('fit_uploadProcessing'));
+    } catch { /* 忽略轮询失败 */ }
+  }
+  async function runUpload() {
+    const f = getSelectedFile(); if (!f) return;
+    if (typeof ensureApiToken === 'function') await ensureApiToken();
+    const cropRow = $('fitUploadCropRow');
+    const useCrop = cropRow && cropRow.style.display !== 'none' && $('fitUploadUseCrop').checked;
+    let bytes = f.bytes, shownName = baseName(f.name);
+    if (useCrop) {
+      const r = buildCrop(f);
+      if (r) { bytes = r.bytes; shownName = baseName(r.name); }
+      else { toast(t('fit_cropNoop'), false); }
+    }
+    const name = ($('fitUploadName').value || '').trim() || shownName;
+    const fields = { name };
+    if ($('fitUploadPrivate').checked) fields.private = '1';
+    if ($('fitUploadCommute').checked) fields.commute = '1';
+    await doUpload(bytes, fields);
+  }
+  async function doUpload(bytes, fields) {
+    setUploadBusy(true); hideProg();
+    const resEl = $('fitUploadResult'); if (resEl) resEl.style.display = 'none';
+    const authEl = $('fitUploadAuthHint'); if (authEl) authEl.style.display = 'none';
+    showProg(t('fit_uploading'));
+    const poll = setInterval(pollUploadProgress, 1200);
+    try {
+      const q = new URLSearchParams({ type: 'fit', fields: JSON.stringify(fields), name: fields.name }).toString();
+      const resp = await fetch(`${API}/api/strava/upload?${q}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream', 'Authorization': 'Bearer ' + apiToken },
+        body: bytes,
+      });
+      const d = await resp.json().catch(() => ({ error: '响应解析失败' }));
+      if (d.code === 'MISSING_SCOPES') {
+        _uploadPending = { bytes, fields };
+        if (authEl) authEl.style.display = '';
+        showResult(t('fit_uploadFail') + t('fit_uploadAuthNeed'), false);
+        return;
+      }
+      if (d.ok && d.activity_id) {
+        hideProg();
+        const link = `https://www.strava.com/activities/${d.activity_id}`;
+        showResult(`${escapeHtml(t('fit_uploadDoneT'))} · <a href="${link}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">${escapeHtml(t('fit_uploadView'))}</a>`, true);
+        toast(t('fit_uploadDoneT'), true);
+      } else if (d.code === 'DUPLICATE') {
+        showResult(t('fit_uploadDup'), false);
+      } else if (d.code === 'TIMEOUT') {
+        showResult(t('fit_uploadTimeout'), false);
+      } else {
+        showResult(t('fit_uploadFail') + escapeHtml(d.error || '未知错误'), false);
+      }
+    } catch (e) {
+      showResult(t('fit_uploadFail') + escapeHtml(String(e.message || e)), false);
+    } finally {
+      clearInterval(poll); hideProg(); setUploadBusy(false);
+    }
+  }
+  // 缺 write scope → 走一次强制 OAuth，轮询 can_upload 成功后自动续传暂存上传
+  async function reauthForUpload() {
+    if (typeof ensureApiToken === 'function') await ensureApiToken();
+    showProg(t('fit_uploadReauthWait'));
+    try {
+      const r = await apiGet('/api/oauth/start');
+      if (!r.url) { showResult(t('fit_uploadFail') + escapeHtml(r.error || ''), false); hideProg(); return; }
+      let w = null; try { w = window.open(r.url, '_blank', 'width=520,height=700'); } catch { w = null; }
+      let tries = 0;
+      const timer = setInterval(async () => {
+        tries++;
+        try {
+          const info = await apiGet('/api/info');
+          if (info && info.strava && info.strava.can_upload) {
+            clearInterval(timer);
+            try { if (w && !w.closed) w.close(); } catch { /* noop */ }
+            hideProg();
+            showResult(t('fit_uploadReauthOk'), true);
+            const pend = _uploadPending; _uploadPending = null;
+            const authEl = $('fitUploadAuthHint'); if (authEl) authEl.style.display = 'none';
+            if (pend) await doUpload(pend.bytes, pend.fields);
+          }
+        } catch { /* 轮询忽略 */ }
+        if (tries > 120) { clearInterval(timer); hideProg(); showResult(t('fit_uploadReauthFail'), false); }
+      }, 1000);
+    } catch (e) {
+      hideProg(); showResult(t('fit_uploadFail') + escapeHtml(String(e.message || e)), false);
+    }
+  }
+
   function init() {
-    const drop = $('fitDrop');
+    const list = $('fitFileList');
     const input = $('fitInput');
-    if (!drop || !input) return;
-    drop.addEventListener('click', () => input.click());
+    if (!list || !input) return;
     input.addEventListener('change', e => {
       const files = Array.from(e.target.files || []);
       input.value = '';
       if (files.length) addFiles(files);
     });
-    ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
-    ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
-    drop.addEventListener('drop', e => { if (e.dataTransfer.files) addFiles(e.dataTransfer.files); });
+    // 整条列表都是拖放落点：「添加」卡片常驻首位，点击开选择器，拖入任意位置都收
+    ['dragenter', 'dragover'].forEach(ev => list.addEventListener(ev, e => { e.preventDefault(); list.classList.add('over'); }));
+    ['dragleave', 'drop'].forEach(ev => list.addEventListener(ev, e => { e.preventDefault(); list.classList.remove('over'); }));
+    list.addEventListener('drop', e => { if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files); });
 
     $('fitSplitMode').addEventListener('change', () => {
       const m = $('fitSplitMode').value;
@@ -588,5 +719,5 @@ const FitUI = (() => {
     renderList(); renderPanel();
   }
 
-  return { init, addFiles, remove, clearAll, runStrip, runSplit, runCombine, runConvert, toggleCrop, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile };
+  return { init, addFiles, remove, clearAll, pickFiles, runStrip, runSplit, runCombine, runConvert, toggleCrop, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, runUpload, reauthForUpload };
 })();

@@ -6,6 +6,30 @@
 
 ---
 
+## 2.6.6 (2026-10-23)
+
+> FIT 工具「上传到 Strava」——服务代理 + 写权限引导 + 裁剪产物直传。
+
+### 实测记录（真实浏览器 + 隔离假凭据服务）
+| 项 | 方法 | 结果 |
+|---|---|---|
+| 缺 write scope 拦截 | 假 token 只 `read,activity:read_all`，POST 上传 | ✓ 403 `{code:MISSING_SCOPES, scopes:[activity:write], name}`；前端显示授权引导 |
+| 重新授权自动续传 | 点「重新授权」→ 轮询中翻转 token 为含 write | ✓ 检测到 can_upload → 自动重放暂存上传（日志见 `upload 失败: 授权已失效` = 真实打到 Strava 层） |
+| NO_TOKEN 映射 | 假 access token → Strava 401 | ✓ 502 `{code:NO_TOKEN}` 前端「授权已失效，需重新连接 Strava」 |
+| 类型白名单 | `?type=exe` | ✓ 400「不支持的文件类型」 |
+| 空体 / 超大 | 0 字节；13MB | ✓ 400「文件为空」；413 TOO_LARGE（修复过 destroy→排空，否则客户端只见 100） |
+| 并发互斥 | 连发两上传 | ✓ 第二个 409 BUSY |
+| 表单字段 | fields 仅 name/private/commute 白名单透传 | ✓ 未知键丢弃 |
+| can_upload 暴露 | GET /api/info | ✓ `strava.can_upload=true`（含 write scope 时） |
+| 上传卡 UI | 加载文件后卡片可见、目标下拉列出文件、按钮可用 | ✓ 截图核对；有草稿时「应用裁剪区间」行出现 |
+| 413/互斥回归 | 修 readBodyBuf 后重启服务复测 | ✓ 全绿 |
+
+### 验证
+- ui 16 / gpx 34 / fit 73 自测全绿；release-check 14/14。
+- 真实 Strava 端到端（真 token 上传一条）待用户真机确认。
+
+---
+
 ## 2.6.5 (2026-10-22)
 
 > 全屏裁剪重做（草稿层 + 浮窗 + 细抓手）+ 移动时间智能识别 + 安装器蓝字链接。

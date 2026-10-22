@@ -21,6 +21,8 @@
  *   GET  /api/sync          # 手动触发 Strava→SQLite 同步
  *   POST /api/sync          # 同上 (POST)
  *   GET  /api/sync/progress # 同步进度 (前端轮询)
+ *   POST /api/strava/upload? # 上传活动文件到 Strava (body=原始字节; ?type=fit|tcx|gpx|json&fields={json}&name=)
+ *   GET  /api/strava/upload/progress # 上传进度 (前端轮询)
  *   GET  /api/export?fmt=json|csv   # 导出全量数据 (给 agent)
  *   GET  /api/token/view    # 查看当前 api_token
  *   POST /api/token/recreate # 重新生成 api_token
@@ -86,6 +88,8 @@ const tokenSerial = (fn) => {
   _tokenQueue = run.then(() => {}, () => {});
   return run;
 };
+// 上传互斥：面板同一时刻只允许一个上传在跑（共享 UPLOAD_PROGRESS，避免互相覆盖）
+let _uploadInFlight = false;
 
 const db = new StravaDB(DB_FILE);
 
@@ -215,16 +219,28 @@ function recreateApiToken() {
 
 // ---------- Strava OAuth 授权 ----------
 const OAUTH_AUTHORIZE_URL = 'https://www.strava.com/oauth/authorize';
-const OAUTH_SCOPE = 'read,activity:read_all';
+// read+activity:read_all 是面板同步必需；activity:write 供「FIT 工具 → 上传到 Strava」
+// （POST /uploads）。一次授权可全带；老 token 缺 write 时上传入口会引导重新授权。
+const OAUTH_SCOPE = 'read,activity:read_all,activity:write';
 // 拉取骑行活动所需的最低 scope（缺它 /athlete/activities 会 401，面板同步必失败）
 const REQUIRED_SCOPE = 'activity:read_all';
+// 上传活动所需 scope（与 REQUIRED_SCOPE 分开校验：只读授权也能同步，但传不了）
+const WRITE_SCOPE = 'activity:write';
+// 单文件上传上限（Strava 无公开硬限；12MB 覆盖数小时超长码表文件绰绰有余）
+const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
 
-function scopeHasActivity(scope) {
-  /** scope 是否含 activity:read_all。
+function scopeHas(scope, want) {
+  /** scope 是否含 want。
    * Strava scope 可能逗号分隔('read,activity:read_all')或空格分隔('activity:read_all read')
    * (官方文档: comma- or URL-safe space-delimited)。两种都要处理，避免误判缺权限。 */
   if (!scope) return false;
-  return String(scope).replace(/,/g, ' ').split(/\s+/).filter(Boolean).includes(REQUIRED_SCOPE);
+  return String(scope).replace(/,/g, ' ').split(/\s+/).filter(Boolean).includes(want);
+}
+function scopeHasActivity(scope) {
+  return scopeHas(scope, REQUIRED_SCOPE);
+}
+function scopeHasWrite(scope) {
+  return scopeHas(scope, WRITE_SCOPE);
 }
 
 function isPrivateHost(host) {
@@ -444,6 +460,122 @@ function getActivitiesPage(token, page = 1, perPage = 100, after = null) {
   return apiGet(token, '/athlete/activities', params);
 }
 
+// ---------- 上传活动到 Strava（代理，浏览器直连会被 CORS 拦） ----------
+// UPLOAD_PROGRESS 供前端轮询；字段：state(pending|processing|uploading|complete|failed|duplicate|error)
+const UPLOAD_PROGRESS = { running: false, state: '', message: '', upload_id: null, activity_id: null, error: null, done: false, name: '' };
+
+function uploadErr(scope, name) {
+  /** 统一构造可操作的错误：缺 scope 时把活动名带回来，前端「去授权」按钮可自动重放上传。
+   * 前缀 SCOPES: 供前端识别（不展示给用户）。 */
+  const miss = [];
+  if (!scopeHas(scope, REQUIRED_SCOPE)) miss.push(REQUIRED_SCOPE);
+  if (!scopeHas(scope, WRITE_SCOPE)) miss.push(WRITE_SCOPE);
+  return { code: 'MISSING_SCOPES', scopes: miss, name: name || '',
+    message: `SCOPES:token 缺少 ${miss.join(', ')}（当前: ${scope || '无'}），需重新授权` };
+}
+
+function currentScope() {
+  /** 读取 token 文件里的 scope（缓存或刷新后的），供写权限预检。 */
+  try {
+    if (fs.existsSync(TOKEN_FILE)) {
+      return String(JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf8')).scope || '');
+    }
+  } catch { /* 坏了当作无 scope，交给上传前的校验 */ }
+  return '';
+}
+
+// 上传表单字段白名单：只允许 Strava uploads#create 认可的键，杜绝注入未知参数
+const UPLOAD_FIELDS = ['name', 'description', 'trainer', 'commute', 'private', 'external_id', 'activity_type', 'data_type'];
+const UPLOAD_TYPES = new Set(['fit', 'tcx', 'gpx', 'gpx11', 'json']);
+
+function setUpUpload(next) {
+  Object.assign(UPLOAD_PROGRESS, { done: false, error: null, activity_id: null, upload_id: null }, next);
+}
+
+async function uploadToStrava(token, buf, dataType, fields, fname) {
+  /** 上传一个活动文件到 Strava 并轮询到出结果。
+   * Strava 上传是异步的：POST /uploads 先入队，再 GET /uploads/{id} 轮询直到
+   * status=complete(拿 activity_id) 或 failed(读 error)。默认处理 <2s，轮询间隔 ≥1s。
+   * 走服务端代理：Strava 写接口无浏览器 CORS 头，前端直连必被拦。 */
+  const fd = new FormData();
+  fd.append('file', new Blob([buf], {
+    type: dataType === 'fit' ? 'application/octet-stream'
+      : dataType === 'json' ? 'application/json' : 'application/xml',
+  }), fname || `activity.${dataType}`);
+  fd.append('data_type', dataType);
+  for (const k of UPLOAD_FIELDS) {
+    if (k === 'data_type') continue;
+    if (fields[k] !== undefined && fields[k] !== null && String(fields[k]) !== '') {
+      fd.append(k, String(fields[k]));
+    }
+  }
+  setUpUpload({ running: true, state: 'uploading', message: '上传中…', name: fields.name || fname || '' });
+  let up;
+  try {
+    const resp = await fetchTimeout(STRAVA_API + '/uploads', {
+      method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
+    }, 60000);
+    const body = (await resp.text().catch(() => '')).slice(0, 400);
+    if (resp.status === 429) throw Object.assign(new Error('Strava 频率限制（稍后重试）'), { status: 429 });
+    if (resp.status === 401) throw Object.assign(new Error('授权已失效，需重新连接 Strava'), { status: 401 });
+    if (!resp.ok) {
+      // 422 常见是重复提交/字段问题；带原始体便于定位
+      const err = new Error(`HTTP ${resp.status} ${body.slice(0, 160)}`);
+      err.status = resp.status; err.body = body; throw err;
+    }
+    up = JSON.parse(body);
+  } catch (e) {
+    setUpUpload({ running: false, state: 'error', error: String(e.message || e), message: '上传失败' });
+    log('strava', `upload 失败: ${e.message || e}`);
+    throw e;
+  }
+  log('strava', `upload 入队 id=${up.id} data_type=${dataType} size=${buf.length}`);
+  setUpUpload({ state: 'processing', upload_id: up.id, message: 'Strava 处理中…' });
+
+  // 轮询：官方建议 ≥1s；均值 <2s，这里给足 60s 上限（超长文件分段处理可能偏久）
+  const deadline = Date.now() + 60000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 1500));
+    let st;
+    try {
+      const resp = await fetchTimeout(`${STRAVA_API}/uploads/${up.id}`, {
+        headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+      });
+      st = await resp.json();
+    } catch (e) {
+      log('strava', `upload 轮询失败 id=${up.id}: ${e.message || e}`);
+      setUpUpload({ running: false, state: 'error', upload_id: up.id, error: String(e.message || e), message: '查询处理状态失败' });
+      throw e;
+    }
+    if (st && st.activity_id) {
+      setUpUpload({ running: false, done: true, state: 'complete', activity_id: st.activity_id, upload_id: up.id, message: '已完成' });
+      log('strava', `upload 完成 id=${up.id} → activity=${st.activity_id}`);
+      return st;
+    }
+    if (st && st.errored === true) {
+      const msg = String(st.error || 'Strava 处理该文件失败');
+      const dup = /duplicate/i.test(msg);
+      setUpUpload({ running: false, state: dup ? 'duplicate' : 'failed', error: msg, upload_id: up.id, message: dup ? '重复数据' : '处理失败' });
+      log('strava', `upload ${dup ? '重复' : '失败'} id=${up.id}: ${msg}`);
+      return { ...st, _dup: dup };
+    }
+    setUpUpload({ state: st && st.status ? String(st.status) : 'processing', message: `处理中：${(st && st.status) || '…'}` });
+  }
+  const msg = 'Strava 处理超时，可稍后在活动列表确认是否已生成';
+  setUpUpload({ running: false, state: 'error', upload_id: up.id, error: msg, message: '处理超时' });
+  return { id: up.id, _timeout: true, _error: msg };
+}
+
+// 上传成功后自动增量同步，让新活动进本地缓存与图表（失败不影响上传结果）
+async function afterUploadSync() {
+  try {
+    const [tok] = await getAccessToken();
+    if (tok) await syncSerial(() => syncFromStrava(tok, 1, 'incremental'));
+  } catch (e) {
+    log('strava', `上传后同步失败（不影响上传结果）: ${e.message || e}`);
+  }
+}
+
 // 同步进度（供前端轮询 /api/sync/progress）
 const SYNC_PROGRESS = { running: false, page: 0, fetched: 0, message: '', done: false, error: null };
 
@@ -637,6 +769,8 @@ async function getServiceInfo() {
       configured: hasCredentials(),
       has_token: Boolean(tok),
       token_error: err,
+      // 是否具备上传写权限（老 token 只读授权时为 false，上传入口据此提示重授权）
+      can_upload: Boolean(tok) && scopeHasWrite(currentScope()),
       // cfg 有键但值为空时 Python cfg.get() 返回 "" (不是 null), 逐字保持
       athlete_id: 'athlete_id' in cfg ? cfg.athlete_id : null,
       last_sync: db.getMeta('last_sync'),
@@ -704,6 +838,10 @@ function buildApiDoc(lang = 'zh', requestHost = null) {
       + '# 6. Trigger Strava→SQLite sync\n'
       + 'curl -s -H "$AUTH" "$BASE/api/sync"\n'
       + '\n'
+      + '# 6b. Upload an activity file to Strava (fit/tcx/gpx/json; poll progress after)\n'
+      + 'curl -s -X POST -H "$AUTH" --data-binary @ride.fit "$BASE/api/strava/upload?type=fit&fields=%7B%22name%22:%22Ride%22%7D&name=ride.fit"\n'
+      + 'curl -s -H "$AUTH" "$BASE/api/strava/upload/progress"\n'
+      + '\n'
       + '# 7. Export all data (json/csv)\n'
       + 'curl -s -H "$AUTH" "$BASE/api/export?fmt=json"\n'
       + 'curl -s -H "$AUTH" "$BASE/api/export?fmt=csv" -o strava.csv\n'
@@ -750,6 +888,10 @@ function buildApiDoc(lang = 'zh', requestHost = null) {
     + '\n'
     + '# 6. 触发 Strava→SQLite 同步\n'
     + 'curl -s -H "$AUTH" "$BASE/api/sync"\n'
+    + '\n'
+    + '# 6b. 上传活动文件到 Strava（fit/tcx/gpx/json；随后轮询进度）\n'
+    + 'curl -s -X POST -H "$AUTH" --data-binary @ride.fit "$BASE/api/strava/upload?type=fit&fields=%7B%22name%22:%22Ride%22%7D&name=ride.fit"\n'
+    + 'curl -s -H "$AUTH" "$BASE/api/strava/upload/progress"\n'
     + '\n'
     + '# 7. 导出全量数据（json/csv）\n'
     + 'curl -s -H "$AUTH" "$BASE/api/export?fmt=json"\n'
@@ -1045,6 +1187,25 @@ function readBody(req) {
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
+function readBodyBuf(req, limit = MAX_UPLOAD_BYTES) {
+  /** 读原始字节体（上传活动文件用）。超 limit 停止累积但继续排空流，
+   * 在 end 时统一拒绝——不能 req.destroy()，否则过早断链，客户端只收到 100-continue。 */
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0, over = false;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > limit) { over = true; return; }   // 溢出后不再存 chunk，但仍排空剩余数据
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      if (over) reject(new Error(`文件过大（> ${Math.round(limit / 1024 / 1024)}MB）`));
+      else resolve(Buffer.concat(chunks));
+    });
     req.on('error', reject);
   });
 }
@@ -1447,6 +1608,12 @@ async function handleGet(req, res, rawPath, qs) {
     sendJson(res, SYNC_PROGRESS);
     return;
   }
+  if (rawPath === '/api/strava/upload/progress') {
+    // 上传进度（前端轮询）
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    sendJson(res, UPLOAD_PROGRESS);
+    return;
+  }
   if (rawPath === '/api/token/view') {
     if (!requireApiToken(req, res, qs, rawPath)) return;
     sendJson(res, { api_token: getOrCreateApiToken() });
@@ -1632,6 +1799,43 @@ async function handlePost(req, res, rawPath, qs) {
       sendJson(res, { ok: true, cleared: db.clearMemory(sid), sessions: db.listSessions() });
     } catch (e) {
       sendJson(res, { error: String(e.message || e) }, 500);
+    }
+    return;
+  }
+  if (rawPath === '/api/strava/upload') {
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    if (_uploadInFlight) { sendJson(res, { error: '已有上传在处理中，请稍候', code: 'BUSY' }, 409); return; }
+    const dataType = String(qs.type || '').toLowerCase();
+    if (!UPLOAD_TYPES.has(dataType)) { sendJson(res, { error: `不支持的文件类型: ${dataType || '(空)'}（仅 fit/tcx/gpx/json）` }, 400); return; }
+    let fields = {};
+    try { fields = JSON.parse(qs.fields || '{}'); } catch { sendJson(res, { error: 'fields 参数需为 JSON' }, 400); return; }
+    // 写权限预检：token 缺 activity:write 时直接返回结构化错误 + 活动名，供前端「去授权后重放」
+    {
+      const [preTok, preErr] = await getAccessToken();
+      if (!preTok) { sendJson(res, { error: preErr || '未配置' }, 400); return; }
+      if (!scopeHasWrite(currentScope())) { sendJson(res, uploadErr(currentScope(), fields.name), 403); return; }
+    }
+    let buf;
+    try { buf = await readBodyBuf(req); }
+    catch (e) { sendJson(res, { error: String(e.message || e), code: 'TOO_LARGE' }, 413); return; }
+    if (!buf.length) { sendJson(res, { error: '文件为空' }, 400); return; }
+    const fname = qs.name ? String(qs.name) : `activity.${dataType}`;
+    _uploadInFlight = true;
+    try {
+      const [tok] = await getAccessToken();
+      if (!tok) { sendJson(res, { error: '未授权', code: 'NO_TOKEN' }, 400); return; }
+      const res2 = await uploadToStrava(tok, buf, dataType, fields, fname);
+      if (res2 && (res2._dup || res2._timeout)) {
+        sendJson(res, { ok: false, error: res2.error || res2._error || '处理异常',
+          code: res2._dup ? 'DUPLICATE' : 'TIMEOUT', upload_id: res2.id });
+        return;
+      }
+      await afterUploadSync();
+      sendJson(res, { ok: true, activity_id: res2 && res2.activity_id, upload_id: res2 && res2.id });
+    } catch (e) {
+      sendJson(res, { error: String(e.message || e), code: e.status === 401 ? 'NO_TOKEN' : 'ERROR' }, 502);
+    } finally {
+      _uploadInFlight = false;
     }
     return;
   }
