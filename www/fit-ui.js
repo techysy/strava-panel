@@ -107,10 +107,39 @@ const FitUI = (() => {
       if (selectedFid === gone.id) selectedFid = fitFiles[0] ? fitFiles[0].id : 0;
     }
     if (crop && crop.fid === gone?.id) crop = null;
-    if (!fitFiles.length) exitCrop();
-    renderList(); renderPanel();
+    if (!fitFiles.length) {
+      crop = null;
+      cropDraft.clear();
+      cropMode = false;
+      splitMode = false;
+      cropHandles = null;
+      const st = typeof TrackMap !== 'undefined' ? TrackMap.state('fitMap') : null;
+      if (st && st.fullscreen) {
+        try { TrackMap.toggleFullscreen(st); } catch (e) {}
+      }
+    }
+    renderList();
+    renderPanel();
+    renderCropBar();
+    renderFsSide();
   }
-  function clearAll() { selectedFid = 0; fitFiles.length = 0; crop = null; cropDraft.clear(); exitCrop(); renderList(); renderPanel(); }
+  function clearAll() {
+    selectedFid = 0;
+    fitFiles.length = 0;
+    crop = null;
+    cropDraft.clear();
+    cropMode = false;
+    splitMode = false;
+    cropHandles = null;
+    const st = typeof TrackMap !== 'undefined' ? TrackMap.state('fitMap') : null;
+    if (st && st.fullscreen) {
+      try { TrackMap.toggleFullscreen(st); } catch (e) {}
+    }
+    renderList();
+    renderPanel();
+    renderCropBar();
+    renderFsSide();
+  }
 
   function download(blob, name) {
     const a = document.createElement('a');
@@ -224,11 +253,21 @@ const FitUI = (() => {
   function renderMap(bytesList) {
     const wrap = $('fitMapWrap');
     if (!wrap) return;
+    if (!fitFiles.length && !bytesList) {
+      wrap.style.display = 'none';
+      if (typeof TrackMap !== 'undefined') TrackMap.clear('fitMap');
+      syncCropBtn();
+      return;
+    }
     if (cropMode) { renderCropMap(); syncCropBtn(); return; }   // 非裁剪产物变化时也走裁剪渲染
     syncCropBtn();
     const src = bytesList || fitFiles.map(f => f.bytes);
     const tracks = src.map(b => { try { return FIT.trackPoints(b); } catch (e) { return []; } }).filter(p => p.length);
-    if (!tracks.length || typeof TrackMap === 'undefined' || !TrackMap.available()) { wrap.style.display = 'none'; return; }
+    if (!tracks.length || typeof TrackMap === 'undefined' || !TrackMap.available()) {
+      wrap.style.display = 'none';
+      if (typeof TrackMap !== 'undefined') TrackMap.clear('fitMap');
+      return;
+    }
     wrap.style.display = '';
     TrackMap.show('fitMap', tracks);
     const st = TrackMap.state('fitMap');
@@ -433,7 +472,7 @@ const FitUI = (() => {
       bar.className = 'fit-cropbar';
       $('fitMapWrap').insertAdjacentElement('afterend', bar);
     }
-    if (!cropMode || !crop) { bar.style.display = 'none'; return; }
+    if (!cropMode || !crop || !fitFiles.length) { bar.style.display = 'none'; return; }
     bar.style.display = '';
     updateCropBarText();
   }
@@ -516,7 +555,11 @@ const FitUI = (() => {
 
   function renderCropMap(fit) {
     const wrap = $('fitMapWrap');
-    if (!wrap || !crop || typeof TrackMap === 'undefined' || !TrackMap.available()) { if (wrap) wrap.style.display = 'none'; return; }
+    if (!wrap || !crop || !fitFiles.length || typeof TrackMap === 'undefined' || !TrackMap.available()) {
+      if (wrap) wrap.style.display = 'none';
+      if (typeof TrackMap !== 'undefined') TrackMap.clear('fitMap');
+      return;
+    }
     const st = TrackMap.state('fitMap');
     const st0 = TrackMap.state('fitMap');
     const firstFit = fit !== undefined ? fit : (!st0 || !st0.cropHandles || !st0.cropHandles.length);
@@ -754,7 +797,14 @@ const FitUI = (() => {
   function renderPanel() {
     const n = fitFiles.length;
     $('fitPanel').style.display = n ? '' : 'none';
-    if (!n) return;
+    if (!n) {
+      const wrap = $('fitMapWrap');
+      if (wrap) wrap.style.display = 'none';
+      if (typeof TrackMap !== 'undefined') TrackMap.clear('fitMap');
+      refreshAuthPill();
+      syncCropBtn();
+      return;
+    }
     const one = n >= 1;
     $('fitOpSplit').style.display = one ? '' : 'none';
     $('fitOpCombine').style.display = n >= 2 ? '' : 'none';
