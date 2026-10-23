@@ -526,9 +526,10 @@ const FIT = (() => {
       if (la == null || lo == null) return;
       const lat = la / SEMI, lon = lo / SEMI;
       if (!validLatLon(lat, lon)) return;
-      withIdx.push({ lat, lon, idx: i });
+      withIdx.push({ lat, lon, idx: i, ts: r.data[REC.timestamp] });
     });
-    if (withIdx.length <= maxPts) return withIdx;
+    const clean = dedriftPoints(withIdx);
+    if (clean.length <= maxPts) return clean;
     const out = [];
     for (let i = 0; i < maxPts; i++) out.push(withIdx[Math.round(i * (withIdx.length - 1) / (maxPts - 1))]);
     return out;
@@ -799,17 +800,38 @@ ${trkpts}
       const lat = la / SEMI, lon = lo / SEMI;
       if (!validLatLon(lat, lon)) continue;
       const ele = r.data[REC.altitude] != null ? (r.data[REC.altitude] - 500) / 5 : null;
-      pts.push({ lat, lon, ele });
+      pts.push({ lat, lon, ele, ts: r.data[REC.timestamp] });
     }
-    if (pts.length <= maxPts) return pts;
+    const clean = dedriftPoints(pts);
+    if (clean.length <= maxPts) return clean;
     const out = [];
-    for (let i = 0; i < maxPts; i++) out.push(pts[Math.round(i * (pts.length - 1) / (maxPts - 1))]);
+    for (let i = 0; i < maxPts; i++) out.push(clean[Math.round(i * (clean.length - 1) / (maxPts - 1))]);
     return out;
   }
 
   // 坐标合法性（非哨兵的越界垃圾点会让地图 fitBounds 撑到洲际尺度）
   function validLatLon(lat, lon) {
     return Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+  }
+
+  // GPS 漂移点过滤（渲染用）：与上一个保留点时间近（≤5s）但直线距离 >500m（≈360km/h）
+  // 的点视为漂移丢弃；丢弃后下一个点无条件保留——漂移常连续多点，若继续按 500m 判定
+  // 会把漂移结束后的正常点也连环丢掉（轨迹断头）。最多残留一段 500m 级小线段，远好于长直线。
+  // 真机码表文件常见：桥下/高楼间信号失锁瞬间坐标跳几公里，地图上拉出一条长直线。
+  function dedriftPoints(raw) {
+    if (raw.length < 3) return raw;
+    const out = [raw[0]];
+    let skipNext = false;
+    for (let i = 1; i < raw.length; i++) {
+      const p = raw[i];
+      if (skipNext) { skipNext = false; out.push(p); continue; }
+      const q = out[out.length - 1];
+      const dt = (p.ts ?? 0) - (q.ts ?? 0);
+      const dm = haversineM(q.lat, q.lon, p.lat, p.lon);
+      if (dt <= 5 && dm > 500) { skipNext = true; continue; }   // 漂移点：丢弃并放行下一点
+      out.push(p);
+    }
+    return out;
   }
 
   // ======================= 文件概览（供 UI 展示）=======================

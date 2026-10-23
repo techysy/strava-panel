@@ -325,6 +325,33 @@ ok(dec.every((p, i) => i === 0 || p.idx > dec[i - 1].idx), '抽稀后下标严�
   ok(tp.every(p=>p.lat>=-90&&p.lat<=90), '过滤后坐标全部合法', tp.map(p=>p.lat));
 }
 
+// GPS 漂移点过滤：合法坐标但相邻 1 秒内跳 >500m → 渲染轨迹里丢弃
+{
+  // 构造 lat30/lon120 → lat30.02/lon120（1s 内跳 ~2.2km）→ lat30.04（1s 后正常续走）
+  const hdr=12, body=[];
+  const w=(v,n)=>{for(let i=0;i<n;i++)body.push(Math.floor(v/Math.pow(2,i*8))&0xFF);};
+  const S32=v=>{const b=Buffer.alloc(4);b.writeInt32LE(v,0);body.push(...b);};
+  body.push(0x00|0x40,0,0); body.push(20,0); body.push(3);
+  body.push(253,4,4); body.push(0,4,5); body.push(1,4,5);
+  const base=1000000000;
+  const seq=[ [30,120], [30.02,120], [30.04,120] ];   // 第 2 点为漂移点
+  for(let i=0;i<seq.length;i++){
+    body.push(0x00);
+    w(base+i,4);
+    S32(Math.round(seq[i][0]*Math.pow(2,31)/180));
+    S32(Math.round(seq[i][1]*Math.pow(2,31)/180));
+  }
+  const total=hdr+body.length+2,out=new Uint8Array(total);
+  out[0]=hdr;out[1]=0x20;const dv=new DataView(out.buffer);
+  dv.setUint16(2,2140,true);dv.setUint32(4,body.length,true);
+  out[8]=0x2E;out[9]=0x46;out[10]=0x49;out[11]=0x54;
+  for(let i=0;i<body.length;i++)out[hdr+i]=body[i];
+  dv.setUint16(hdr+body.length,FIT.crc16(out,0,hdr+body.length),true);
+  const tp = FIT.trackPoints(out);
+  ok(tp.length===2, '漂移点（1s 内跳 2.2km）被过滤', tp.length);
+  ok(Math.abs(tp[1].lat - (tp[0].lat + 0.04)) < 1e-6, '漂移后正常点保留且衔接正确', tp.map(p=>p.lat));
+}
+
 console.log('\n=== ' + pass + ' 通过 / ' + fail + ' 失败 ===');
 // ---- [11] 无效哨兵值（0xFFFFFFFF 等）→ null + GPS 距离兜底 + 字节级往返 ----
 // 真机码表文件常见：停表瞬间 record.distance 写 0xFFFFFFFF（uint32 无效哨兵）。
