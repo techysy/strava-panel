@@ -248,10 +248,6 @@ html[data-theme="dark"] .tm-float.tm-float-glass .tm-float-t{color:var(--text)}
 .fo-lb{font-size:12px;display:inline-flex;align-items:center;gap:4px;cursor:pointer;color:var(--text-2)}
 .fo-hint{font-size:11.5px;color:var(--text-3)}
 .fo-status{width:100%;font-size:11.5px;color:var(--text-3);margin-top:2px}
-.fit-op-mini-row{display:flex;gap:8px}
-.fit-op-mini{flex:1;min-width:0;border:1px solid var(--border-subtle);border-radius:10px;padding:8px 12px;background:var(--surface)}
-.fo-mini-body{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:6px}
-.fo-mini-body .fo-name{min-width:100px;max-width:180px}
 .fo-tgt{font-size:11.5px;color:var(--text-3)}
 /* 出行计划 */
 .trip-grid{display:grid;grid-template-columns:1fr;gap:12px}
@@ -1106,26 +1102,21 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
             </span>
           </div>
 
-          <div class="fit-op-mini-row" id="fitOpMini">
-            <div class="fit-op-mini">
-              <span class="fo-t"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg><span data-i18n="fit_strip">删除功率 / 心率</span></span>
-              <div class="fo-mini-body">
-                <label class="fo-lb"><input type="checkbox" id="fitDropPower" checked><span data-i18n="fit_stripPower">功率</span></label>
-                <label class="fo-lb"><input type="checkbox" id="fitDropHr" checked><span data-i18n="fit_stripHr">心率</span></label>
-                <span class="tt fo-tgt"><span data-i18n="fit_target">目标：</span><span id="fitStripTarget">-</span></span>
-                <button class="btn btn-sm" onclick="FitUI.runStrip()" data-i18n="fit_actionStrip">执行并下载</button>
-                <button class="btn btn-sm" onclick="FitUI.runStrip('list')" data-i18n="fit_toList">应用到列表</button>
-              </div>
-            </div>
-            <div class="fit-op-mini">
-              <span class="fo-t"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg><span data-i18n="fit_convert">转换 GPX / TCX</span></span>
-              <div class="fo-mini-body">
-                <input type="text" id="fitConvertName" class="fo-name" data-i18n-ph="fit_namePh" placeholder="活动名称（留空用文件名）">
-                <span class="tt fo-tgt"><span data-i18n="fit_target">目标：</span><span id="fitConvertTarget">-</span></span>
-                <button class="btn btn-sm" onclick="FitUI.runConvert('gpx')">GPX</button>
-                <button class="btn btn-sm" onclick="FitUI.runConvert('tcx')">TCX</button>
-              </div>
-            </div>
+          <div class="fit-op" id="fitOpStrip">
+            <span class="fo-t"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg><span data-i18n="fit_strip">删除功率 / 心率</span></span>
+            <label class="fo-lb"><input type="checkbox" id="fitDropPower" checked><span data-i18n="fit_stripPower">功率</span></label>
+            <label class="fo-lb"><input type="checkbox" id="fitDropHr" checked><span data-i18n="fit_stripHr">心率</span></label>
+            <span class="tt fo-tgt"><span data-i18n="fit_target">目标：</span><span id="fitStripTarget">-</span></span>
+            <button class="btn btn-sm" onclick="FitUI.runStrip()" data-i18n="fit_actionStrip">执行并下载</button>
+            <button class="btn btn-sm" onclick="FitUI.runStrip('list')" data-i18n="fit_toList">应用到列表</button>
+          </div>
+
+          <div class="fit-op" id="fitOpConvert">
+            <span class="fo-t"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg><span data-i18n="fit_convert">转换 GPX / TCX</span></span>
+            <input type="text" id="fitConvertName" class="fo-name" data-i18n-ph="fit_namePh" placeholder="活动名称（留空用文件名）">
+            <span class="tt fo-tgt"><span data-i18n="fit_target">目标：</span><span id="fitConvertTarget">-</span></span>
+            <button class="btn btn-sm" onclick="FitUI.runConvert('gpx')">GPX</button>
+            <button class="btn btn-sm" onclick="FitUI.runConvert('tcx')">TCX</button>
           </div>
         </div>
       </div>
