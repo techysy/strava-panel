@@ -17,7 +17,7 @@
 !macro customFinishPage
   !define MUI_FINISHPAGE_RUN
   !define MUI_FINISHPAGE_RUN_FUNCTION "StartAppFunc"
-  !define MUI_FINISHPAGE_LINK "打开安装目录（$INSTDIR）"
+  !define MUI_FINISHPAGE_LINK "打开安装目录"
   !define MUI_FINISHPAGE_LINK_LOCATION "$INSTDIR"
   !define MUI_FINISHPAGE_LINK_COLOR "0000FF"
   !insertmacro MUI_PAGE_FINISH
