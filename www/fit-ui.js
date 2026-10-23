@@ -135,7 +135,40 @@ const FitUI = (() => {
   }
 
   // ---- 各工具执行 ----
-  // （字段清洗 stripFields 与 GPX/TCX 转换保留在 FIT 引擎与自测中，UI 入口已下线——用得少）
+  function runStrip(mode) {
+    const f = getSelectedFile();
+    const dropPw = $('fitDropPower').checked, dropHr = $('fitDropHr').checked;
+    if (!f) return;
+    try {
+      const r = FIT.stripFields(f.bytes, { power: dropPw, heartRate: dropHr });
+      if (mode === 'list') {
+        const a = pushDerived(baseName(f.name) + '-stripped.fit', r.bytes);
+        if (!a) { toast(t('fit_parseFail'), false); return; }
+        selectedFid = a.id;
+        renderList(); renderPanel();
+        toast(t('fit_doneStrip', { n: r.count }), true);
+        return;
+      }
+      download(new Blob([r.bytes], { type: 'application/octet-stream' }), baseName(f.name) + '-stripped.fit');
+      renderMap([r.bytes]);
+      toast(t('fit_doneStrip', { n: r.count }), true);
+    } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); }
+  }
+
+  function runConvert(fmt) {
+    const f = getSelectedFile();
+    if (!f) return;
+    try {
+      const name = $('fitConvertName').value.trim() || baseName(f.name);
+      if (fmt === 'gpx') {
+        download(new Blob([FIT.toGpx(f.bytes, name)], { type: 'application/gpx+xml' }), name + '.gpx');
+      } else {
+        download(new Blob([FIT.toTcx(f.bytes, name)], { type: 'application/xml' }), name + '.tcx');
+      }
+      toast(t('fit_doneConvert'), true);
+    } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); }
+  }
+
   function runSplit(mode) {
     const f = getSelectedFile();
     if (!f) return;
@@ -725,9 +758,13 @@ const FitUI = (() => {
     $('fitOpSplit').style.display = one ? '' : 'none';
     $('fitOpCombine').style.display = n >= 2 ? '' : 'none';
     const upOp = $('fitOpUpload'); if (upOp) upOp.style.display = one ? '' : 'none';
+    $('fitOpMini').style.display = one ? '' : 'none';
     $('fitCombineHint').textContent = t('fit_combineHint', { n });
     const sf = getSelectedFile();
-    $('fitSplitTarget').textContent = sf ? baseName(sf.name) : '-';
+    const sfName = sf ? baseName(sf.name) : '-';
+    $('fitSplitTarget').textContent = sfName;
+    $('fitStripTarget').textContent = sfName;
+    $('fitConvertTarget').textContent = sfName;
     refreshUploadTarget();
     renderMap();
   }
@@ -872,5 +909,5 @@ const FitUI = (() => {
     renderList(); renderPanel();
   }
 
-  return { init, relang, addFiles, remove, clearAll, pickFiles, runSplit, runCombine, toggleCrop, toggleSplit, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, splitSuggest, splitClearCuts, splitGo, runUpload, reauthForUpload };
+  return { init, relang, addFiles, remove, clearAll, pickFiles, runStrip, runConvert, runSplit, runCombine, toggleCrop, toggleSplit, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, splitSuggest, splitClearCuts, splitGo, runUpload, reauthForUpload };
 })();

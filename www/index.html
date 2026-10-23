@@ -248,6 +248,11 @@ html[data-theme="dark"] .tm-float.tm-float-glass .tm-float-t{color:var(--text)}
 .fo-lb{font-size:12px;display:inline-flex;align-items:center;gap:4px;cursor:pointer;color:var(--text-2)}
 .fo-hint{font-size:11.5px;color:var(--text-3)}
 .fo-status{width:100%;font-size:11.5px;color:var(--text-3);margin-top:2px}
+.fit-op-mini-row{display:flex;gap:8px}
+.fit-op-mini{flex:1;min-width:0;border:1px solid var(--border-subtle);border-radius:10px;padding:8px 12px;background:var(--surface)}
+.fo-mini-body{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:6px}
+.fo-mini-body .fo-name{min-width:100px;max-width:180px}
+.fo-tgt{font-size:11.5px;color:var(--text-3)}
 /* 出行计划 */
 .trip-grid{display:grid;grid-template-columns:1fr;gap:12px}
 .trip-card{border:1px solid var(--border-subtle);border-radius:12px;padding:12px;background:var(--surface)}
@@ -1100,6 +1105,28 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
               <button class="btn" onclick="FitUI.reauthForUpload()" style="padding:3px 10px;font-size:11.5px" data-i18n="fit_uploadReauth">重新授权</button>
             </span>
           </div>
+
+          <div class="fit-op-mini-row" id="fitOpMini">
+            <div class="fit-op-mini">
+              <span class="fo-t"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg><span data-i18n="fit_strip">删除功率 / 心率</span></span>
+              <div class="fo-mini-body">
+                <label class="fo-lb"><input type="checkbox" id="fitDropPower" checked><span data-i18n="fit_stripPower">功率</span></label>
+                <label class="fo-lb"><input type="checkbox" id="fitDropHr" checked><span data-i18n="fit_stripHr">心率</span></label>
+                <span class="tt fo-tgt"><span data-i18n="fit_target">目标：</span><span id="fitStripTarget">-</span></span>
+                <button class="btn btn-sm" onclick="FitUI.runStrip()" data-i18n="fit_actionStrip">执行并下载</button>
+                <button class="btn btn-sm" onclick="FitUI.runStrip('list')" data-i18n="fit_toList">应用到列表</button>
+              </div>
+            </div>
+            <div class="fit-op-mini">
+              <span class="fo-t"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg><span data-i18n="fit_convert">转换 GPX / TCX</span></span>
+              <div class="fo-mini-body">
+                <input type="text" id="fitConvertName" class="fo-name" data-i18n-ph="fit_namePh" placeholder="活动名称（留空用文件名）">
+                <span class="tt fo-tgt"><span data-i18n="fit_target">目标：</span><span id="fitConvertTarget">-</span></span>
+                <button class="btn btn-sm" onclick="FitUI.runConvert('gpx')">GPX</button>
+                <button class="btn btn-sm" onclick="FitUI.runConvert('tcx')">TCX</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1267,20 +1294,20 @@ const I18N = {
     upd_download:'下载更新', upd_downloading:'下载中… {pct}%', upd_downloaded:'下载完成，点击安装', upd_install:'安装并重启',
     upd_error:'检查更新失败：{msg}', upd_retry:'重试', upd_openGithub:'打开 Releases 页面', upd_close:'关闭', upd_curVer:'当前版本 v{ver}', upd_size:'大小 {size}', upd_pub:'发布于 {date}', upd_noAsset:'未找到适用于当前平台的安装包',
     sg_ok:'正常', sg_attention:'需关注', sg_ready:'就绪', sg_empty:'空', sg_pending:'未生成',
-    nav_fit:'FIT 工具', fit_title:'FIT 文件工具', fit_hint:'合并分段活动、拆分长记录、上传 Strava。解析与处理全在本地浏览器完成；仅当你点击「上传」时才把选中文件经本地服务推送到你自己的 Strava。',
+    nav_fit:'FIT 工具', fit_title:'FIT 文件工具', fit_hint:'拆分、合并、删除功率/心率、转 GPX/TCX、上传 Strava。解析与处理全在本地浏览器完成；仅当你点击「上传」时才把选中文件经本地服务推送到你自己的 Strava。',
     fit_clearAll:'清空', fit_dropTitle:'拖入 .fit 文件', fit_dropSub:'或点击选择（可多选）', fit_addCard:'添加文件', fit_addSub:'拖入 .fit 或点击选择（可多选）', fit_empty:'尚未添加文件', fit_onlyFit:'仅支持 .fit 文件',
     fit_parseFail:'无法解析', fit_noPoints:'文件中没有采样数据', fit_crcBad:'CRC 校验异常，文件可能已损坏', fit_fail:'处理失败：',
-    fit_stripPower:'功率', fit_stripHr:'心率',
+    fit_strip:'删除功率 / 心率', fit_stripPower:'功率', fit_stripHr:'心率',
     fit_split:'拆分', fit_splitHint:'按时间断点（码表分段记录）或固定条数切成多个文件。', fit_byGap:'按时间断点', fit_byCount:'按条数',
     fit_secGap:'秒以上视为断点', fit_pointsEach:'点/份', fit_combine:'合并', fit_combineHint:'已选 {n} 个文件',
-    fit_namePh:'活动名称（留空用文件名）', fit_target:'目标：',
-    fit_actionSplit:'执行并下载', fit_actionCombine:'执行并下载',
+    fit_convert:'转换 GPX / TCX', fit_namePh:'活动名称（留空用文件名）', fit_target:'目标：',
+    fit_actionStrip:'执行并下载', fit_actionSplit:'执行并下载', fit_actionCombine:'执行并下载',
     fit_toList:'应用到列表', fit_combineInList:'合并结果已加入列表：{name}（可选中上传/再处理）', fit_splitInList:'拆分产物 {n} 段已加入列表（可选中上传/再处理）',
     fit_splitViz:'地图拆分', fit_splitVizTitle:'点击地图加切点 · 点切点删除 · 拖动微调（S/E 仍可裁首尾）', fit_splitSegs:'{n} 段', fit_splitSuggest:'建议断点', fit_splitGoDl:'切分并下载', fit_splitGoList:'切分入列表', fit_splitDone:'退出拆分', fit_splitNoCuts:'请先在地图上至少点选 1 个切点', fit_splitSuggestNone:'未发现 ≥{s} 秒的时间断点，请手动点选切点',
     fit_upload:'上传到 Strava', fit_uploadCrop:'应用裁剪区间', fit_uploadPrivate:'私密活动', fit_uploadCommute:'通勤', fit_uploadDo:'上传',
     fit_uploading:'上传中…', fit_uploadProcessing:'Strava 处理中…', fit_uploadBusy:'已有上传进行中，请稍候', fit_uploadDoneT:'上传完成', fit_uploadView:'在 Strava 查看', fit_uploadFail:'上传失败：', fit_uploadDup:'Strava 判定为重复数据（该起始时间的活动已存在）。', fit_uploadTimeout:'处理超时，稍后可在活动列表确认是否已生成。',
     fit_uploadAuthNeed:'当前授权缺少上传权限（activity:write）。', fit_uploadReauth:'重新授权', fit_uploadReauthWait:'完成新窗口授权后将自动继续上传…', fit_uploadReauthOk:'权限已更新，继续上传…', fit_uploadReauthFail:'授权超时或失败，请重试',
-    fit_doneSplit:'已拆分为 {n} 个文件', fit_doneCombine:'合并完成，共 {n} 个采样点',
+    fit_doneStrip:'已从 {n} 个采样中移除功率/心率', fit_doneSplit:'已拆分为 {n} 个文件', fit_doneCombine:'合并完成，共 {n} 个采样点', fit_doneConvert:'已转换，下载已开始',
     fit_crop:'地图裁剪', fit_cropTitle:'拖动地图上 S/E 端点选择保留区间', fit_cropRange:'点 {a}–{b} / 共 {n}', fit_cropReset:'重置', fit_cropDone:'退出裁剪', fit_cropDone2:'裁剪完成，已开始下载',
     fit_cropTarget:'裁剪目标', fit_cropTargetHint:'点击切换裁剪目标',
     fit_cropApplyOne:'应用此文件', fit_cropApplyAll:'全部应用', fit_cropDl:'下载', fit_cropApplied:'已应用：列表中的文件已替换为裁剪结果（{n} 点）', fit_cropNoop:'区间为全段，未做裁剪',
@@ -1406,20 +1433,20 @@ const I18N = {
     upd_download:'Download Update', upd_downloading:'Downloading… {pct}%', upd_downloaded:'Download complete, click to install', upd_install:'Install & Restart',
     upd_error:'Update check failed: {msg}', upd_retry:'Retry', upd_openGithub:'Open Releases Page', upd_close:'Close', upd_curVer:'Current v{ver}', upd_size:'Size {size}', upd_pub:'Published {date}', upd_noAsset:'No installer found for current platform',
     sg_ok:'OK', sg_attention:'Attention', sg_ready:'Ready', sg_empty:'Empty', sg_pending:'Not generated',
-    nav_fit:'FIT Tools', fit_title:'FIT File Tools', fit_hint:'Combine split activities, split long recordings, upload to Strava. Parsing and processing run entirely in your browser; the selected file is pushed to your own Strava (via the local server) only when you click Upload.',
+    nav_fit:'FIT Tools', fit_title:'FIT File Tools', fit_hint:'Split, combine, strip power/HR, convert to GPX/TCX, upload to Strava. Parsing and processing run entirely in your browser; the selected file is pushed to your own Strava (via the local server) only when you click Upload.',
     fit_clearAll:'Clear', fit_dropTitle:'Drop .fit files here', fit_dropSub:'or click to browse (multiple allowed)', fit_addCard:'Add files', fit_addSub:'Drop .fit or click (multi)', fit_empty:'No files added yet', fit_onlyFit:'Only .fit files are supported',
     fit_parseFail:'Cannot parse', fit_noPoints:'No sample data in file', fit_crcBad:'CRC check failed — file may be corrupted', fit_fail:'Failed: ',
-    fit_stripPower:'Power', fit_stripHr:'Heart rate',
+    fit_strip:'Strip Power / Heart Rate', fit_stripPower:'Power', fit_stripHr:'Heart rate',
     fit_split:'Split', fit_splitHint:'Cut one long recording into multiple files by time gap or fixed sample count.', fit_byGap:'By time gap', fit_byCount:'By sample count',
     fit_secGap:'sec+ counts as a gap', fit_pointsEach:'points/file', fit_combine:'Combine', fit_combineHint:'{n} files selected',
-    fit_namePh:'Activity name (blank = filename)', fit_target:'Target: ',
-    fit_actionSplit:'Run & download', fit_actionCombine:'Run & download',
+    fit_convert:'Convert to GPX / TCX', fit_namePh:'Activity name (blank = filename)', fit_target:'Target: ',
+    fit_actionStrip:'Run & download', fit_actionSplit:'Run & download', fit_actionCombine:'Run & download',
     fit_toList:'Apply to list', fit_combineInList:'Merged result added to list: {name} (select to upload / process again)', fit_splitInList:'{n} split parts added to list (select to upload / process again)',
     fit_splitViz:'Map Split', fit_splitVizTitle:'Click the map to add a cut · click a cut to remove · drag to fine-tune (S/E still crop ends)', fit_splitSegs:'{n} segment(s)', fit_splitSuggest:'Suggest breaks', fit_splitGoDl:'Split & download', fit_splitGoList:'Split to list', fit_splitDone:'Exit split', fit_splitNoCuts:'Add at least one cut on the map first', fit_splitSuggestNone:'No time gaps ≥ {s}s found; add cuts manually',
     fit_upload:'Upload to Strava', fit_uploadCrop:'Apply crop range', fit_uploadPrivate:'Private activity', fit_uploadCommute:'Commute', fit_uploadDo:'Upload',
     fit_uploading:'Uploading…', fit_uploadProcessing:'Strava is processing…', fit_uploadBusy:'An upload is already running, please wait', fit_uploadDoneT:'Upload complete', fit_uploadView:'View on Strava', fit_uploadFail:'Upload failed: ', fit_uploadDup:'Strava flagged it as a duplicate (an activity with this start time exists).', fit_uploadTimeout:'Processing timed out; check your activity list later.',
     fit_uploadAuthNeed:'Current authorization lacks upload permission (activity:write).', fit_uploadReauth:'Re-authorize', fit_uploadReauthWait:'Upload resumes automatically once you finish the new authorization…', fit_uploadReauthOk:'Permission granted, resuming upload…', fit_uploadReauthFail:'Authorization timed out or failed, please retry',
-    fit_doneSplit:'Split into {n} files', fit_doneCombine:'Combined {n} samples',
+    fit_doneStrip:'Power/HR stripped from {n} samples', fit_doneSplit:'Split into {n} files', fit_doneCombine:'Combined {n} samples', fit_doneConvert:'Converted — download started',
     fit_crop:'Crop on map', fit_cropTitle:'Drag S/E handles on the map to choose the range', fit_cropRange:'pts {a}–{b} / {n}', fit_cropReset:'Reset', fit_cropDone:'Exit crop', fit_cropDone2:'Crop ready — download started',
     fit_cropTarget:'cropping', fit_cropTargetHint:'Click to switch the crop target',
     fit_cropApplyOne:'Apply this file', fit_cropApplyAll:'Apply all', fit_cropDl:'Download', fit_cropApplied:'Applied: file in the list replaced with the crop ({n} pts)', fit_cropNoop:'Range covers the whole file — nothing cropped',
