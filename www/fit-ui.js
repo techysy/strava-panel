@@ -135,18 +135,7 @@ const FitUI = (() => {
   }
 
   // ---- 各工具执行 ----
-  function runStrip() {
-    const f = getSelectedFile();
-    const dropPw = $('fitDropPower').checked, dropHr = $('fitDropHr').checked;
-    if (!f) return;
-    try {
-      const r = FIT.stripFields(f.bytes, { power: dropPw, heartRate: dropHr });
-      download(new Blob([r.bytes], { type: 'application/octet-stream' }), baseName(f.name) + '-stripped.fit');
-      renderMap([r.bytes]);
-      toast(t('fit_doneStrip', { n: r.count }), true);
-    } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); }
-  }
-
+  // （字段清洗 stripFields 与 GPX/TCX 转换保留在 FIT 引擎与自测中，UI 入口已下线——用得少）
   function runSplit(mode) {
     const f = getSelectedFile();
     if (!f) return;
@@ -190,20 +179,6 @@ const FitUI = (() => {
         renderMap([r.bytes]);   // 合并产物在地图上渲染
         toast(t('fit_doneCombine', { n: r.count }), true);
       }
-    } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); }
-  }
-
-  function runConvert(fmt) {
-    const f = getSelectedFile();
-    if (!f) return;
-    try {
-      const name = $('fitActName').value.trim() || baseName(f.name);
-      if (fmt === 'gpx') {
-        download(new Blob([FIT.toGpx(f.bytes, name)], { type: 'application/gpx+xml' }), name + '.gpx');
-      } else {
-        download(new Blob([FIT.toTcx(f.bytes, name)], { type: 'application/xml' }), name + '.tcx');
-      }
-      toast(t('fit_doneConvert'), true);
     } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); }
   }
 
@@ -747,17 +722,12 @@ const FitUI = (() => {
     $('fitPanel').style.display = n ? '' : 'none';
     if (!n) return;
     const one = n >= 1;
-    $('fitToolStrip').style.display = one ? '' : 'none';
-    $('fitToolSplit').style.display = one ? '' : 'none';
-    $('fitToolConvert').style.display = one ? '' : 'none';
-    $('fitToolCombine').style.display = n >= 2 ? '' : 'none';
-    const upCard = $('fitToolUpload'); if (upCard) upCard.style.display = one ? '' : 'none';
+    $('fitOpSplit').style.display = one ? '' : 'none';
+    $('fitOpCombine').style.display = n >= 2 ? '' : 'none';
+    const upOp = $('fitOpUpload'); if (upOp) upOp.style.display = one ? '' : 'none';
     $('fitCombineHint').textContent = t('fit_combineHint', { n });
     const sf = getSelectedFile();
-    const sfName = sf ? baseName(sf.name) : '-';
-    $('fitStripTarget').textContent = sfName;
-    $('fitSplitTarget').textContent = sfName;
-    $('fitConvertTarget').textContent = sfName;
+    $('fitSplitTarget').textContent = sf ? baseName(sf.name) : '-';
     refreshUploadTarget();
     renderMap();
   }
@@ -902,5 +872,5 @@ const FitUI = (() => {
     renderList(); renderPanel();
   }
 
-  return { init, relang, addFiles, remove, clearAll, pickFiles, runStrip, runSplit, runCombine, runConvert, toggleCrop, toggleSplit, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, splitSuggest, splitClearCuts, splitGo, runUpload, reauthForUpload };
+  return { init, relang, addFiles, remove, clearAll, pickFiles, runSplit, runCombine, toggleCrop, toggleSplit, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, splitSuggest, splitClearCuts, splitGo, runUpload, reauthForUpload };
 })();
