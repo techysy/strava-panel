@@ -758,8 +758,7 @@ const FitUI = (() => {
     $('fitOpSplit').style.display = one ? '' : 'none';
     $('fitOpCombine').style.display = n >= 2 ? '' : 'none';
     const upOp = $('fitOpUpload'); if (upOp) upOp.style.display = one ? '' : 'none';
-    $('fitOpStrip').style.display = one ? '' : 'none';
-    $('fitOpConvert').style.display = one ? '' : 'none';
+    $('fitOpMini').style.display = one ? '' : 'none';
     $('fitCombineHint').textContent = t('fit_combineHint', { n });
     const sf = getSelectedFile();
     const sfName = sf ? baseName(sf.name) : '-';

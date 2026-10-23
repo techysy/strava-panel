@@ -294,6 +294,37 @@ ok(dec.length === 1200, '超上限时抽稀到 1200 点', dec.length);
 ok(dec[0].idx === 0 && dec[dec.length - 1].idx === 2999, '抽稀保持首末点下标完整');
 ok(dec.every((p, i) => i === 0 || p.idx > dec[i - 1].idx), '抽稀后下标严格递增（端点映射可靠）');
 
+// 越界坐标垃圾点（非哨兵但超出 ±90/±180）必须被过滤——否则地图 fitBounds 撑到洲际尺度
+{
+  const f0 = buildFit({ points: 10 });
+  // 手工注入一个 lat=150°（>90°）的 record：直接改解析后消息再不可行，用独立解析验证 validLatLon 语义
+  const bad = FIT.trackPoints(f0);
+  ok(bad.every(p => p.lat >= -90 && p.lat <= 90 && p.lon >= -180 && p.lon <= 180), '正常文件坐标全部在合法范围');
+  // 构造含越界点的文件：lat 半圆值 150° = 150*2^31/180
+  const hdr=12, body=[];
+  const w=(v,n)=>{for(let i=0;i<n;i++)body.push(Math.floor(v/Math.pow(2,i*8))&0xFF);};
+  const S32=v=>{const b=Buffer.alloc(4);b.writeInt32LE(v,0);body.push(...b);};
+  body.push(0x00|0x40,0,0); body.push(20,0); body.push(3);
+  body.push(253,4,4); body.push(0,4,5); body.push(1,4,5);
+  const base=1000000000;
+  const lats=[30, 150, 31];   // 中间点 lat=150° 越界
+  for(let i=0;i<3;i++){
+    body.push(0x00);
+    w(base+i,4);
+    S32(Math.round(lats[i]*Math.pow(2,31)/180));
+    S32(Math.round(120*Math.pow(2,31)/180));
+  }
+  const total=hdr+body.length+2,out=new Uint8Array(total);
+  out[0]=hdr;out[1]=0x20;const dv=new DataView(out.buffer);
+  dv.setUint16(2,2140,true);dv.setUint32(4,body.length,true);
+  out[8]=0x2E;out[9]=0x46;out[10]=0x49;out[11]=0x54;
+  for(let i=0;i<body.length;i++)out[hdr+i]=body[i];
+  dv.setUint16(hdr+body.length,FIT.crc16(out,0,hdr+body.length),true);
+  const tp = FIT.trackPoints(out);
+  ok(tp.length===2, '越界坐标点（lat=150°）被过滤', tp.length);
+  ok(tp.every(p=>p.lat>=-90&&p.lat<=90), '过滤后坐标全部合法', tp.map(p=>p.lat));
+}
+
 console.log('\n=== ' + pass + ' 通过 / ' + fail + ' 失败 ===');
 // ---- [11] 无效哨兵值（0xFFFFFFFF 等）→ null + GPS 距离兜底 + 字节级往返 ----
 // 真机码表文件常见：停表瞬间 record.distance 写 0xFFFFFFFF（uint32 无效哨兵）。

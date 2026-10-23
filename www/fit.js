@@ -524,7 +524,9 @@ const FIT = (() => {
     recs.forEach((r, i) => {
       const la = r.data[REC.position_lat], lo = r.data[REC.position_long];
       if (la == null || lo == null) return;
-      withIdx.push({ lat: la / SEMI, lon: lo / SEMI, idx: i });
+      const lat = la / SEMI, lon = lo / SEMI;
+      if (!validLatLon(lat, lon)) return;
+      withIdx.push({ lat, lon, idx: i });
     });
     if (withIdx.length <= maxPts) return withIdx;
     const out = [];
@@ -794,13 +796,20 @@ ${trkpts}
     for (const r of recs) {
       const la = r.data[REC.position_lat], lo = r.data[REC.position_long];
       if (la == null || lo == null) continue;
+      const lat = la / SEMI, lon = lo / SEMI;
+      if (!validLatLon(lat, lon)) continue;
       const ele = r.data[REC.altitude] != null ? (r.data[REC.altitude] - 500) / 5 : null;
-      pts.push({ lat: la / SEMI, lon: lo / SEMI, ele });
+      pts.push({ lat, lon, ele });
     }
     if (pts.length <= maxPts) return pts;
     const out = [];
     for (let i = 0; i < maxPts; i++) out.push(pts[Math.round(i * (pts.length - 1) / (maxPts - 1))]);
     return out;
+  }
+
+  // 坐标合法性（非哨兵的越界垃圾点会让地图 fitBounds 撑到洲际尺度）
+  function validLatLon(lat, lon) {
+    return Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
   }
 
   // ======================= 文件概览（供 UI 展示）=======================
