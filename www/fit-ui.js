@@ -743,6 +743,7 @@ const FitUI = (() => {
     renderList();
     renderPanel();   // → renderMap：非裁剪全量重绘 / 裁剪态走 renderCropMap + syncCropBtn
     if (cropMode) { renderCropBar(); renderFsSide(); }
+    refreshAuthPill();   // 胶囊文案跟随语言
     // 底图切换按钮文案在 setTile 首建时写死，语言切换只刷这里（含全屏壳）
     const labKey = { light: 'map_light', street: 'map_street', sat: 'map_sat' };
     document.querySelectorAll('.tm-tiles button[data-k]').forEach(b => {
@@ -859,6 +860,7 @@ const FitUI = (() => {
   // 缺 write scope → 走一次强制 OAuth，轮询 can_upload 成功后自动续传暂存上传
   async function reauthForUpload() {
     if (typeof ensureApiToken === 'function') await ensureApiToken();
+    const pill = $('fitUploadAuthPill'); if (pill) pill.style.display = 'none';   // 授权中隐藏状态胶囊，避免和进度文案重复
     showProg(t('fit_uploadReauthWait'));
     try {
       const r = await apiGet('/api/oauth/start');
@@ -886,6 +888,24 @@ const FitUI = (() => {
     }
   }
 
+  // 授权状态胶囊：can_upload=true → 绿「已授权」；false → 红胶囊可点击=授权按钮
+  // unknown（未登录/请求失败）→ 隐藏。授权完成自动续传逻辑见 reauthForUpload。
+  let _authPillTimer = null;
+  async function refreshAuthPill() {
+    const pill = $('fitUploadAuthPill'); if (!pill) return;
+    const n = fitFiles.length;
+    if (!n) { pill.style.display = 'none'; return; }
+    let state = 'unknown';
+    try {
+      const info = await apiGet('/api/info');
+      state = (info && info.strava && info.strava.can_upload) ? 'ok' : 'no';
+    } catch { state = 'unknown'; }
+    if (state === 'unknown') { pill.style.display = 'none'; return; }
+    pill.style.display = '';
+    pill.dataset.state = state;
+    pill.textContent = state === 'ok' ? '✓ ' + t('fit_authOk') : t('fit_authNeed');
+  }
+
   function init() {
     const list = $('fitFileList');
     const input = $('fitInput');
@@ -907,6 +927,9 @@ const FitUI = (() => {
     });
     $('fitSplitMode').dispatchEvent(new Event('change'));
     renderList(); renderPanel();
+    refreshAuthPill();
+    if (_authPillTimer) clearInterval(_authPillTimer);
+    _authPillTimer = setInterval(refreshAuthPill, 60000);   // 授权状态低频轮询（用户可能在别处完成授权）
   }
 
   return { init, relang, addFiles, remove, clearAll, pickFiles, runStrip, runConvert, runSplit, runCombine, toggleCrop, toggleSplit, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, splitSuggest, splitClearCuts, splitGo, runUpload, reauthForUpload };

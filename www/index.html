@@ -249,6 +249,13 @@ html[data-theme="dark"] .tm-float.tm-float-glass .tm-float-t{color:var(--text)}
 .fo-hint{font-size:11.5px;color:var(--text-3)}
 .fo-status{width:100%;font-size:11.5px;color:var(--text-3);margin-top:2px}
 .fo-tgt{font-size:11.5px;color:var(--text-3)}
+.fo-auth{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;padding:3px 10px;border-radius:999px;cursor:pointer;border:1px solid var(--border-subtle);color:var(--text-2);white-space:nowrap}
+.fo-auth::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--text-3)}
+.fo-auth[data-state="ok"]{color:var(--ok,#16a34a);border-color:color-mix(in srgb,var(--ok,#16a34a) 35%,transparent)}
+.fo-auth[data-state="ok"]::before{background:var(--ok,#16a34a)}
+.fo-auth[data-state="no"]{color:#dc2626;border-color:color-mix(in srgb,#dc2626 35%,transparent)}
+.fo-auth[data-state="no"]::before{background:#dc2626}
+.fo-auth[data-state="no"]:hover{background:color-mix(in srgb,#dc2626 8%,transparent)}
 .fit-op-duo{flex-direction:column;align-items:stretch;gap:2px}
 .fo-line{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:4px 0}
 .fo-line-sep{border-top:1px solid var(--border-subtle)}
@@ -1097,6 +1104,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
             <label class="fo-lb"><input type="checkbox" id="fitUploadPrivate"><span data-i18n="fit_uploadPrivate">私密活动</span></label>
             <label class="fo-lb"><input type="checkbox" id="fitUploadCommute"><span data-i18n="fit_uploadCommute">通勤</span></label>
             <button class="btn btn-sm primary" id="fitUploadBtn" onclick="FitUI.runUpload()" data-i18n="fit_uploadDo">上传</button>
+            <span id="fitUploadAuthPill" class="fo-auth" data-state="unknown" onclick="FitUI.reauthForUpload()" role="button" style="display:none"></span>
             <span class="tt fo-status" id="fitUploadProgress" style="display:none"></span>
             <span class="tt fo-status" id="fitUploadResult" style="display:none"></span>
             <span class="tt fo-status" id="fitUploadAuthHint" style="display:none">
@@ -1301,6 +1309,7 @@ const I18N = {
     fit_splitViz:'地图拆分', fit_splitVizTitle:'点击地图加切点 · 点切点删除 · 拖动微调（S/E 仍可裁首尾）', fit_splitSegs:'{n} 段', fit_splitSuggest:'建议断点', fit_splitGoDl:'切分并下载', fit_splitGoList:'切分入列表', fit_splitDone:'退出拆分', fit_splitNoCuts:'请先在地图上至少点选 1 个切点', fit_splitSuggestNone:'未发现 ≥{s} 秒的时间断点，请手动点选切点',
     fit_upload:'上传到 Strava', fit_uploadCrop:'应用裁剪区间', fit_uploadPrivate:'私密活动', fit_uploadCommute:'通勤', fit_uploadDo:'上传',
     fit_uploading:'上传中…', fit_uploadProcessing:'Strava 处理中…', fit_uploadBusy:'已有上传进行中，请稍候', fit_uploadDoneT:'上传完成', fit_uploadView:'在 Strava 查看', fit_uploadFail:'上传失败：', fit_uploadDup:'Strava 判定为重复数据（该起始时间的活动已存在）。', fit_uploadTimeout:'处理超时，稍后可在活动列表确认是否已生成。',
+    fit_authOk:'已授权', fit_authNeed:'点击授权上传',
     fit_uploadAuthNeed:'当前授权缺少上传权限（activity:write）。', fit_uploadReauth:'重新授权', fit_uploadReauthWait:'完成新窗口授权后将自动继续上传…', fit_uploadReauthOk:'权限已更新，继续上传…', fit_uploadReauthFail:'授权超时或失败，请重试',
     fit_doneStrip:'已从 {n} 个采样中移除功率/心率', fit_doneSplit:'已拆分为 {n} 个文件', fit_doneCombine:'合并完成，共 {n} 个采样点', fit_doneConvert:'已转换，下载已开始',
     fit_crop:'地图裁剪', fit_cropTitle:'拖动地图上 S/E 端点选择保留区间', fit_cropRange:'点 {a}–{b} / 共 {n}', fit_cropReset:'重置', fit_cropDone:'退出裁剪', fit_cropDone2:'裁剪完成，已开始下载',
@@ -1440,6 +1449,7 @@ const I18N = {
     fit_splitViz:'Map Split', fit_splitVizTitle:'Click the map to add a cut · click a cut to remove · drag to fine-tune (S/E still crop ends)', fit_splitSegs:'{n} segment(s)', fit_splitSuggest:'Suggest breaks', fit_splitGoDl:'Split & download', fit_splitGoList:'Split to list', fit_splitDone:'Exit split', fit_splitNoCuts:'Add at least one cut on the map first', fit_splitSuggestNone:'No time gaps ≥ {s}s found; add cuts manually',
     fit_upload:'Upload to Strava', fit_uploadCrop:'Apply crop range', fit_uploadPrivate:'Private activity', fit_uploadCommute:'Commute', fit_uploadDo:'Upload',
     fit_uploading:'Uploading…', fit_uploadProcessing:'Strava is processing…', fit_uploadBusy:'An upload is already running, please wait', fit_uploadDoneT:'Upload complete', fit_uploadView:'View on Strava', fit_uploadFail:'Upload failed: ', fit_uploadDup:'Strava flagged it as a duplicate (an activity with this start time exists).', fit_uploadTimeout:'Processing timed out; check your activity list later.',
+    fit_authOk:'Authorized', fit_authNeed:'Authorize upload',
     fit_uploadAuthNeed:'Current authorization lacks upload permission (activity:write).', fit_uploadReauth:'Re-authorize', fit_uploadReauthWait:'Upload resumes automatically once you finish the new authorization…', fit_uploadReauthOk:'Permission granted, resuming upload…', fit_uploadReauthFail:'Authorization timed out or failed, please retry',
     fit_doneStrip:'Power/HR stripped from {n} samples', fit_doneSplit:'Split into {n} files', fit_doneCombine:'Combined {n} samples', fit_doneConvert:'Converted — download started',
     fit_crop:'Crop on map', fit_cropTitle:'Drag S/E handles on the map to choose the range', fit_cropRange:'pts {a}–{b} / {n}', fit_cropReset:'Reset', fit_cropDone:'Exit crop', fit_cropDone2:'Crop ready — download started',
