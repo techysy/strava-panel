@@ -198,6 +198,79 @@ const FitUI = (() => {
     } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); }
   }
 
+  // ---- 海拔校准（Open-Meteo DEM）与 GCJ-02 坐标校正 ----
+  let _eleBusy = false;
+  async function fetchDem(pts) {
+    const cache = new Map();
+    const out = new Array(pts.length).fill(null);
+    const BATCH = 100;   // Open-Meteo elevation 单次上限 100 坐标
+    for (let i = 0; i < pts.length; i += BATCH) {
+      const idxs = [], lats = [], lons = [];
+      for (let j = i; j < Math.min(i + BATCH, pts.length); j++) {
+        const k = pts[j].lat.toFixed(4) + ',' + pts[j].lon.toFixed(4);   // ~11m 网格去重
+        if (cache.has(k)) { out[j] = cache.get(k); continue; }
+        idxs.push(j); lats.push(pts[j].lat.toFixed(5)); lons.push(pts[j].lon.toFixed(5));
+      }
+      if (!idxs.length) continue;
+      const resp = await fetch('https://api.open-meteo.com/v1/elevation?latitude=' + lats.join(',') + '&longitude=' + lons.join(','));
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const d = await resp.json();
+      (d.elevation || []).forEach((ele, k) => {
+        out[idxs[k]] = ele;
+        cache.set(pts[idxs[k]].lat.toFixed(4) + ',' + pts[idxs[k]].lon.toFixed(4), ele);
+      });
+    }
+    return out;
+  }
+  async function runEleCalib(mode) {
+    const f = getSelectedFile();
+    if (!f || _eleBusy) return;
+    const t0 = FIT.elevationTargets(f.bytes);
+    if (!t0.count) { toast(t('fit_eleNone'), true); return; }
+    _eleBusy = true;
+    const btn = $('fitEleBtn');
+    const btnTxt = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = t('fit_eleQuerying'); }
+    try {
+      const eles = await fetchDem(t0.pts);
+      const r = FIT.applyElevation(f.bytes, eles);
+      if (!r.bytes) { toast(t('fit_eleNone'), true); return; }
+      if (mode === 'list') {
+        const a = pushDerived(baseName(f.name) + '-ele.fit', r.bytes);
+        if (!a) { toast(t('fit_parseFail'), false); return; }
+        selectedFid = a.id;
+        renderList(); renderPanel();
+      } else {
+        download(new Blob([r.bytes], { type: 'application/octet-stream' }), baseName(f.name) + '-ele.fit');
+        renderMap([r.bytes]);
+      }
+      toast(t('fit_eleDone', { n: r.count }), true);
+    } catch (e) {
+      toast(t('fit_eleFail') + (e.message || e), false);
+    } finally {
+      _eleBusy = false;
+      if (btn) { btn.disabled = false; btn.textContent = btnTxt; }
+    }
+  }
+  function runGcjFix(mode) {
+    const f = getSelectedFile();
+    if (!f) return;
+    try {
+      const r = FIT.fixGcj02(f.bytes);
+      if (!r.bytes) { toast(t('fit_gcjNone'), true); return; }
+      if (mode === 'list') {
+        const a = pushDerived(baseName(f.name) + '-wgs84.fit', r.bytes);
+        if (!a) { toast(t('fit_parseFail'), false); return; }
+        selectedFid = a.id;
+        renderList(); renderPanel();
+      } else {
+        download(new Blob([r.bytes], { type: 'application/octet-stream' }), baseName(f.name) + '-wgs84.fit');
+        renderMap([r.bytes]);
+      }
+      toast(t('fit_gcjDone', { n: r.count }), true);
+    } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); }
+  }
+
   function runSplit(mode) {
     const f = getSelectedFile();
     if (!f) return;
@@ -810,12 +883,14 @@ const FitUI = (() => {
     $('fitOpCombine').style.display = n >= 2 ? '' : 'none';
     const upOp = $('fitOpUpload'); if (upOp) upOp.style.display = one ? '' : 'none';
     $('fitOpMini').style.display = one ? '' : 'none';
+    $('fitOpGeo').style.display = one ? '' : 'none';
     $('fitCombineHint').textContent = t('fit_combineHint', { n });
     const sf = getSelectedFile();
     const sfName = sf ? baseName(sf.name) : '-';
     $('fitSplitTarget').textContent = sfName;
     $('fitStripTarget').textContent = sfName;
     $('fitConvertTarget').textContent = sfName;
+    $('fitGeoTarget').textContent = sfName;
     refreshUploadTarget();
     renderMap();
   }
@@ -982,5 +1057,5 @@ const FitUI = (() => {
     _authPillTimer = setInterval(refreshAuthPill, 60000);   // 授权状态低频轮询（用户可能在别处完成授权）
   }
 
-  return { init, relang, addFiles, remove, clearAll, pickFiles, runStrip, runConvert, runSplit, runCombine, toggleCrop, toggleSplit, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, splitSuggest, splitClearCuts, splitGo, runUpload, reauthForUpload };
+  return { init, relang, addFiles, remove, clearAll, pickFiles, runStrip, runConvert, runEleCalib, runGcjFix, runSplit, runCombine, toggleCrop, toggleSplit, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, splitSuggest, splitClearCuts, splitGo, runUpload, reauthForUpload };
 })();

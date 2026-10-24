@@ -834,6 +834,110 @@ ${trkpts}
     return out;
   }
 
+  // ======================= 工具 5：坐标校正（GCJ-02 → WGS-84）=======================
+  // 国内码表（佳明国行 / 迈金等）可能记录 GCJ-02 加密坐标：轨迹整体偏移约 300~600m、
+  // 且与底图道路错位。此处按标准 eviltransform 算法（注意 x=lon-105 / y=lat-35 平移）
+  // 迭代逆变换还原 WGS-84；境外坐标原样保留。
+  // 测试锚点：eviltransform 官方用例 wgs(31.1774276,121.5272106) → gcj(31.1753040,121.5315419)。
+  const GCJ = { A: 6378245, EE: 0.00669342162296594323 };
+  function outOfChina(lat, lon) { return lon < 72.004 || lon > 137.8347 || lat < 0.8293 || lat > 55.8271; }
+  function gcjDelta(lat, lon) {
+    const PI = Math.PI, x = lon - 105.0, y = lat - 35.0;
+    let dLat = -100 + 2 * x + 3 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+    let dLon = 300 + x + 2 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+    dLat += (20 * Math.sin(6 * x * PI) + 20 * Math.sin(2 * x * PI)) * 2 / 3;
+    dLat += (20 * Math.sin(y * PI) + 40 * Math.sin(y / 3 * PI)) * 2 / 3;
+    dLat += (160 * Math.sin(y / 12 * PI) + 320 * Math.sin(y * PI / 30)) * 2 / 3;
+    dLon += (20 * Math.sin(6 * x * PI) + 20 * Math.sin(2 * x * PI)) * 2 / 3;
+    dLon += (20 * Math.sin(x * PI) + 40 * Math.sin(x / 3 * PI)) * 2 / 3;
+    dLon += (150 * Math.sin(x / 12 * PI) + 300 * Math.sin(x / 30 * PI)) * 2 / 3;
+    const rLat = lat / 180 * PI;
+    let magic = Math.sin(rLat); magic = 1 - GCJ.EE * magic * magic;
+    const sq = Math.sqrt(magic);
+    dLat = (dLat * 180) / ((GCJ.A * (1 - GCJ.EE)) / (magic * sq) * PI);
+    dLon = (dLon * 180) / (GCJ.A / sq * Math.cos(rLat) * PI);
+    return [dLat, dLon];
+  }
+  function gcj02ToWgs84(lat, lon) {
+    if (outOfChina(lat, lon)) return [lat, lon];
+    let wLat = lat, wLon = lon;
+    for (let i = 0; i < 5; i++) {
+      const [dLat, dLon] = gcjDelta(wLat, wLon);
+      wLat = lat - dLat; wLon = lon - dLon;
+    }
+    return [wLat, wLon];
+  }
+  function fixGcj02(u8) {
+    const p = tagDefs(parse(u8));
+    let count = 0;
+    for (const m of p.messages) {
+      if (m.type !== 'data' || m.global !== MSG.record) continue;
+      const la = m.data[REC.position_lat], lo = m.data[REC.position_long];
+      if (la == null || lo == null) continue;
+      const lat = la / SEMI, lon = lo / SEMI;
+      if (outOfChina(lat, lon)) continue;
+      const [wLat, wLon] = gcj02ToWgs84(lat, lon);
+      m.data[REC.position_lat] = Math.round(wLat * SEMI);
+      m.data[REC.position_long] = Math.round(wLon * SEMI);
+      count++;
+    }
+    if (!count) return { bytes: null, count: 0 };
+    return { bytes: serialize(p.messages, { protocolVer: p.protocolVer }), count };
+  }
+
+  // ======================= 工具 6：海拔校准（DEM 补全）=======================
+  // 部分设备/骑行台文件海拔为 0 或哨兵缺失。此函数只负责「定位缺失点 + 写回」；
+  // DEM 查询（Open-Meteo）在 UI 层完成（fit.js 保持零依赖纯函数，自测注入假 fetcher）。
+  // 写回字段：2(altitude uint16) 为主，定义里同时存在 13(enhanced_altitude) 时同步写，
+  // 两者同编码（scale 5 / offset 500），避免平台优先读 13 时拿到旧值。
+  const ELE_FIELDS = [REC.altitude, 13];
+  function eleLooksMissing(m) {
+    let has = false;
+    for (const num of ELE_FIELDS) {
+      const f = m.fields.find(x => x.num === num);
+      if (!f) continue;
+      has = true;
+      const raw = m.data[num];
+      if (raw != null && (raw - 500) / 5 > 0.5) return false;   // 已有真实海拔（>0.5m）
+    }
+    return has;   // 有海拔字段但全为 0/缺失 → 需要校准；定义里没海拔字段 → 无法写回
+  }
+  function collectEleTargets(p) {
+    const pts = [], msgs = [];
+    for (const m of p.messages) {
+      if (m.type !== 'data' || m.global !== MSG.record) continue;
+      const la = m.data[REC.position_lat], lo = m.data[REC.position_long];
+      if (la == null || lo == null) continue;
+      const lat = la / SEMI, lon = lo / SEMI;
+      if (!validLatLon(lat, lon)) continue;
+      if (!eleLooksMissing(m)) continue;
+      pts.push({ lat, lon }); msgs.push(m);
+    }
+    return { pts, msgs };
+  }
+  function elevationTargets(u8) {
+    const { pts } = collectEleTargets(tagDefs(parse(u8)));
+    return { count: pts.length, pts };
+  }
+  function applyElevation(u8, eles) {
+    const p = tagDefs(parse(u8));
+    const { pts, msgs } = collectEleTargets(p);
+    if (!msgs.length || !Array.isArray(eles) || eles.length < msgs.length) return { bytes: null, count: 0 };
+    let count = 0;
+    msgs.forEach((m, i) => {
+      const ele = eles[i];
+      if (ele == null || !Number.isFinite(ele)) return;
+      const raw = Math.round(ele * 5 + 500);
+      for (const num of ELE_FIELDS) {
+        if (!m.fields.find(x => x.num === num)) continue;
+        m.data[num] = raw;
+      }
+      count++;
+    });
+    if (!count) return { bytes: null, count: 0 };
+    return { bytes: serialize(p.messages, { protocolVer: p.protocolVer }), count };
+  }
+
   // ======================= 文件概览（供 UI 展示）=======================
   function summarize(u8) {
     const p = parse(u8);
@@ -890,6 +994,7 @@ ${trkpts}
     crc16, parse, serialize, tagDefs, BASE, MSG, REC,
     fitToUnix, unixToFit, FIT_EPOCH,
     stripFields, split, splitAt, gapIndices, combine, toGpx, toTcx, summarize, trackPoints, cropRange, trackPointsIndexed,
+    fixGcj02, elevationTargets, applyElevation,
   };
 })();
 

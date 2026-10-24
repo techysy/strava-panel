@@ -352,6 +352,75 @@ ok(dec.every((p, i) => i === 0 || p.idx > dec[i - 1].idx), '抽稀后下标严�
   ok(Math.abs(tp[1].lat - (tp[0].lat + 0.04)) < 1e-6, '漂移后正常点保留且衔接正确', tp.map(p=>p.lat));
 }
 
+// ---- GCJ-02 → WGS-84 坐标校正：境内点还原偏移，境外点原样保留 ----
+// 锚点：eviltransform 官方测试向量 wgs(31.1774276,121.5272106) ↔ gcj(31.1753040,121.5315419)
+{
+  const hdr=12, body=[];
+  const w=(v,n)=>{for(let i=0;i<n;i++)body.push(Math.floor(v/Math.pow(2,i*8))&0xFF);};
+  const S32=v=>{const b=Buffer.alloc(4);b.writeInt32LE(v,0);body.push(...b);};
+  const semi=v=>Math.round(v*Math.pow(2,31)/180);
+  body.push(0x00|0x40,0,0); body.push(20,0); body.push(3);
+  body.push(253,4,4); body.push(0,4,5); body.push(1,4,5);
+  const base=1000000000;
+  const gcjPt=[31.17530398364597,121.531541859215], wgsPt=[31.1774276,121.5272106];
+  const pts=[gcjPt,[55.75,37.62]];   // 上海（境内 GCJ）/ 莫斯科（境外）
+  for(let i=0;i<pts.length;i++){
+    body.push(0x00);
+    w(base+i,4);
+    S32(semi(pts[i][0]));
+    S32(semi(pts[i][1]));
+  }
+  const total=hdr+body.length+2,out=new Uint8Array(total);
+  out[0]=hdr;out[1]=0x20;const dv=new DataView(out.buffer);
+  dv.setUint16(2,2140,true);dv.setUint32(4,body.length,true);
+  out[8]=0x2E;out[9]=0x46;out[10]=0x49;out[11]=0x54;
+  for(let i=0;i<body.length;i++)out[hdr+i]=body[i];
+  dv.setUint16(hdr+body.length,FIT.crc16(out,0,hdr+body.length),true);
+  const gr=FIT.fixGcj02(out);
+  ok(gr.count===1, 'GCJ-02 校正只处理境内点（count=1）', gr.count);
+  const gp=FIT.parse(gr.bytes);
+  const grecs=gp.messages.filter(m=>m.type==='data'&&m.global===20);
+  const semiDeg=Math.pow(2,31)/180;
+  const gotLat=grecs[0].data[0]/semiDeg, gotLon=grecs[0].data[1]/semiDeg;
+  ok(Math.abs(gotLat-wgsPt[0])<1e-6&&Math.abs(gotLon-wgsPt[1])<1e-6, '境内点还原到官方 WGS-84 向量（误差<0.1m）', [gotLat,gotLon]);
+  ok(grecs[1].data[0]===semi(pts[1][0])&&grecs[1].data[1]===semi(pts[1][1]), '境外点坐标原样保留');
+  ok(grecs.every(m=>m.data[0]!=null&&m.data[1]!=null), '校正产物可正常解析（CRC 有效）');
+}
+
+// ---- 海拔校准：定位 0/缺失点 → 写回 DEM 值；已有海拔的点不动 ----
+{
+  const hdr=12, body=[];
+  const w=(v,n)=>{for(let i=0;i<n;i++)body.push(Math.floor(v/Math.pow(2,i*8))&0xFF);};
+  const S32=v=>{const b=Buffer.alloc(4);b.writeInt32LE(v,0);body.push(...b);};
+  const semi=v=>Math.round(v*Math.pow(2,31)/180);
+  body.push(0x00|0x40,0,0); body.push(20,0); body.push(4);
+  body.push(253,4,4); body.push(0,4,5); body.push(1,4,5); body.push(2,2,0x84);
+  const base=1000000000;
+  const alts=[500, 65535, 900];   // ele 0 / 哨兵缺失 / 80m 正常
+  for(let i=0;i<3;i++){
+    body.push(0x00);
+    w(base+i,4);
+    S32(semi(30.6+i*0.001));
+    S32(semi(104.0));
+    w(alts[i],2);
+  }
+  const total=hdr+body.length+2,out=new Uint8Array(total);
+  out[0]=hdr;out[1]=0x20;const dv=new DataView(out.buffer);
+  dv.setUint16(2,2140,true);dv.setUint32(4,body.length,true);
+  out[8]=0x2E;out[9]=0x46;out[10]=0x49;out[11]=0x54;
+  for(let i=0;i<body.length;i++)out[hdr+i]=body[i];
+  dv.setUint16(hdr+body.length,FIT.crc16(out,0,hdr+body.length),true);
+  const tg=FIT.elevationTargets(out);
+  ok(tg.count===2, '定位 2 个缺失海拔点（0 与哨兵）', tg.count);
+  const er=FIT.applyElevation(out,[45.6,12.3]);
+  ok(er.count===2, '写回 2 个点', er.count);
+  const ep=FIT.parse(er.bytes);
+  const erecs=ep.messages.filter(m=>m.type==='data'&&m.global===20);
+  ok(erecs[0].data[2]===Math.round(45.6*5+500), '0 海拔点写入 DEM 值（scale5/offset500）', erecs[0].data[2]);
+  ok(erecs[1].data[2]===Math.round(12.3*5+500), '哨兵缺失点写入 DEM 值', erecs[1].data[2]);
+  ok(erecs[2].data[2]===900, '已有海拔的点不动', erecs[2].data[2]);
+}
+
 console.log('\n=== ' + pass + ' 通过 / ' + fail + ' 失败 ===');
 // ---- [11] 无效哨兵值（0xFFFFFFFF 等）→ null + GPS 距离兜底 + 字节级往返 ----
 // 真机码表文件常见：停表瞬间 record.distance 写 0xFFFFFFFF（uint32 无效哨兵）。

@@ -259,6 +259,7 @@ html[data-theme="dark"] .tm-float.tm-float-glass .tm-float-t{color:var(--text)}
 .fit-op-duo{flex-direction:column;align-items:stretch;gap:2px}
 .fo-line{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:4px 0}
 .fo-line-sep{border-top:1px solid var(--border-subtle)}
+.fo-sep{width:1px;height:18px;background:var(--border-subtle);margin:0 4px}
 /* 出行计划 */
 .trip-grid{display:grid;grid-template-columns:1fr;gap:12px}
 .trip-card{border:1px solid var(--border-subtle);border-radius:12px;padding:12px;background:var(--surface)}
@@ -1130,6 +1131,17 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
               <button class="btn btn-sm" onclick="FitUI.runConvert('tcx')">TCX</button>
             </div>
           </div>
+
+          <div class="fit-op" id="fitOpGeo">
+            <span class="fo-t"><svg class="ic" aria-hidden="true"><use href="#i-mountain"/></svg><span data-i18n="fit_eleTitle">海拔校准</span></span>
+            <button class="btn btn-sm" id="fitEleBtn" onclick="FitUI.runEleCalib()" data-i18n="fit_eleRun" data-i18n-title="fit_eleHint" title="查询 DEM 补全为 0 / 缺失的海拔，生成新文件。仅对含 GPS 的文件有效">校准海拔</button>
+            <button class="btn btn-sm" onclick="FitUI.runEleCalib('list')" data-i18n="fit_toList">应用到列表</button>
+            <span class="fo-sep"></span>
+            <span class="fo-t"><svg class="ic" aria-hidden="true"><use href="#i-route"/></svg><span data-i18n="fit_gcjTitle">GCJ-02 校正</span></span>
+            <button class="btn btn-sm" onclick="FitUI.runGcjFix()" data-i18n="fit_gcjRun" data-i18n-title="fit_gcjHint" title="轨迹整体偏移约 300~600 米时使用：国内码表（佳明国行/迈金等）可能记录 GCJ-02 加密坐标，本地逆变换还原 WGS-84">转 WGS-84</button>
+            <button class="btn btn-sm" onclick="FitUI.runGcjFix('list')" data-i18n="fit_toList">应用到列表</button>
+            <span class="tt fo-tgt"><span data-i18n="fit_target">目标：</span><span id="fitGeoTarget">-</span></span>
+          </div>
         </div>
       </div>
     </div>
@@ -1310,6 +1322,8 @@ const I18N = {
     fit_upload:'上传到 Strava', fit_uploadCrop:'应用裁剪区间', fit_uploadPrivate:'私密活动', fit_uploadCommute:'通勤', fit_uploadDo:'上传',
     fit_uploading:'上传中…', fit_uploadProcessing:'Strava 处理中…', fit_uploadBusy:'已有上传进行中，请稍候', fit_uploadDoneT:'上传完成', fit_uploadView:'在 Strava 查看', fit_uploadFail:'上传失败：', fit_uploadDup:'Strava 判定为重复数据（该起始时间的活动已存在）。', fit_uploadTimeout:'处理超时，稍后可在活动列表确认是否已生成。',
     fit_authOk:'已授权', fit_authNeed:'点击授权上传',
+    fit_eleTitle:'海拔校准', fit_eleRun:'校准海拔', fit_eleHint:'查询 DEM（Open-Meteo）补全为 0 / 缺失的海拔，生成新文件。仅对含 GPS 的文件有效', fit_eleQuerying:'查询中…', fit_eleDone:'已补全 {n} 个点的海拔', fit_eleNone:'所有轨迹点海拔完整，无需校准', fit_eleFail:'海拔查询失败：',
+    fit_gcjTitle:'GCJ-02 校正', fit_gcjRun:'转 WGS-84', fit_gcjHint:'轨迹整体偏移约 300~600 米时使用：国内码表（佳明国行/迈金等）可能记录 GCJ-02 加密坐标，本地逆变换还原 WGS-84', fit_gcjDone:'已将 {n} 个点由 GCJ-02 转为 WGS-84', fit_gcjNone:'没有境内坐标点需要转换',
     fit_uploadAuthNeed:'当前授权缺少上传权限（activity:write）。', fit_uploadReauth:'重新授权', fit_uploadReauthWait:'完成新窗口授权后将自动继续上传…', fit_uploadReauthOk:'权限已更新，继续上传…', fit_uploadReauthFail:'授权超时或失败，请重试',
     fit_doneStrip:'已从 {n} 个采样中移除功率/心率', fit_doneSplit:'已拆分为 {n} 个文件', fit_doneCombine:'合并完成，共 {n} 个采样点', fit_doneConvert:'已转换，下载已开始',
     fit_crop:'地图裁剪', fit_cropTitle:'拖动地图上 S/E 端点选择保留区间', fit_cropRange:'点 {a}–{b} / 共 {n}', fit_cropReset:'重置', fit_cropDone:'退出裁剪', fit_cropDone2:'裁剪完成，已开始下载',
@@ -1450,6 +1464,8 @@ const I18N = {
     fit_upload:'Upload to Strava', fit_uploadCrop:'Apply crop range', fit_uploadPrivate:'Private activity', fit_uploadCommute:'Commute', fit_uploadDo:'Upload',
     fit_uploading:'Uploading…', fit_uploadProcessing:'Strava is processing…', fit_uploadBusy:'An upload is already running, please wait', fit_uploadDoneT:'Upload complete', fit_uploadView:'View on Strava', fit_uploadFail:'Upload failed: ', fit_uploadDup:'Strava flagged it as a duplicate (an activity with this start time exists).', fit_uploadTimeout:'Processing timed out; check your activity list later.',
     fit_authOk:'Authorized', fit_authNeed:'Authorize upload',
+    fit_eleTitle:'Elevation Calib', fit_eleRun:'Calibrate', fit_eleHint:'Fill zero/missing elevation from the DEM (Open-Meteo) and write a new file. GPS files only', fit_eleQuerying:'Querying…', fit_eleDone:'Filled elevation for {n} pts', fit_eleNone:'All points already have elevation', fit_eleFail:'Elevation query failed: ',
+    fit_gcjTitle:'GCJ-02 Fix', fit_gcjRun:'→ WGS-84', fit_gcjHint:'Use when the whole track is offset by ~300-600 m: domestic devices (Garmin CN / Magene) may record GCJ-02 encrypted coordinates; converted back to WGS-84 locally', fit_gcjDone:'Converted {n} pts from GCJ-02 to WGS-84', fit_gcjNone:'No in-China points to convert',
     fit_uploadAuthNeed:'Current authorization lacks upload permission (activity:write).', fit_uploadReauth:'Re-authorize', fit_uploadReauthWait:'Upload resumes automatically once you finish the new authorization…', fit_uploadReauthOk:'Permission granted, resuming upload…', fit_uploadReauthFail:'Authorization timed out or failed, please retry',
     fit_doneStrip:'Power/HR stripped from {n} samples', fit_doneSplit:'Split into {n} files', fit_doneCombine:'Combined {n} samples', fit_doneConvert:'Converted — download started',
     fit_crop:'Crop on map', fit_cropTitle:'Drag S/E handles on the map to choose the range', fit_cropRange:'pts {a}–{b} / {n}', fit_cropReset:'Reset', fit_cropDone:'Exit crop', fit_cropDone2:'Crop ready — download started',
@@ -1556,6 +1572,7 @@ function applyI18n(){
     else { el.innerHTML = txt; }
   });
   document.querySelectorAll('[data-i18n-ph]').forEach(el=>{ el.placeholder = t(el.dataset.i18nPh); });
+  document.querySelectorAll('[data-i18n-title]').forEach(el=>{ el.title = t(el.dataset.i18nTitle); });
   document.querySelectorAll('#langSeg .seg-btn').forEach(b=>b.classList.toggle('on', b.dataset.lang===currentLang));
 }
 function setLang(lang){
