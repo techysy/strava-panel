@@ -114,7 +114,7 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
    必须用 .fit-file.fit-add 双类选择器：.fit-add 单独写会被后面的 .fit-file
    （同为单类、源码序在后）覆盖掉虚线边框与透明底——这正是「卡片看不见」的原因 */
 .fit-list.over .fit-file.fit-add{border-color:var(--accent);background:var(--hover)}
-.fit-file.fit-add{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:1.5px dashed var(--border-strong);background:transparent;cursor:pointer;min-height:86px;padding:10px;text-align:center;transition:border-color .15s,background .15s}
+.fit-file.fit-add{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:1.5px dashed var(--border-strong);background:transparent;cursor:pointer;min-height:64px;padding:7px;text-align:center;transition:border-color .15s,background .15s}
 .fit-file.fit-add:hover{border-color:var(--accent);background:var(--hover)}
 .fit-file.fit-add .ic{width:20px;height:20px;color:var(--text-3)}
 .fit-file.fit-add:hover .ic{color:var(--accent)}
@@ -122,24 +122,24 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .fit-file.fit-add .fa-s{font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 html[data-theme="dark"] .fit-file.fit-add{background:transparent}
 /* 文件列表：1/3 宽卡片网格（窄屏降为 2/1 列） */
-.fit-list{margin-top:10px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:300px;overflow-y:auto}
+.fit-list{margin-top:10px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;max-height:240px;overflow-y:auto}
 @media (max-width:900px){.fit-list{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:600px){.fit-list{grid-template-columns:1fr}}
-.fit-file{position:relative;display:flex;flex-direction:column;gap:6px;padding:10px 12px 8px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface);transition:border-color .15s,box-shadow .15s;cursor:pointer}
+.fit-file{position:relative;display:flex;flex-direction:column;gap:3px;padding:7px 9px 6px;border:1px solid var(--border-subtle);border-radius:9px;background:var(--surface);transition:border-color .15s,box-shadow .15s;cursor:pointer}
 /* 选中态（单文件工具操作目标）与裁剪目标高亮 */
 .fit-file.ff-selected, .fit-file.ff-crop-target{border-color:var(--brand,#fc4c02);box-shadow:0 0 0 1px color-mix(in srgb,var(--brand,#fc4c02) 45%,transparent)}
-.ff-tags .t-crop{margin-right:6px;padding:1px 6px;border-radius:6px;background:var(--brand,#fc4c02);color:#fff;font-size:10px}
+.ff-tags .t-crop{margin-right:6px;padding:0 5px;border-radius:6px;background:var(--brand,#fc4c02);color:#fff;font-size:9.5px}
 .ff-tags .t-draft{background:var(--viz);opacity:.85}
 .fit-file:hover{border-color:var(--border-strong)}
 .ff-main{flex:1;min-width:0}
-.ff-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:20px}
-.ff-meta{font-size:11.5px;color:var(--text-3);margin-top:2px}
-.ff-tags{margin-top:6px;display:flex;gap:4px;flex-wrap:wrap}
-.ff-tags b{font-size:10px;font-weight:600;padding:1px 6px;border-radius:5px;background:var(--tertiary);color:var(--text-2)}
+.ff-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:18px}
+.ff-meta{font-size:10.5px;color:var(--text-3);margin-top:1px}
+.ff-tags{margin-top:4px;display:flex;gap:3px;flex-wrap:wrap}
+.ff-tags b{font-size:9.5px;font-weight:600;padding:0 5px;border-radius:5px;background:var(--tertiary);color:var(--text-2)}
 .ff-tags b.t-pw{color:#f97316} .ff-tags b.t-hr{color:#ec4899} .ff-tags b.t-cad{color:#3b82f6} .ff-tags b.t-geo{color:#10b981}
 .ff-tags b.t-bad{color:#ef4444;background:rgba(239,68,68,.12)}
-.ff-time{font-size:11px;color:var(--text-3);white-space:nowrap}
-.ff-del{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:6px;border:0;background:transparent;color:var(--text-3);cursor:pointer;font-size:16px;line-height:1}
+.ff-time{font-size:10px;color:var(--text-3);white-space:nowrap}
+.ff-del{position:absolute;top:4px;right:5px;width:20px;height:20px;border-radius:6px;border:0;background:transparent;color:var(--text-3);cursor:pointer;font-size:14px;line-height:1}
 /* GPX 已导入文件卡片 */
 .trip-gpxfile{display:flex;align-items:center;gap:10px;margin-top:8px;padding:8px 12px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface)}
 .trip-gpxfile .ic{width:18px;height:18px;color:var(--viz);flex:none}
@@ -260,6 +260,12 @@ html[data-theme="dark"] .tm-float.tm-float-glass .tm-float-t{color:var(--text)}
 .fo-line{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:4px 0}
 .fo-line-sep{border-top:1px solid var(--border-subtle)}
 .fo-sep{width:1px;height:18px;background:var(--border-subtle);margin:0 4px}
+.fit-ele-card{margin-top:8px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface);padding:8px 12px}
+.fit-ele-head{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:2px}
+.fit-ele-head .btn{padding:3px 10px;font-size:11.5px}
+.fit-ele-body{min-height:40px}
+.tm-float-ele{width:430px;max-width:calc(100vw - 48px)}
+.tm-float-ele .fit-ele-head .btn{padding:2px 8px;font-size:11px}
 /* 出行计划 */
 .trip-grid{display:grid;grid-template-columns:1fr;gap:12px}
 .trip-card{border:1px solid var(--border-subtle);border-radius:12px;padding:12px;background:var(--surface)}
@@ -1075,6 +1081,20 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
           </div>
         </div>
 
+        <div class="fit-ele-card" id="fitEleCard" style="display:none">
+          <div class="fit-ele-head">
+            <span class="fo-t"><svg class="ic" aria-hidden="true"><use href="#i-mountain"/></svg><span data-i18n="fit_eleProfile">海拔剖面</span></span>
+            <span class="tt fo-hint" id="fitEleStats"></span>
+            <span style="flex:1"></span>
+            <button class="btn btn-sm" id="fitEleBtn" onclick="FitUI.runEleCalib()" data-i18n="fit_eleRun" data-i18n-title="fit_eleHint" title="查询 DEM 补全为 0 / 缺失的海拔，生成新文件。仅对含 GPS 的文件有效">校准海拔</button>
+            <button class="btn btn-sm" onclick="FitUI.runEleCalib('list')" data-i18n="fit_toList">应用到列表</button>
+            <span class="fo-sep"></span>
+            <button class="btn btn-sm" onclick="FitUI.runGcjFix()" data-i18n="fit_gcjRun" data-i18n-title="fit_gcjHint" title="轨迹整体偏移约 300~600 米时使用：国内码表（佳明国行/迈金等）可能记录 GCJ-02 加密坐标，本地逆变换还原 WGS-84">转 WGS-84</button>
+            <button class="btn btn-sm" onclick="FitUI.runGcjFix('list')" data-i18n="fit_toList">应用到列表</button>
+          </div>
+          <div class="fit-ele-body" id="fitEleProfile"></div>
+        </div>
+
         <div class="fit-tools" id="fitPanel" style="display:none">
           <!-- 操作条：拆分 / 合并 / 上传三组并排一行（低频的字段清洗、GPX/TCX 转换已下线） -->
           <div class="fit-op" id="fitOpSplit">
@@ -1130,17 +1150,6 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
               <button class="btn btn-sm" onclick="FitUI.runConvert('gpx')">GPX</button>
               <button class="btn btn-sm" onclick="FitUI.runConvert('tcx')">TCX</button>
             </div>
-          </div>
-
-          <div class="fit-op" id="fitOpGeo">
-            <span class="fo-t"><svg class="ic" aria-hidden="true"><use href="#i-mountain"/></svg><span data-i18n="fit_eleTitle">海拔校准</span></span>
-            <button class="btn btn-sm" id="fitEleBtn" onclick="FitUI.runEleCalib()" data-i18n="fit_eleRun" data-i18n-title="fit_eleHint" title="查询 DEM 补全为 0 / 缺失的海拔，生成新文件。仅对含 GPS 的文件有效">校准海拔</button>
-            <button class="btn btn-sm" onclick="FitUI.runEleCalib('list')" data-i18n="fit_toList">应用到列表</button>
-            <span class="fo-sep"></span>
-            <span class="fo-t"><svg class="ic" aria-hidden="true"><use href="#i-route"/></svg><span data-i18n="fit_gcjTitle">GCJ-02 校正</span></span>
-            <button class="btn btn-sm" onclick="FitUI.runGcjFix()" data-i18n="fit_gcjRun" data-i18n-title="fit_gcjHint" title="轨迹整体偏移约 300~600 米时使用：国内码表（佳明国行/迈金等）可能记录 GCJ-02 加密坐标，本地逆变换还原 WGS-84">转 WGS-84</button>
-            <button class="btn btn-sm" onclick="FitUI.runGcjFix('list')" data-i18n="fit_toList">应用到列表</button>
-            <span class="tt fo-tgt"><span data-i18n="fit_target">目标：</span><span id="fitGeoTarget">-</span></span>
           </div>
         </div>
       </div>
@@ -1323,6 +1332,7 @@ const I18N = {
     fit_uploading:'上传中…', fit_uploadProcessing:'Strava 处理中…', fit_uploadBusy:'已有上传进行中，请稍候', fit_uploadDoneT:'上传完成', fit_uploadView:'在 Strava 查看', fit_uploadFail:'上传失败：', fit_uploadDup:'Strava 判定为重复数据（该起始时间的活动已存在）。', fit_uploadTimeout:'处理超时，稍后可在活动列表确认是否已生成。',
     fit_authOk:'已授权', fit_authNeed:'点击授权上传',
     fit_eleTitle:'海拔校准', fit_eleRun:'校准海拔', fit_eleHint:'查询 DEM（Open-Meteo）补全为 0 / 缺失的海拔，生成新文件。仅对含 GPS 的文件有效', fit_eleQuerying:'查询中…', fit_eleDone:'已补全 {n} 个点的海拔', fit_eleNone:'所有轨迹点海拔完整，无需校准', fit_eleFail:'海拔查询失败：',
+    fit_eleProfile:'海拔剖面', fit_eleNoData:'无海拔数据（含 GPS 的文件可先「校准海拔」）', fit_eleZeroHint:'海拔全为 0？点「校准海拔」补全真实地形',
     fit_gcjTitle:'GCJ-02 校正', fit_gcjRun:'转 WGS-84', fit_gcjHint:'轨迹整体偏移约 300~600 米时使用：国内码表（佳明国行/迈金等）可能记录 GCJ-02 加密坐标，本地逆变换还原 WGS-84', fit_gcjDone:'已将 {n} 个点由 GCJ-02 转为 WGS-84', fit_gcjNone:'没有境内坐标点需要转换',
     fit_uploadAuthNeed:'当前授权缺少上传权限（activity:write）。', fit_uploadReauth:'重新授权', fit_uploadReauthWait:'完成新窗口授权后将自动继续上传…', fit_uploadReauthOk:'权限已更新，继续上传…', fit_uploadReauthFail:'授权超时或失败，请重试',
     fit_doneStrip:'已从 {n} 个采样中移除功率/心率', fit_doneSplit:'已拆分为 {n} 个文件', fit_doneCombine:'合并完成，共 {n} 个采样点', fit_doneConvert:'已转换，下载已开始',
@@ -1465,6 +1475,7 @@ const I18N = {
     fit_uploading:'Uploading…', fit_uploadProcessing:'Strava is processing…', fit_uploadBusy:'An upload is already running, please wait', fit_uploadDoneT:'Upload complete', fit_uploadView:'View on Strava', fit_uploadFail:'Upload failed: ', fit_uploadDup:'Strava flagged it as a duplicate (an activity with this start time exists).', fit_uploadTimeout:'Processing timed out; check your activity list later.',
     fit_authOk:'Authorized', fit_authNeed:'Authorize upload',
     fit_eleTitle:'Elevation Calib', fit_eleRun:'Calibrate', fit_eleHint:'Fill zero/missing elevation from the DEM (Open-Meteo) and write a new file. GPS files only', fit_eleQuerying:'Querying…', fit_eleDone:'Filled elevation for {n} pts', fit_eleNone:'All points already have elevation', fit_eleFail:'Elevation query failed: ',
+    fit_eleProfile:'Elevation', fit_eleNoData:'No elevation data (GPS files can be calibrated first)', fit_eleZeroHint:'All zeros? Click Calibrate to fill real terrain',
     fit_gcjTitle:'GCJ-02 Fix', fit_gcjRun:'→ WGS-84', fit_gcjHint:'Use when the whole track is offset by ~300-600 m: domestic devices (Garmin CN / Magene) may record GCJ-02 encrypted coordinates; converted back to WGS-84 locally', fit_gcjDone:'Converted {n} pts from GCJ-02 to WGS-84', fit_gcjNone:'No in-China points to convert',
     fit_uploadAuthNeed:'Current authorization lacks upload permission (activity:write).', fit_uploadReauth:'Re-authorize', fit_uploadReauthWait:'Upload resumes automatically once you finish the new authorization…', fit_uploadReauthOk:'Permission granted, resuming upload…', fit_uploadReauthFail:'Authorization timed out or failed, please retry',
     fit_doneStrip:'Power/HR stripped from {n} samples', fit_doneSplit:'Split into {n} files', fit_doneCombine:'Combined {n} samples', fit_doneConvert:'Converted — download started',

@@ -347,6 +347,130 @@ const FitUI = (() => {
     if (st) registerFs(st);
   }
 
+  // ---- 海拔剖面（内嵌卡片 + 全屏右下玻璃浮窗，与 GPX 同款交互）----
+  // 数据：选中文件轨迹抽稀 ~400 桶；hover 联动内嵌/全屏地图指示圆点。
+  // 头部按钮：校准海拔（DEM 补全）与 GCJ-02 → WGS-84 校正。
+  function eleProfileData(f) {
+    let pts; try { pts = FIT.trackPoints(f.bytes); } catch (e) { return null; }
+    if (!pts || pts.length < 2) return null;
+    let d = 0; const cum = [0];
+    for (let i = 1; i < pts.length; i++) { d += TrackMapDist(pts[i - 1], pts[i]); cum.push(d); }
+    const totalKm = d / 1000;
+    const hasEle = pts.some(p => p.ele != null);
+    const NB = 400, step = Math.max(1, Math.floor(pts.length / NB));
+    const prof = [];
+    let lastEle = null;
+    for (let i = 0; i < pts.length; i += step) {
+      if (pts[i].ele != null) lastEle = pts[i].ele;
+      prof.push({ distKm: cum[i] / 1000, ele: lastEle, _lat: pts[i].lat, _lon: pts[i].lon });
+    }
+    if (pts[pts.length - 1].ele != null) lastEle = pts[pts.length - 1].ele;
+    prof.push({ distKm: totalKm, ele: lastEle, _lat: pts[pts.length - 1].lat, _lon: pts[pts.length - 1].lon });
+    // 爬升/下降（±3m 阈值锚点法，与码表习惯一致）
+    let gain = 0, loss = 0, anchor = null;
+    for (const p of pts) {
+      if (p.ele == null) continue;
+      if (anchor == null) { anchor = p.ele; continue; }
+      if (p.ele - anchor > 3) { gain += p.ele - anchor; anchor = p.ele; }
+      else if (p.ele - anchor < -3) { loss += anchor - p.ele; anchor = p.ele; }
+    }
+    return { prof, totalKm, hasEle, gain, loss };
+  }
+  function drawEleProfile(container, pd, linkedMap) {
+    if (!container || !pd || !pd.prof.length) return;
+    const prof = pd.prof;
+    const C = chartColors();
+    const w = Math.max(280, container.clientWidth || 560), h = 120, padL = 36, padR = 8, padT = 8, padB = 16;
+    const iw = w - padL - padR, ih = h - padT - padB;
+    const es = prof.filter(p => p.ele != null).map(p => p.ele);
+    let eMin = es.length ? Math.min(...es) : 0, eMax = es.length ? Math.max(...es) : 0;
+    if (eMax - eMin < 10) { const mid = (eMax + eMin) / 2; eMin = mid - 5; eMax = mid + 5; }
+    const X = i => padL + iw * i / (prof.length - 1);
+    const Y = e => padT + ih - (e - eMin) / (eMax - eMin) * ih;
+    const line = prof.map((p, i) => X(i).toFixed(1) + ',' + Y(p.ele).toFixed(1)).join(' ');
+    const area = `M${X(0).toFixed(1)},${(padT + ih).toFixed(1)} L${line.split(' ').join(' L')} L${X(prof.length - 1).toFixed(1)},${(padT + ih).toFixed(1)} Z`;
+    container.innerHTML = '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" style="display:block;width:100%">'
+      + '<path d="' + area + '" fill="' + C.viz + '" opacity="0.18"/>'
+      + '<polyline points="' + line + '" fill="none" stroke="' + C.viz + '" stroke-width="1.6" stroke-linejoin="round"/>'
+      + '<line class="pc-cursor" x1="0" y1="' + padT + '" x2="0" y2="' + (padT + ih) + '" stroke="' + C.brand + '" stroke-width="1" stroke-dasharray="3 3" opacity="0"/>'
+      + '<circle class="pc-dot" r="4" fill="' + C.brand + '" stroke="#fff" stroke-width="1.5" opacity="0"/>'
+      + '<text x="' + (padL - 4) + '" y="' + (padT + 8) + '" text-anchor="end" font-size="9" fill="' + C.muted + '">' + Math.round(eMax) + 'm</text>'
+      + '<text x="' + (padL - 4) + '" y="' + (padT + ih) + '" text-anchor="end" font-size="9" fill="' + C.muted + '">' + Math.round(eMin) + 'm</text>'
+      + '<text x="' + padL + '" y="' + (h - 4) + '" font-size="9" fill="' + C.muted + '">0 km</text>'
+      + '<text x="' + (w - padR) + '" y="' + (h - 4) + '" text-anchor="end" font-size="9" fill="' + C.muted + '">' + pd.totalKm.toFixed(1) + ' km</text>'
+      + '</svg><div class="prof-tip" style="opacity:0"></div>';
+    const svg = container.querySelector('svg'), cursor = container.querySelector('.pc-cursor'),
+      dot = container.querySelector('.pc-dot'), tip = container.querySelector('.prof-tip');
+    let mapDot = null;
+    svg.addEventListener('mousemove', (ev) => {
+      const rect = svg.getBoundingClientRect();
+      const px = (ev.clientX - rect.left) * (w / rect.width);
+      const frac = Math.max(0, Math.min(1, (px - padL) / iw));
+      const i = Math.round(frac * (prof.length - 1));
+      const p = prof[i];
+      const cx = X(i), cy = Y(p.ele);
+      cursor.setAttribute('x1', cx); cursor.setAttribute('x2', cx); cursor.setAttribute('opacity', '1');
+      dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('opacity', '1');
+      tip.textContent = p.distKm.toFixed(1) + ' km · ' + Math.round(p.ele) + ' m';
+      tip.style.opacity = '1';
+      tip.style.left = (cx / w * 100) + '%';
+      tip.style.top = (cy / h * 100) + '%';
+      if (linkedMap && p._lat != null) {
+        if (!mapDot) mapDot = L.circleMarker([p._lat, p._lon], { radius: 6, color: '#fc4c02', weight: 2, fillColor: '#fff', fillOpacity: 0.9 }).addTo(linkedMap);
+        else mapDot.setLatLng([p._lat, p._lon]);
+      }
+    });
+    svg.addEventListener('mouseleave', () => {
+      cursor.setAttribute('opacity', '0'); dot.setAttribute('opacity', '0'); tip.style.opacity = '0';
+      if (mapDot) { mapDot.remove(); mapDot = null; }
+    });
+  }
+  function renderProfile() {
+    const card = $('fitEleCard');
+    if (!card) return;
+    const sf = getSelectedFile();
+    if (!sf) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    const body = $('fitEleProfile');
+    const stats = $('fitEleStats');
+    const pd = eleProfileData(sf);
+    if (!pd) { body.innerHTML = ''; if (stats) stats.textContent = '-'; return; }
+    const es = pd.prof.filter(p => p.ele != null).map(p => p.ele);
+    const eMin = es.length ? Math.round(Math.min(...es)) : null, eMax = es.length ? Math.round(Math.max(...es)) : null;
+    if (stats) {
+      if (!pd.hasEle) stats.textContent = t('fit_eleNoData');
+      else if (eMax === 0) stats.textContent = t('fit_eleZeroHint');
+      else stats.textContent = '↑' + Math.round(pd.gain) + 'm · ↓' + Math.round(pd.loss) + 'm · ' + eMin + '~' + eMax + 'm';
+    }
+    if (!pd.hasEle) { body.innerHTML = ''; return; }
+    const st = (typeof TrackMap !== 'undefined') ? TrackMap.state('fitMap') : null;
+    const linked = st && !st.fullscreen ? st.map : null;
+    drawEleProfile(body, pd, linked);
+  }
+  // 剖面头部按钮（内嵌卡与全屏浮窗共用）：校准海拔 / GCJ-02 校正，各带应用到列表
+  function eleButtonsHtml() {
+    return '<button class="btn btn-sm" onclick="FitUI.runEleCalib()" data-i18n="fit_eleRun" data-i18n-title="fit_eleHint">' + escapeHtml(t('fit_eleRun')) + '</button>'
+      + '<button class="btn btn-sm" onclick="FitUI.runEleCalib(\'list\')" data-i18n="fit_toList">' + escapeHtml(t('fit_toList')) + '</button>'
+      + '<span class="fo-sep"></span>'
+      + '<button class="btn btn-sm" onclick="FitUI.runGcjFix()" data-i18n="fit_gcjRun" data-i18n-title="fit_gcjHint" title="' + escapeHtml(t('fit_gcjHint')) + '">' + escapeHtml(t('fit_gcjRun')) + '</button>'
+      + '<button class="btn btn-sm" onclick="FitUI.runGcjFix(\'list\')" data-i18n="fit_toList">' + escapeHtml(t('fit_toList')) + '</button>';
+  }
+  // 全屏态：剖面 + 校正按钮收进右下玻璃浮窗（GPX 同款 .tm-float-glass），hover 联动全屏地图
+  function mountFsProfileFloat(st, map) {
+    const host = st && st.fsMapEl; if (!host) return;
+    let fl = host.querySelector('.tm-float-ele'); if (fl) fl.remove();
+    const sf = getSelectedFile(); if (!sf) return;
+    const pd = eleProfileData(sf);
+    fl = document.createElement('div');
+    fl.className = 'tm-float tm-float-glass tm-float-ele';
+    fl.innerHTML = '<div class="tm-float-t">' + escapeHtml(t('fit_eleProfile')) + '</div>'
+      + '<div class="fit-ele-head">' + eleButtonsHtml() + '</div><div class="fit-ele-body"></div>';
+    host.appendChild(fl);
+    const body = fl.querySelector('.fit-ele-body');
+    if (pd && pd.hasEle) drawEleProfile(body, pd, map);
+    else body.innerHTML = '<div class="tt" style="color:var(--text-3);font-size:11px">' + escapeHtml(t('fit_eleNoData')) + '</div>';
+  }
+
   // ---- 裁剪模式：地图拖端点调整起止（草稿层 + 全局应用）----
   // crop = { i0, i1, pts, fid, cuts? } 当前编辑会话；cropDraft: Map<fileId,{i0,i1}> 未应用草稿。
   // 草稿语义：拖动松手即写入；切文件/退出都保留（内存级，刷新页面即失）；
@@ -438,18 +562,21 @@ const FitUI = (() => {
         } else {
           renderMap();
         }
+        renderProfile();
       }
     };
     st.fsRenderer = (map, _el, _extra, opts) => {
       if (!cropMode || !crop) {
         const tracks = fitFiles.map(f => { try { return FIT.trackPoints(f.bytes); } catch (e) { return []; } }).filter(p => p.length);
         if (tracks.length) { st.fsLayers = TrackMap.drawOn(map, tracks, { fit: opts?.fit !== false }); }
+        mountFsProfileFloat(st, map);
         return;
       }
       // 全屏裁剪/拆分：三色轨迹 + 可拖 S/E 端点；拆分模式叠加可拖切点。
       // 切换文件或重绘时保持用户当前缩放比例，不重新 fitBounds
       const shouldFit = (opts && opts.fit !== undefined) ? opts.fit : (!st.cropHandles || !st.cropHandles.length);
       st.fsLayers = TrackMap.drawOn(map, cropTracks(), { fit: shouldFit, noAutoSE: true, handles: cropHandlesOpts(), cuts: cropCutsOpts() });
+      mountFsProfileFloat(st, map);
     };
     // 退出全屏拦截：有未应用草稿时给友好提示（全部应用 / 仅退出保留草稿 / 取消）
     st.confirmExit = (proceed) => {
@@ -874,6 +1001,7 @@ const FitUI = (() => {
       const wrap = $('fitMapWrap');
       if (wrap) wrap.style.display = 'none';
       if (typeof TrackMap !== 'undefined') TrackMap.clear('fitMap');
+      const eleCard = $('fitEleCard'); if (eleCard) eleCard.style.display = 'none';
       refreshAuthPill();
       syncCropBtn();
       return;
@@ -883,16 +1011,15 @@ const FitUI = (() => {
     $('fitOpCombine').style.display = n >= 2 ? '' : 'none';
     const upOp = $('fitOpUpload'); if (upOp) upOp.style.display = one ? '' : 'none';
     $('fitOpMini').style.display = one ? '' : 'none';
-    $('fitOpGeo').style.display = one ? '' : 'none';
     $('fitCombineHint').textContent = t('fit_combineHint', { n });
     const sf = getSelectedFile();
     const sfName = sf ? baseName(sf.name) : '-';
     $('fitSplitTarget').textContent = sfName;
     $('fitStripTarget').textContent = sfName;
     $('fitConvertTarget').textContent = sfName;
-    $('fitGeoTarget').textContent = sfName;
     refreshUploadTarget();
     renderMap();
+    renderProfile();
   }
 
   // ---- 上传到 Strava（经本地服务代理，浏览器直连被 CORS 拦） ----
