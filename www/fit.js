@@ -125,8 +125,24 @@ const FIT = (() => {
   const MSG = { file_id: 0, device_info: 23, session: 18, lap: 19, record: 20, event: 21, activity: 34, sport: 12 };
 
   // record 消息里我们关心的字段号
-  const REC = { timestamp: 253, position_lat: 0, position_long: 1, altitude: 2, heart_rate: 3, cadence: 4, distance: 5, speed: 6, power: 7, temperature: 13 };
+  const REC = { timestamp: 253, position_lat: 0, position_long: 1, altitude: 2, heart_rate: 3, cadence: 4, distance: 5, speed: 6, power: 7, temperature: 13, enhanced_altitude: 78 };
   const SEMI = Math.pow(2, 31) / 180;   // 半圆/度：度 = 半圆 ÷ SEMI（FIT: 180° = 2^31 半圆）
+
+  // 海拔读取：不同码表写的字段不一样——
+  //   field 2  = altitude           uint16, scale 5, offset 500
+  //   field 78 = enhanced_altitude  uint32, scale 5, offset 500（精度更高，Strava 优先读它）
+  // 有些文件只写 78 不写 2（如部分国产码表导出），只认 2 会让海拔整段丢失。
+  // 两者编码相同，取值统一走这里。
+  function eleRawOf(d) {
+    if (!d) return null;
+    const e78 = d[REC.enhanced_altitude];
+    if (e78 != null) return e78;
+    return d[REC.altitude] != null ? d[REC.altitude] : null;
+  }
+  function eleOf(d) {
+    const raw = eleRawOf(d);
+    return raw != null ? (raw - 500) / 5 : null;
+  }
 
   // 解析结果缓存：同一份字节只解析一次。
   // 真实文件 1.2MB / 3.6 万采样点，单次 parse 约 150ms；renderPanel 会同时要
@@ -689,9 +705,8 @@ const FIT = (() => {
   function elevationGainLoss(records) {
     let gain = 0, loss = 0, anchor = null;
     for (const r of records) {
-      const raw = r.data[REC.altitude];
-      if (raw == null) continue;
-      const e = (raw - 500) / 5;
+      const e = eleOf(r.data);
+      if (e == null) continue;
       if (!Number.isFinite(e)) continue;
       if (anchor == null) { anchor = e; continue; }
       const d = e - anchor;
@@ -873,7 +888,7 @@ const FIT = (() => {
       const lat = d[REC.position_lat] != null ? d[REC.position_lat] / SEMI : null;
       const lon = d[REC.position_long] != null ? d[REC.position_long] / SEMI : null;
       // altitude: uint16, scale 5, offset 500 → 单位米
-      const ele = d[REC.altitude] != null ? (d[REC.altitude] - 500) / 5 : null;
+      const ele = eleOf(d);
       const time = new Date(FIT.fitToUnix(d[REC.timestamp]) * 1000).toISOString();
       let ext = '';
       if (d[REC.heart_rate] != null) ext += `<gpxtpx:hr>${d[REC.heart_rate]}</gpxtpx:hr>`;
@@ -924,7 +939,7 @@ ${trkpts}
       }
       const lat = d[REC.position_lat] != null ? (d[REC.position_lat] / SEMI).toFixed(7) : '0';
       const lon = d[REC.position_long] != null ? (d[REC.position_long] / SEMI).toFixed(7) : '0';
-      const ele = d[REC.altitude] != null ? ((d[REC.altitude] - 500) / 5).toFixed(1) : '0';
+      const ele = eleOf(d) != null ? eleOf(d).toFixed(1) : '0';
       const time = new Date(FIT.fitToUnix(d[REC.timestamp]) * 1000).toISOString();
       let ext = '';
       if (d[REC.heart_rate] != null) ext += `<ns3:HeartRateBpm><ns3:Value>${d[REC.heart_rate]}</ns3:Value></ns3:HeartRateBpm>`;
@@ -975,7 +990,7 @@ ${trkpts}
       if (la == null || lo == null) continue;
       const lat = la / SEMI, lon = lo / SEMI;
       if (!validLatLon(lat, lon)) continue;
-      const ele = r.data[REC.altitude] != null ? (r.data[REC.altitude] - 500) / 5 : null;
+      const ele = eleOf(r.data);
       pts.push({ lat, lon, ele, ts: r.data[REC.timestamp] });
     }
     const clean = dedriftPoints(pts);
@@ -1137,7 +1152,7 @@ ${trkpts}
       if (d[REC.heart_rate] != null) has.hr = true;
       if (d[REC.cadence] != null) has.cadence = true;
       if (d[REC.position_lat] != null) has.lat = true;
-      if (d[REC.altitude] != null) has.ele = true;
+      if (eleRawOf(d) != null) has.ele = true;
     }
     const duration = recs.length > 1 ? lastTs - recs[0].data[REC.timestamp] : 0;
     const maxG = recs.length > 1 ? maxGap(recs) : 0;

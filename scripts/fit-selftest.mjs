@@ -503,8 +503,7 @@ ok(dec.every((p, i) => i === 0 || p.idx > dec[i - 1].idx), '抽稀后下标严�
   ok(erecs[2].data[2]===900, '已有海拔的点不动', erecs[2].data[2]);
 }
 
-console.log('\n=== ' + pass + ' 通过 / ' + fail + ' 失败 ===');
-// ---- [11] 无效哨兵值（0xFFFFFFFF 等）→ null + GPS 距离兜底 + 字节级往返 ----
+console.log('\n---- [11] 无效哨兵值（0xFFFFFFFF 等）→ null + GPS 距离兜底 + 字节级往返 ----');
 // 真机码表文件常见：停表瞬间 record.distance 写 0xFFFFFFFF（uint32 无效哨兵）。
 // 旧实现当真实值用 → 42949.67 km。修复后应解析为 null 并由 GPS 轨迹兜底距离。
 function buildSentinel() {
@@ -594,4 +593,41 @@ ok(dm.every((v,i)=>i===0||v>dm[i-1]),"TCX 累计距离单调递增",dm);
   ok(FIT.summarize(big).points === before, 'combine 变异不影响缓存中的原文件摘要');
 }
 
+// ---- 海拔字段：只写 field 78 (enhanced_altitude) 的文件也要能读出海拔 ----
+// 部分国产码表导出只写 enhanced_altitude(78) 不写 altitude(2)，
+// 只认 2 会让海拔整段丢失（剖面显示「无海拔数据」、GPX 不带海拔）。
+{
+  const hdr = 12, body = [];
+  const w = (v, n) => { for (let i = 0; i < n; i++) body.push(Math.floor(v / Math.pow(2, i * 8)) & 0xFF); };
+  const S32 = v => { const b = Buffer.alloc(4); b.writeInt32LE(v, 0); body.push(...b); };
+  body.push(0x00 | 0x40, 0, 0); body.push(20, 0); body.push(4);
+  body.push(253, 4, 4); body.push(0, 4, 5); body.push(1, 4, 5); body.push(78, 4, 4);
+  const base = 1000000000;
+  const eles = [800, 900, 850];          // 米 → raw = m*5+500
+  for (let i = 0; i < 3; i++) {
+    body.push(0x00);
+    w(base + i, 4);
+    S32(Math.round((30.6 + i * 0.001) * Math.pow(2, 31) / 180));
+    S32(Math.round(104.0 * Math.pow(2, 31) / 180));
+    w(Math.round(eles[i] * 5 + 500), 4);
+  }
+  const total = hdr + body.length + 2, out = new Uint8Array(total);
+  out[0] = hdr; out[1] = 0x20;
+  const dv = new DataView(out.buffer);
+  dv.setUint16(2, 2140, true); dv.setUint32(4, body.length, true);
+  out[8] = 0x2E; out[9] = 0x46; out[10] = 0x49; out[11] = 0x54;
+  for (let i = 0; i < body.length; i++) out[hdr + i] = body[i];
+  dv.setUint16(hdr + body.length, FIT.crc16(out, 0, hdr + body.length), true);
+
+  const s78 = FIT.summarize(out);
+  ok(s78.has && s78.has.ele === true, '只写 field 78 的文件识别出海拔', s78.has);
+  const tp78 = FIT.trackPoints(out);
+  ok(tp78.length === 3 && tp78.every(p => p.ele != null), 'trackPoints 从 field 78 取到海拔');
+  ok(Math.abs(tp78[0].ele - 800) < 0.01, '海拔解码正确（scale5/offset500）', tp78[0].ele);
+  const gpx78 = FIT.toGpx(out, 't');
+  ok((gpx78.match(/<ele>/g) || []).length === 3, '转 GPX 时保留 field 78 的海拔');
+  ok(FIT.elevationTargets(out).count === 0, '已有海拔的文件不被判为待校准');
+}
+
+console.log('\n=== ' + pass + ' 通过 / ' + fail + ' 失败 ===');
 process.exit(fail ? 1 : 0);
