@@ -152,6 +152,15 @@ const GPX = (() => {
       center = { lat: (minLat + maxLat) / 2, lon: (minLon + maxLon) / 2 };
     }
 
+    // 海拔极值用循环求——Math.min(...eles) 在点数很大时（>12 万，1Hz 长轨迹）
+    // 会因实参数量超限抛 RangeError: Maximum call stack size exceeded，
+    // 整个 GPX 随之不可用。
+    let minEle = null, maxEle = null;
+    for (const e of eles) {
+      if (minEle === null || e < minEle) minEle = e;
+      if (maxEle === null || e > maxEle) maxEle = e;
+    }
+
     return {
       points,
       tracks,
@@ -159,8 +168,8 @@ const GPX = (() => {
       distanceKm: distM / 1000,
       elevGain: gl.gain,
       elevLoss: gl.loss,
-      minEle: eles.length ? Math.min(...eles) : null,
-      maxEle: eles.length ? Math.max(...eles) : null,
+      minEle,
+      maxEle,
       hasEle: eles.length > 0,
       bounds, center,
     };

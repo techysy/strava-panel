@@ -200,6 +200,7 @@ const FitUI = (() => {
 
   // ---- 海拔校准（Open-Meteo DEM）与 GCJ-02 坐标校正 ----
   let _eleBusy = false;
+  const DEM_URL = 'https://api.open-meteo.com/v1/elevation';
   async function fetchDem(pts) {
     const cache = new Map();
     const out = new Array(pts.length).fill(null);
@@ -212,10 +213,26 @@ const FitUI = (() => {
         idxs.push(j); lats.push(pts[j].lat.toFixed(5)); lons.push(pts[j].lon.toFixed(5));
       }
       if (!idxs.length) continue;
-      const resp = await fetch('https://api.open-meteo.com/v1/elevation?latitude=' + lats.join(',') + '&longitude=' + lons.join(','));
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const d = await resp.json();
-      (d.elevation || []).forEach((ele, k) => {
+      // 超时保护：网络挂起时不能无限等（按钮会永远停在「查询中…」）
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), 20000);
+      let d;
+      try {
+        const resp = await fetch(DEM_URL + '?latitude=' + lats.join(',') + '&longitude=' + lons.join(','), { signal: ac.signal });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        d = await resp.json();
+      } finally { clearTimeout(timer); }
+      // Open-Meteo 对越界坐标返回 HTTP 200 + {error:true}（无 elevation 字段），
+      // 此时该批全部失败，必须报错而不是静默留 0（否则用户以为已补全）
+      if (d && d.error) throw new Error(String(d.reason || 'DEM 查询失败'));
+      const eles = d && Array.isArray(d.elevation) ? d.elevation : null;
+      if (!eles) throw new Error('DEM 返回数据格式异常');
+      if (eles.length !== idxs.length) {
+        // 数量不符就不能一一对应（否则会给 A 点写入 B 点海拔）
+        throw new Error('DEM 返回点数与请求不符（' + eles.length + '/' + idxs.length + '）');
+      }
+      eles.forEach((ele, k) => {
+        if (ele == null || !Number.isFinite(ele)) return;
         out[idxs[k]] = ele;
         cache.set(pts[idxs[k]].lat.toFixed(4) + ',' + pts[idxs[k]].lon.toFixed(4), ele);
       });
@@ -225,13 +242,15 @@ const FitUI = (() => {
   async function runEleCalib(mode) {
     const f = getSelectedFile();
     if (!f || _eleBusy) return;
-    const t0 = FIT.elevationTargets(f.bytes);
-    if (!t0.count) { toast(t('fit_eleNone'), true); return; }
     _eleBusy = true;
     const btn = $('fitEleBtn');
     const btnTxt = btn ? btn.textContent : '';
     if (btn) { btn.disabled = true; btn.textContent = t('fit_eleQuerying'); }
     try {
+      // elevationTargets 也在 try 内：损坏文件会抛错，必须给出提示而非
+      // 变成无人处理的 Promise rejection（用户看不到任何反馈）
+      const t0 = FIT.elevationTargets(f.bytes);
+      if (!t0.count) { toast(t('fit_eleNone'), true); return; }
       const eles = await fetchDem(t0.pts);
       const r = FIT.applyElevation(f.bytes, eles);
       if (!r.bytes) { toast(t('fit_eleNone'), true); return; }
@@ -1129,14 +1148,22 @@ const FitUI = (() => {
     }
   }
   // 缺 write scope → 走一次强制 OAuth，轮询 can_upload 成功后自动续传暂存上传
+  let _reauthBusy = false;      // 防重入：反复点胶囊会开出多个授权窗口 + 多个轮询
   async function reauthForUpload() {
+    if (_reauthBusy) return;
+    _reauthBusy = true;
     if (typeof ensureApiToken === 'function') await ensureApiToken();
     const pill = $('fitUploadAuthPill'); if (pill) pill.style.display = 'none';   // 授权中隐藏状态胶囊，避免和进度文案重复
     showProg(t('fit_uploadReauthWait'));
     try {
       const r = await apiGet('/api/oauth/start');
-      if (!r.url) { showResult(t('fit_uploadFail') + escapeHtml(r.error || ''), false); hideProg(); return; }
+      if (!r.url) { showResult(t('fit_uploadFail') + escapeHtml(r.error || ''), false); hideProg(); _reauthBusy = false; return; }
       let w = null; try { w = window.open(r.url, '_blank', 'width=520,height=700'); } catch { w = null; }
+      // 弹窗被拦截时给一个可点的兜底链接（设置页同样做法），
+      // 否则用户只能干等 2 分钟直到轮询超时
+      if (!w) {
+        showResult(t('fit_uploadAuthOpenHint') + ' <a href="' + escapeHtml(r.url) + '" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline">' + escapeHtml(t('fit_uploadAuthOpenLink')) + '</a>', false);
+      }
       let tries = 0;
       const timer = setInterval(async () => {
         tries++;
@@ -1149,13 +1176,15 @@ const FitUI = (() => {
             showResult(t('fit_uploadReauthOk'), true);
             const pend = _uploadPending; _uploadPending = null;
             const authEl = $('fitUploadAuthHint'); if (authEl) authEl.style.display = 'none';
+            _reauthBusy = false;
             if (pend) await doUpload(pend.bytes, pend.fields);
           }
         } catch { /* 轮询忽略 */ }
-        if (tries > 120) { clearInterval(timer); hideProg(); showResult(t('fit_uploadReauthFail'), false); }
+        if (tries > 120) { clearInterval(timer); hideProg(); showResult(t('fit_uploadReauthFail'), false); _reauthBusy = false; }
       }, 1000);
     } catch (e) {
       hideProg(); showResult(t('fit_uploadFail') + escapeHtml(String(e.message || e)), false);
+      _reauthBusy = false;
     }
   }
 

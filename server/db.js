@@ -281,7 +281,8 @@ export class StravaDB {
 
   // ---- write ----
   upsertActivities(activities) {
-    /** 批量写入活动 (upsert by id), 返回新增数 */
+    /** 批量写入活动 (upsert by id), 返回新增数。
+     *  整批放一个事务：中途失败（磁盘满/约束冲突）不留半写入状态。 */
     let added = 0;
     const sel = this.db.prepare('SELECT id FROM activities WHERE id=?');
     const ins = this.db.prepare(`INSERT OR REPLACE INTO activities
@@ -290,17 +291,24 @@ export class StravaDB {
          average_heartrate,max_heartrate,average_watts,kilojoules,
          average_cadence,max_cadence)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
-    for (const a of activities) {
-      const rid = a && a.id;
-      if (!rid) continue;
-      if (sel.get(rid) === undefined) added += 1;
-      ins.run(rid, a.name ?? null, a.type ?? null, a.distance ?? null,
-        a.moving_time ?? null, a.total_elevation_gain ?? null,
-        a.start_date ?? null, a.start_date_local ?? null,
-        a.elapsed_time ?? null, a.average_speed ?? null, a.max_speed ?? null,
-        a.average_heartrate ?? null, a.max_heartrate ?? null,
-        a.average_watts ?? null, a.kilojoules ?? null,
-        a.average_cadence ?? null, a.max_cadence ?? null);
+    this.db.exec('BEGIN');
+    try {
+      for (const a of activities) {
+        const rid = a && a.id;
+        if (!rid) continue;
+        if (sel.get(rid) === undefined) added += 1;
+        ins.run(rid, a.name ?? null, a.type ?? null, a.distance ?? null,
+          a.moving_time ?? null, a.total_elevation_gain ?? null,
+          a.start_date ?? null, a.start_date_local ?? null,
+          a.elapsed_time ?? null, a.average_speed ?? null, a.max_speed ?? null,
+          a.average_heartrate ?? null, a.max_heartrate ?? null,
+          a.average_watts ?? null, a.kilojoules ?? null,
+          a.average_cadence ?? null, a.max_cadence ?? null);
+      }
+      this.db.exec('COMMIT');
+    } catch (err) {
+      try { this.db.exec('ROLLBACK'); } catch { /* 回滚失败时保留原始错误 */ }
+      throw err;
     }
     this.setMeta('last_sync', localIsoNow());
     return added;

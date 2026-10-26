@@ -77,6 +77,12 @@ const FIT = (() => {
     : (SIGNED.has(base) ? Math.pow(2, size * 8 - 1) - 1 : Math.pow(2, size * 8) - 1);
 
   function readValue(view, off, size, baseType, little = true) {
+    // 定义消息可声明超出实际数据长度的字段（损坏/恶意文件），
+    // 直接读会抛英文 RangeError（Offset is outside the bounds of the DataView），
+    // 换成中文提示并带上位置，便于定位。
+    if (off + size > view.byteLength) {
+      throw new Error('文件已损坏（字段数据越界，偏移 ' + off + '，需 ' + size + ' 字节）');
+    }
     // string 单独处理：值按 NUL 截断，但字段在记录中始终占满声明的 size 字节，
     // 消费长度必须按 size 计，否则后续字段全部错位。
     if (baseType === 7) {
@@ -122,8 +128,26 @@ const FIT = (() => {
   const REC = { timestamp: 253, position_lat: 0, position_long: 1, altitude: 2, heart_rate: 3, cadence: 4, distance: 5, speed: 6, power: 7, temperature: 13 };
   const SEMI = Math.pow(2, 31) / 180;   // 半圆/度：度 = 半圆 ÷ SEMI（FIT: 180° = 2^31 半圆）
 
+  // 解析结果缓存：同一份字节只解析一次。
+  // 真实文件 1.2MB / 3.6 万采样点，单次 parse 约 150ms；renderPanel 会同时要
+  // 地图轨迹 + 海拔剖面 + 文件摘要，无缓存时每次交互重复解析数次、主线程卡顿。
+  // 关键：只用于「只读」调用方（summarize / trackPoints / trackPointsIndexed）；
+  // 会改写消息的路径（combine / stripFields / cropRange / split / fixGcj02 /
+  // applyElevation）必须走 parse() 拿独立副本，否则会污染缓存里的共享对象。
+  const _parseCache = new WeakMap();
+  function parseReadonly(u8) {
+    if (!u8 || typeof u8 !== 'object' || !u8.buffer) return parse(u8);
+    let p = _parseCache.get(u8);
+    if (!p) { p = parse(u8); _parseCache.set(u8, p); }
+    return p;
+  }
+
   // ---- 解析 ----
   function parse(u8) {
+    // 允许传 ArrayBuffer（FileReader.readAsArrayBuffer 的产物）——之前按索引
+    // 取字节会得到 undefined，报「缺少 .FIT 魔数」这种误导性错误
+    if (u8 instanceof ArrayBuffer) u8 = new Uint8Array(u8);
+    if (!u8 || typeof u8.length !== 'number') throw new Error('FIT 数据格式不正确');
     if (u8.length < 14) throw new Error('文件太小，不是有效的 FIT 文件');
     if (u8[8] !== 0x2E || u8[9] !== 0x46 || u8[10] !== 0x49 || u8[11] !== 0x54) {
       throw new Error('不是 FIT 文件（缺少 .FIT 魔数）');
@@ -544,7 +568,7 @@ const FIT = (() => {
 
   // 供 UI 拖端点用：返回按索引抽稀的轨迹点（点原始下标随行，拖动端点映射回 record 区间）
   function trackPointsIndexed(u8, maxPts = 1200) {
-    const p = parse(u8);
+    const p = parseReadonly(u8);
     const recs = p.messages.filter(m => m.type === 'data' && m.global === MSG.record && m.data[REC.timestamp] != null);
     const withIdx = [];
     recs.forEach((r, i) => {
@@ -557,7 +581,9 @@ const FIT = (() => {
     const clean = dedriftPoints(withIdx);
     if (clean.length <= maxPts) return clean;
     const out = [];
-    for (let i = 0; i < maxPts; i++) out.push(withIdx[Math.round(i * (withIdx.length - 1) / (maxPts - 1))]);
+    // 必须按 clean 抽稀：用 withIdx 会把已被判定为漂移的垃圾点重新选回来，
+    // 且返回点数与 maxPts 契约不符（裁剪端点吸附会落到垃圾点上）
+    for (let i = 0; i < maxPts; i++) out.push(clean[Math.round(i * (clean.length - 1) / (maxPts - 1))]);
     return out;
   }
 
@@ -941,7 +967,7 @@ ${trkpts}
   // ======================= 轨迹坐标提取（供地图渲染）=======================
   // 返回 [{lat, lon, ele?}]（度），无轨迹返回 []。抽稀：点数过多时等距取样，地图折线够用即可。
   function trackPoints(u8, maxPts = 2000) {
-    const p = parse(u8);
+    const p = parseReadonly(u8);
     const recs = p.messages.filter(m => m.type === 'data' && m.global === MSG.record && m.data[REC.timestamp] != null);
     const pts = [];
     for (const r of recs) {
@@ -1096,7 +1122,7 @@ ${trkpts}
 
   // ======================= 文件概览（供 UI 展示）=======================
   function summarize(u8) {
-    const p = parse(u8);
+    const p = parseReadonly(u8);
     const recs = p.messages.filter(m => m.type === 'data' && m.global === MSG.record && m.data[REC.timestamp] != null);
     const fid = p.messages.find(m => m.type === 'data' && m.global === MSG.file_id);
     let distCm = null, lastTs = null;

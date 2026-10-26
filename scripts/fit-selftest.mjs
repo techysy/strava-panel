@@ -555,4 +555,43 @@ ok(dm.length===5,"TCX 5 个 Trackpoint DistanceMeters",dm.length);
 ok(dm[0]===0&&dm[4]===40,"TCX 累计距离 0→40m",dm);
 ok(dm.every((v,i)=>i===0||v>dm[i-1]),"TCX 累计距离单调递增",dm);
 
+// ---- 稳健性：ArrayBuffer 输入 / 越界友好报错 / 解析缓存 ----
+{
+  // 1) parse 接受 ArrayBuffer（FileReader.readAsArrayBuffer 的产物）
+  const u8 = buildFit({ points: 5 });
+  const ab = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+  let s = null, err = null;
+  try { s = FIT.summarize(ab); } catch (e) { err = e; }
+  ok(!err && s && s.points === 5, 'summarize 接受 ArrayBuffer 输入', err && err.message);
+  // 2) 越界字段声明 → 中文友好错误，不是英文 RangeError
+  {
+    const hdr = 12, body = [];
+    body.push(0x00 | 0x40, 0, 0); body.push(20, 0); body.push(1);
+    body.push(253, 200, 4);                    // timestamp 声明 200 字节（实际没有）
+    body.push(0x00); body.push(1, 2, 3, 4);    // 1 条 record，只有 4 字节
+    const total = hdr + body.length + 2, out = new Uint8Array(total);
+    out[0] = hdr; out[1] = 0x20;
+    const dv = new DataView(out.buffer);
+    dv.setUint16(2, 2140, true); dv.setUint32(4, body.length, true);
+    out[8] = 0x2E; out[9] = 0x46; out[10] = 0x49; out[11] = 0x54;
+    for (let i = 0; i < body.length; i++) out[hdr + i] = body[i];
+    dv.setUint16(hdr + body.length, FIT.crc16(out, 0, hdr + body.length), true);
+    let msg = '';
+    try { FIT.parse(out); } catch (e) { msg = String(e.message || e); }
+    ok(msg.includes('损坏') && !msg.includes('RangeError') && !msg.includes('DataView'),
+      '越界字段声明报中文友好错误', msg);
+  }
+  // 3) 解析缓存：同一份字节重复取轨迹/摘要，结果一致且不重复解析
+  const big = buildFit({ points: 200 });
+  const t1 = FIT.trackPoints(big);
+  const t2 = FIT.trackPoints(big);
+  ok(t1.length === t2.length && t1[0].lat === t2[0].lat, '重复调用 trackPoints 结果一致（走缓存）');
+  const s1 = FIT.summarize(big), s2 = FIT.summarize(big);
+  ok(s1.points === s2.points && s1.distanceKm === s2.distanceKm, '重复调用 summarize 结果一致（走缓存）');
+  // 4) 缓存不得污染变异路径：combine 改写后原文件摘要不变
+  const before = FIT.summarize(big).points;
+  FIT.combine([big, buildFit({ points: 50, time: 1000001000 })]);
+  ok(FIT.summarize(big).points === before, 'combine 变异不影响缓存中的原文件摘要');
+}
+
 process.exit(fail ? 1 : 0);

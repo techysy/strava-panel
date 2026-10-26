@@ -37,7 +37,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { StravaDB, PyFloat, pyRound, pyDump, pyStr, pyf } from './db.js';
 import { tripWeather, tripTrains, tripGeocode, tripRouteWeather, TRIP_DESTINATIONS } from './trip.js';
@@ -207,7 +207,12 @@ function getOrCreateApiToken() {
 function apiTokenValid(token) {
   if (!token) return false;
   const expected = loadConfig().api_token || '';
-  return token === expected;
+  if (!expected) return false;
+  // 定长比较，避免逐字符早退带来的时序侧信道（本地服务也统一按此判定）
+  const a = Buffer.from(String(token));
+  const b = Buffer.from(String(expected));
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
 }
 
 function recreateApiToken() {
@@ -228,6 +233,8 @@ const REQUIRED_SCOPE = 'activity:read_all';
 const WRITE_SCOPE = 'activity:write';
 // 单文件上传上限（Strava 无公开硬限；12MB 覆盖数小时超长码表文件绰绰有余）
 const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
+// JSON 配置类接口的请求体上限（这些接口只传小 JSON，不该超过这个量级）
+const MAX_JSON_BODY_BYTES = 2 * 1024 * 1024;
 
 function scopeHas(scope, want) {
   /** scope 是否含 want。
@@ -1182,11 +1189,21 @@ function getQs(reqUrl) {
   return out;
 }
 
-function readBody(req) {
+function readBody(req, limit = MAX_JSON_BODY_BYTES) {
+  /** 读文本请求体（JSON 配置类接口）。带上限——不限量会让一个超大 POST
+   *  把内存吃光；超限后继续排空流（不 destroy，避免过早断链），结束时统一拒绝。 */
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on('data', (c) => chunks.push(c));
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    let size = 0, over = false;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > limit) { over = true; return; }
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      if (over) reject(new Error('请求体过大'));
+      else resolve(Buffer.concat(chunks).toString('utf8'));
+    });
     req.on('error', reject);
   });
 }

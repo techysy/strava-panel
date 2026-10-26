@@ -1336,6 +1336,7 @@ const I18N = {
     fit_eleProfile:'海拔剖面', fit_eleNoData:'无海拔数据（含 GPS 的文件可先「校准海拔」）', fit_eleZeroHint:'海拔全为 0？点「校准海拔」补全真实地形',
     fit_gcjTitle:'GCJ-02 校正', fit_gcjRun:'转 WGS-84', fit_gcjHint:'轨迹整体偏移约 300~600 米时使用：国内码表（佳明国行/迈金等）可能记录 GCJ-02 加密坐标，本地逆变换还原 WGS-84', fit_gcjDone:'已将 {n} 个点由 GCJ-02 转为 WGS-84', fit_gcjNone:'没有境内坐标点需要转换',
     fit_uploadAuthNeed:'当前授权缺少上传权限（activity:write）。', fit_uploadReauth:'重新授权', fit_uploadReauthWait:'完成新窗口授权后将自动继续上传…', fit_uploadReauthOk:'权限已更新，继续上传…', fit_uploadReauthFail:'授权超时或失败，请重试',
+    fit_uploadAuthOpenHint:'授权窗口未能自动打开，', fit_uploadAuthOpenLink:'点此打开 Strava 授权页',
     fit_doneStrip:'已从 {n} 个采样中移除功率/心率', fit_doneSplit:'已拆分为 {n} 个文件', fit_doneCombine:'合并完成，共 {n} 个采样点', fit_doneConvert:'已转换，下载已开始',
     fit_crop:'地图裁剪', fit_cropTitle:'拖动地图上 S/E 端点选择保留区间', fit_cropRange:'点 {a}–{b} / 共 {n}', fit_cropReset:'重置', fit_cropDone:'退出裁剪', fit_cropDone2:'裁剪完成，已开始下载',
     fit_cropTarget:'裁剪目标', fit_cropTargetHint:'点击切换裁剪目标',
@@ -1480,6 +1481,7 @@ const I18N = {
     fit_eleProfile:'Elevation', fit_eleNoData:'No elevation data (GPS files can be calibrated first)', fit_eleZeroHint:'All zeros? Click Calibrate to fill real terrain',
     fit_gcjTitle:'GCJ-02 Fix', fit_gcjRun:'→ WGS-84', fit_gcjHint:'Use when the whole track is offset by ~300-600 m: domestic devices (Garmin CN / Magene) may record GCJ-02 encrypted coordinates; converted back to WGS-84 locally', fit_gcjDone:'Converted {n} pts from GCJ-02 to WGS-84', fit_gcjNone:'No in-China points to convert',
     fit_uploadAuthNeed:'Current authorization lacks upload permission (activity:write).', fit_uploadReauth:'Re-authorize', fit_uploadReauthWait:'Upload resumes automatically once you finish the new authorization…', fit_uploadReauthOk:'Permission granted, resuming upload…', fit_uploadReauthFail:'Authorization timed out or failed, please retry',
+    fit_uploadAuthOpenHint:'The authorization window could not open automatically, ', fit_uploadAuthOpenLink:'click here to open the Strava authorization page',
     fit_doneStrip:'Power/HR stripped from {n} samples', fit_doneSplit:'Split into {n} files', fit_doneCombine:'Combined {n} samples', fit_doneConvert:'Converted — download started',
     fit_crop:'Crop on map', fit_cropTitle:'Drag S/E handles on the map to choose the range', fit_cropRange:'pts {a}–{b} / {n}', fit_cropReset:'Reset', fit_cropDone:'Exit crop', fit_cropDone2:'Crop ready — download started',
     fit_cropTarget:'cropping', fit_cropTargetHint:'Click to switch the crop target',
@@ -1854,7 +1856,7 @@ async function refreshStatus(){
 async function loadInfo(){
   const grids = { strava: document.getElementById('statStrava'), db: document.getElementById('statDb'), agent: document.getElementById('statAgent') };
   const badge = (ok, okText, noText) =>
-    `<span class="stat-badge ${ok?'ok':'warn'}"><i class="sdot"></i>${ok ? (okText||'') : (noText||'')}</span>`;
+    `<span class="stat-badge ${ok?'ok':'warn'}"><i class="sdot"></i>${escapeHtml(String(ok ? (okText||'') : (noText||'')))}</span>`;
   // 聚合卡片：一个业务一张卡片，内部多行（label 左 / value 右）
   const aggr = (rows) => `<div class="stat-aggr">${rows.map(r=>`<div class="stat-row"><span class="k">${r.k}</span><span class="v${r.cls ? ' ' + r.cls : ''}"${r.title ? ' title="' + escapeHtml(r.title) + '"' : ''}>${r.v}</span></div>`).join('')}</div>`;
   try{
@@ -2205,7 +2207,7 @@ async function loadPowerCurve(){
     powerCurveData = d;
     renderPowerCurve();
   }catch(e){
-    host.innerHTML = `<div style="color:var(--text-3);font-size:13px">${e.message||''}</div>`;
+    host.innerHTML = `<div style="color:var(--text-3);font-size:13px">${escapeHtml(String(e.message||''))}</div>`;
   }
 }
 function togglePowerCompare(){

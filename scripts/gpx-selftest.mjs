@@ -160,5 +160,20 @@ console.log('# GPX selftest');
   ok(GPX.etaMinutes(10, -5) === null, 'ETA 负速=null');
 }
 
+// ---- 14. 超大点数不炸栈（Math.min(...eles) 在 20 万点时 RangeError）----
+{
+  const N = 200000;
+  let pts = '';
+  for (let i = 0; i < N; i++) pts += `<trkpt lat="${(30 + i * 1e-6).toFixed(7)}" lon="120"><ele>${(500 + (i % 1000)).toFixed(1)}</ele></trkpt>`;
+  const g = `<gpx><trk><trkseg>${pts}</trkseg></trk></gpx>`;
+  let r = null, err = null;
+  try { r = GPX.parse(g); } catch (e) { err = e; }
+  ok(!err, '20 万点 GPX 解析不抛异常', err && err.message);
+  if (r) {
+    ok(r.minEle === 500, 'minEle 正确（循环求极值）', r.minEle);
+    ok(r.maxEle === 1499, 'maxEle 正确（循环求极值）', r.maxEle);
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
