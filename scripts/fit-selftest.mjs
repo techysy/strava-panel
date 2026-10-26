@@ -187,6 +187,25 @@ ok(cTs[5] >= cTs[4] + 1, '第二段起点在第一段结束后', [cTs[4], cTs[5]
   ok(oTs.every((v, i) => i === 0 || v > oTs[i - 1]), '去重后时间轴仍严格递增', oTs);
 }
 
+// 合并多段（裁剪段）时 distance 必须按段累加并重写为连续值：
+// 各来源文件的 distance 是独立累计值，直接拼接会让段间差值被当成真实里程。
+{
+  const u8 = buildFit({ points: 40 });
+  const c1 = FIT.cropRange(u8, 0, 15);
+  const c2 = FIT.cropRange(u8, 25, 40);
+  const d1 = FIT.summarize(c1).distanceKm, d2 = FIT.summarize(c2).distanceKm;
+  const m = FIT.combine([c2, c1]);   // 乱序传入
+  const ms = FIT.summarize(m.bytes);
+  ok(Math.abs(ms.distanceKm - (d1 + d2)) < 0.05, '多段合并距离 = 各段之和（不把段间差值算进里程）',
+    ms.distanceKm.toFixed(3) + ' vs ' + (d1 + d2).toFixed(3));
+  // 产物 distance 流必须单调递增（下游工具重新解析也正确）
+  const rd = FIT.parse(m.bytes).messages.filter(x => x.type === 'data' && x.global === 20 && x.data[253] != null);
+  const ds = rd.map(x => x.data[5]).filter(v => v != null);
+  ok(ds.every((v, i) => i === 0 || v >= ds[i - 1]), '合并产物 distance 流单调递增');
+  ok(Math.abs((ds[ds.length - 1] - ds[0]) / 100000 - ms.distanceKm) < 0.05, '末点-首点 与 累加一致（下游读取无歧义）',
+    ((ds[ds.length - 1] - ds[0]) / 100000).toFixed(3) + 'km vs ' + ms.distanceKm.toFixed(3) + 'km');
+}
+
 // 码表长时间记录会中途重启（distance 归零，位置/海拔连续）：
 // 距离必须跨重置累加，否则「末点-首点」只覆盖最后一段，会少算一大截里程。
 {

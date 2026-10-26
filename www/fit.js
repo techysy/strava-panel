@@ -352,18 +352,26 @@ const FIT = (() => {
   // 但位置/海拔连续），末-首只覆盖最后一段，会少算一大截里程
   // （实测 13.5h/232.7km 的文件被算成 98.5km）。改为跨重置逐点累加。
   function distanceMeters(records) {
-    let sum = 0, prev = null, got = false;
+    let sum = 0, prev = null, got = false, seg = null, segCount = 0, invalid = 0;
     for (const r of records) {
+      // 段边界（合并多段时来自不同文件/裁剪段）：distance 字段是各段独立的累计值，
+      // 跨段的差值不是真实里程，必须断开重新起算。
+      const s = r.__srcSeg;
+      if (s !== undefined && s !== seg) { seg = s; segCount++; prev = null; }
       const v = r.data[REC.distance];
-      if (v == null) continue;                        // 无效哨兵/缺失：跳过该点，保留 prev 继续累加
+      if (v == null) { invalid++; continue; }          // 无效哨兵/缺失：跳过该点，保留 prev 继续累加
       if (prev != null && v >= prev) sum += v - prev; // 负跳变视为码表重启，不减
       prev = v;
       got = true;
     }
     if (got) {
-      // 码表中途丢计数时累加值会明显偏小（哨兵/缺字段）→ 回退 GPS 轨迹
-      const gps = gpsDistanceM(records);
-      if (gps != null && sum < gps * 100 * 0.8) return gps * 100;
+      // 只有 distance 字段确实出现无效值（哨兵/缺失）才回退 GPS 轨迹。
+      // 不能按「累加值偏小」判断：多段拼接时 GPS 直线连接会把段间缺口算进去（虚高），
+      // 误兜底会把正确里程改成偏大的值。
+      if (invalid && segCount <= 1) {
+        const gps = gpsDistanceM(records);
+        if (gps != null) return gps * 100;
+      }
       return sum;                                     // 单位 cm
     }
     const gps = gpsDistanceM(records);
@@ -401,6 +409,7 @@ const FIT = (() => {
       for (const f of kept) nm.data[f.num] = m.data[f.num];
       out.push(nm);
     }
+    addEnhancedAltitude(out);   // 平台优先读 enhanced_altitude(78) 算爬升
     return { bytes: serialize(out, { protocolVer: p.protocolVer }), removed, count: out.filter(m => m.global === MSG.record).length };
   }
 
@@ -450,6 +459,7 @@ const FIT = (() => {
       const dur = lastTs - firstTs;
       const dist = distanceMeters(slice) ?? 0;   // cm；无效时 GPS 兜底
       const moveSec = calcMoveTime(slice);
+      addEnhancedAltitude(msgs);   // 平台优先读 enhanced_altitude(78) 算爬升
       msgs.push(makeEvent(MSG.event, first.data, baseTs));
       msgs.push(makeLap(first.data, baseTs, dur, dist, moveSec));
       msgs.push(makeSession(first.data, baseTs, dur, dist, moveSec));
@@ -685,6 +695,39 @@ const FIT = (() => {
     return added;
   }
 
+  // 把多段 record 的 distance 字段改写为连续累计值（单位 cm）。
+  // 段内按逐点差值累加（码表中途重启导致 distance 归零时跳过负跳变），
+  // 段与段之间接续上一段的末值——产物 distance 流单调递增且总量正确。
+  function rewriteDistanceContinuous(all) {
+    let base = 0;        // 已完成段的累计里程
+    let seg = null;      // 当前段
+    let segPrev = null;  // 当前段内上一个 distance
+    let acc = 0;         // 当前段内累计
+    let last = null;     // 上一个写出的值
+    for (const r of all) {
+      const s = r.__srcSeg;
+      if (s !== undefined && s !== seg) {
+        if (seg !== null) base += acc;   // 收尾上一段
+        seg = s; segPrev = null; acc = 0;
+      }
+      const v = r.data[REC.distance];
+      if (v == null) {
+        // 无效哨兵/缺失：沿用上一值（保持流连续，不写 null）
+        if (last != null) r.data[REC.distance] = last;
+        continue;
+      }
+      if (segPrev == null) { r.data[REC.distance] = base; }
+      else {
+        const d = v - segPrev;
+        acc += d >= 0 ? d : 0;            // 负跳变视为码表重启，不计
+        r.data[REC.distance] = base + acc;
+      }
+      segPrev = v;
+      last = r.data[REC.distance];
+    }
+    return all;
+  }
+
   // ======================= 工具 3：合并 =======================
   // 把多个文件首尾相接成一条长活动：时间轴自动去重平移，采样点按时间排序，
   // 最后重建 lap/session。适合「码表分段记录」拼成一次完整骑行。
@@ -742,6 +785,7 @@ const FIT = (() => {
         const c = Object.assign({}, r);
         c.data = Object.assign({}, r.data);
         c.data[REC.timestamp] = ts + shift;
+        c.__srcSeg = offset;      // 来源文件序号：距离按段累加，跨段差值不是真实里程
         all.push(c);
       }
       lastEnd = last + shift;
@@ -749,6 +793,12 @@ const FIT = (() => {
     }
     if (!all.length) throw new Error('所有文件都没有有效的采样数据');
     all.sort((a, b) => a.data[REC.timestamp] - b.data[REC.timestamp]);
+
+    // 重写 distance 字段为「整条合并活动」的连续累计值。
+    // 各来源文件的 distance 字段是各自独立的累计值（裁剪段还保留原文件的绝对值），
+    // 直接拼接会让「末点-首点」与逐点累加都算错（段间差值被当成真实里程）。
+    // 这里按来源段分别累加后再接续，产物本身自洽——任何工具重新解析都得到正确里程。
+    rewriteDistanceContinuous(all);
 
     const msgs = [];
     if (sharedFileId) {
@@ -982,6 +1032,7 @@ ${trkpts}
       count++;
     }
     if (!count) return { bytes: null, count: 0 };
+    addEnhancedAltitude(p.messages);   // 平台优先读 enhanced_altitude(78) 算爬升
     return { bytes: serialize(p.messages, { protocolVer: p.protocolVer }), count };
   }
 
@@ -1039,6 +1090,7 @@ ${trkpts}
       count++;
     });
     if (!count) return { bytes: null, count: 0 };
+    addEnhancedAltitude(p.messages);   // 平台优先读 enhanced_altitude(78) 算爬升
     return { bytes: serialize(p.messages, { protocolVer: p.protocolVer }), count };
   }
 
