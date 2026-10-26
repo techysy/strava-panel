@@ -630,13 +630,50 @@ const FitUI = (() => {
     const linked = st && !st.fullscreen ? st.map : null;
     drawEleProfile(body, pd, linked);
   }
-  // 剖面头部按钮（内嵌卡与全屏浮窗共用）：校准海拔 / GCJ-02 校正，各带应用到列表
-  function eleButtonsHtml() {
-    return '<button class="btn btn-sm" onclick="FitUI.runEleCalib()" data-i18n="fit_eleRun" data-i18n-title="fit_eleHint">' + escapeHtml(t('fit_eleRun')) + '</button>'
-      + '<button class="btn btn-sm" onclick="FitUI.runEleCalib(\'list\')" data-i18n="fit_toList">' + escapeHtml(t('fit_toList')) + '</button>'
-      + '<span class="fo-sep"></span>'
-      + '<button class="btn btn-sm" onclick="FitUI.runGcjFix()" data-i18n="fit_gcjRun" data-i18n-title="fit_gcjHint" title="' + escapeHtml(t('fit_gcjHint')) + '">' + escapeHtml(t('fit_gcjRun')) + '</button>'
-      + '<button class="btn btn-sm" onclick="FitUI.runGcjFix(\'list\')" data-i18n="fit_toList">' + escapeHtml(t('fit_toList')) + '</button>';
+  // 剖面头部的动作菜单：「校准海拔」「转 WGS-84」各带「执行并下载 / 应用到列表」
+  // 两个动作共用一个下拉菜单容器，按钮上带 ▾，避免一排按钮里出现两个「应用到列表」。
+  const FIT_ACTIONS = {
+    ele: { run: () => runEleCalib(''), list: () => runEleCalib('list') },
+    gcj: { run: () => runGcjFix(''), list: () => runGcjFix('list') },
+  };
+  function actionMenuHtml(kind) {
+    const a = FIT_ACTIONS[kind];
+    if (!a) return '';
+    return '<div class="pl-menu-item" data-act="run">' + escapeHtml(t('fit_actionRun')) + '</div>'
+      + '<div class="pl-menu-item" data-act="list">' + escapeHtml(t('fit_toList')) + '</div>';
+  }
+  function actionMenus() {
+    const out = [];
+    const a = $('fitActMenu'); if (a) out.push(a);
+    const b = document.querySelector('.tm-float-ele .pl-act-menu'); if (b) out.push(b);
+    return out;
+  }
+  function activeActionMenu() {
+    const ms = actionMenus();
+    for (const m of ms) if (m.style.display !== 'none') return m;
+    return ms[0] || null;
+  }
+  function toggleActionMenu(ev, kind) {
+    if (ev) ev.stopPropagation();
+    const menu = activeActionMenu();
+    if (!menu) return;
+    const open = menu.style.display === 'none';
+    if (open) {
+      menu.innerHTML = actionMenuHtml(kind);
+      menu.dataset.kind = kind;
+      menu.style.display = '';
+    } else menu.style.display = 'none';
+  }
+  function onActionMenuClick(ev) {
+    const item = ev.target && ev.target.closest ? ev.target.closest('.pl-menu-item') : null;
+    if (!item) return;
+    const menu = item.closest('.pl-menu');
+    const kind = menu && menu.dataset.kind;
+    const a = FIT_ACTIONS[kind];
+    if (!a) return;
+    closeProfileMenu();          // 关闭动作菜单（同一层的其它菜单）
+    if (menu) menu.style.display = 'none';
+    if (item.dataset.act === 'list') a.list(); else a.run();
   }
 
   // ---- 剖面曲线选择菜单（参照 gpx.studio 的「海拔剖面图设置」）----
@@ -681,6 +718,7 @@ const FitUI = (() => {
   }
   function closeProfileMenu() {
     profileMenus().forEach(m => { m.style.display = 'none'; });
+    actionMenus().forEach(m => { m.style.display = 'none'; });
   }
   function onProfileMenuChange(ev) {
     const inp = ev.target;
@@ -705,14 +743,20 @@ const FitUI = (() => {
       + '<div class="fit-ele-head">'
       + '<div class="pl-menu-wrap"><button class="btn btn-sm" onclick="FitUI.toggleProfileMenu(event)" data-i18n-title="fit_chMenu" title="' + escapeHtml(t('fit_chMenu')) + '">'
       + '<svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg></button><div class="pl-menu" style="display:none"></div></div>'
-      + eleButtonsHtml() + '</div><div class="fit-ele-body"></div>';
+      + '<div class="pl-menu-wrap"><button class="btn btn-sm" onclick="FitUI.toggleActionMenu(event,\'ele\')" data-i18n-title="fit_eleHint" title="' + escapeHtml(t('fit_eleHint')) + '">'
+      + escapeHtml(t('fit_eleRun')) + ' ▾</button><div class="pl-menu pl-act-menu" style="display:none"></div></div>'
+      + '<div class="pl-menu-wrap"><button class="btn btn-sm" onclick="FitUI.toggleActionMenu(event,\'gcj\')" data-i18n-title="fit_gcjHint" title="' + escapeHtml(t('fit_gcjHint')) + '">'
+      + escapeHtml(t('fit_gcjRun')) + ' ▾</button></div>'
+      + '</div><div class="fit-ele-body"></div>';
     host.appendChild(fl);
     const body = fl.querySelector('.fit-ele-body');
     if (pd && pd.hasEle) drawEleProfile(body, pd, map);
     else body.innerHTML = '<div class="tt" style="color:var(--text-3);font-size:11px">' + escapeHtml(t('fit_eleNoData')) + '</div>';
-    // 浮窗里的菜单也要挂 change 委托
-    const fmenu = fl.querySelector('.pl-menu');
+    // 浮窗里的菜单也要挂委托
+    const fmenu = fl.querySelector('.pl-menu:not(.pl-act-menu)');
     if (fmenu) fmenu.addEventListener('change', onProfileMenuChange);
+    const amenu = fl.querySelector('.pl-act-menu');
+    if (amenu) amenu.addEventListener('click', onActionMenuClick);
     renderProfileMenu();
   }
 
@@ -1451,20 +1495,21 @@ const FitUI = (() => {
     $('fitSplitMode').dispatchEvent(new Event('change'));
     // 剖面曲线选择菜单：change 委托 + 点击外部关闭
     const plMenu = $('fitProfileMenu');
-    if (plMenu) {
-      plMenu.addEventListener('change', onProfileMenuChange);
-      document.addEventListener('click', (e) => {
-        if (plMenu.style.display === 'none') return;
-        if (plMenu.contains(e.target)) return;
-        if (e.target && e.target.closest && e.target.closest('#fitProfileMenuBtn')) return;
-        closeProfileMenu();
-      });
-    }
+    if (plMenu) plMenu.addEventListener('change', onProfileMenuChange);
+    // 动作菜单（校准海拔 / 转 WGS-84）：click 委托
+    const actMenu = $('fitActMenu');
+    if (actMenu) actMenu.addEventListener('click', onActionMenuClick);
+    document.addEventListener('click', (e) => {
+      const inPl = plMenu && plMenu.style.display !== 'none' && plMenu.contains(e.target);
+      const inAct = actMenu && actMenu.style.display !== 'none' && actMenu.contains(e.target);
+      const inActBtn = e.target && e.target.closest && e.target.closest('[onclick*="toggleActionMenu"]');
+      if (!inPl && !inAct && !inActBtn) closeProfileMenu();
+    });
     renderList(); renderPanel();
     refreshAuthPill();
     if (_authPillTimer) clearInterval(_authPillTimer);
     _authPillTimer = setInterval(refreshAuthPill, 60000);   // 授权状态低频轮询（用户可能在别处完成授权）
   }
 
-  return { init, relang, addFiles, remove, clearAll, pickFiles, runStrip, runConvert, runEleCalib, runGcjFix, runSplit, runCombine, toggleCrop, toggleSplit, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, splitSuggest, splitClearCuts, splitGo, runUpload, reauthForUpload, ensureFs, toggleProfileMenu, closeProfileMenu };
+  return { init, relang, addFiles, remove, clearAll, pickFiles, runStrip, runConvert, runEleCalib, runGcjFix, runSplit, runCombine, toggleCrop, toggleSplit, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, splitSuggest, splitClearCuts, splitGo, runUpload, reauthForUpload, ensureFs, toggleProfileMenu, closeProfileMenu, toggleActionMenu };
 })();
