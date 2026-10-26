@@ -422,14 +422,17 @@ const FitUI = (() => {
   }
   // 复合剖面：海拔为底图，其他通道按各自量程叠加（右侧图例标注）。
   // 通道定义参照 gpx.studio 的剖面设置：坡度/路面/时速/心率/踏频/温度/功率
+  // dropZero：0 表示「该时刻无数据」（停表/未记录），统计时剔除
+  // dropBelow：低于此值视为静止（原始单位），用于排除停车时段
+  // 坡度 0%（平路）与温度 0°C 是真实值，两者都不剔除
   const PROFILE_CHANNELS = [
     { key: 'grade',   color: '#f59e0b', unit: '%',    label: 'fit_chGrade' },
     { key: 'surface', color: '#8b5cf6', unit: '',     label: 'fit_chSurface' },
-    { key: 'spd',     color: '#3b82f6', unit: 'km/h', label: 'fit_chSpeed', scale: 3.6 },
-    { key: 'hr',      color: '#ec4899', unit: 'bpm',  label: 'fit_chHr' },
-    { key: 'cad',     color: '#10b981', unit: 'rpm',  label: 'fit_chCad' },
+    { key: 'spd',     color: '#3b82f6', unit: 'km/h', label: 'fit_chSpeed', scale: 3.6, dropBelow: 0.5 },
+    { key: 'hr',      color: '#ec4899', unit: 'bpm',  label: 'fit_chHr', dropZero: true },
+    { key: 'cad',     color: '#10b981', unit: 'rpm',  label: 'fit_chCad', dropZero: true },
     { key: 'temp',    color: '#06b6d4', unit: 'C',    label: 'fit_chTemp' },
-    { key: 'pw',      color: '#ef4444', unit: 'W',    label: 'fit_chPw' },
+    { key: 'pw',      color: '#ef4444', unit: 'W',    label: 'fit_chPw', dropZero: true },
   ];
   const PROFILE_KEY = 'sp-fit-profile-channels';
   function loadProfileChannels() {
@@ -466,7 +469,7 @@ const FitUI = (() => {
     const LANE = 30;                                   // 单条曲线带高度
     const surfH = hasSurf ? 12 : 0;                     // 路面色带高度
     const laneH = numChans.length * LANE;
-    const padL = 36, padR = 44, padT = 8, padB = 16;
+    const padL = 48, padR = 44, padT = 8, padB = 16;
     const h = 108 + laneH + surfH;                     // 主区 108 + 各曲线带 + 路面带
     const iw = w - padL - padR;
     const elevH = h - padT - padB - laneH - surfH;     // 海拔主区高度
@@ -492,7 +495,16 @@ const FitUI = (() => {
     // 各曲线独立横带
     const chanInfo = [];
     numChans.forEach((c, li) => {
-      const vals = prof.map(p => p[c.key]).filter(v => v != null);
+      // 统计口径：踏频/功率/心率的 0 是「无数据」，时速 ≤0.5m/s 是停车时段，
+      // 一律不计入均值与极值（否则均值被拉低、最小值恒为 0）。
+      // 坡度 0%（平路）和温度 0°C 是真实值，两者都保留。
+      const usable = v => {
+        if (v == null) return false;
+        if (c.dropZero && v === 0) return false;
+        if (c.dropBelow != null && v <= c.dropBelow) return false;
+        return true;
+      };
+      const vals = prof.map(p => p[c.key]).filter(usable);
       if (!vals.length) return;
       const s = c.scale || 1;
       const vmin = Math.min.apply(null, vals), vmax = Math.max.apply(null, vals);
@@ -504,12 +516,17 @@ const FitUI = (() => {
       const pts = [];
       samp.forEach(i => { const p = prof[i]; if (p[c.key] != null) pts.push(X(i).toFixed(1) + ',' + Yc(p[c.key]).toFixed(1)); });
       if (pts.length < 2) return;
+      // 平均值：只统计有值的采样点（null 不计入）
+      const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+      const fmt = v => (Math.abs(v) >= 100 ? Math.round(v) : (Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2)));
       svg += '<rect x="' + padL + '" y="' + top + '" width="' + iw + '" height="' + bh + '" rx="2" fill="' + c.color + '" opacity="0.07"/>'
         + '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + c.color + '" stroke-width="1.2" stroke-linejoin="round" opacity="0.9"/>'
         + '<text x="' + (padL - 4) + '" y="' + (top + 9) + '" text-anchor="end" font-size="8.5" fill="' + C.muted + '">' + escapeHtml(t(c.label)) + '</text>'
+        + '<text x="' + (padL - 4) + '" y="' + (top + 18) + '" text-anchor="end" font-size="8" fill="' + c.color + '" opacity="0.85">'
+        + 'ø ' + fmt(avg * s) + (c.unit ? ' ' + c.unit : '') + '</text>'
         + '<text x="' + (w - padR + 4) + '" y="' + (top + 9) + '" font-size="8.5" fill="' + c.color + '">'
         + Math.round(vmin * s) + (vmin === vmax ? '' : '~' + Math.round(vmax * s)) + '</text>';
-      chanInfo.push({ c: c, vmin: vmin, vmax: vmax });
+      chanInfo.push({ c: c, vmin: vmin, vmax: vmax, avg: avg });
     });
     // 路面色带（分类数据 → 底部色块）
     if (hasSurf) {
@@ -535,13 +552,14 @@ const FitUI = (() => {
       + '<text x="' + padL + '" y="' + (h - 4) + '" font-size="9" fill="' + C.muted + '">0 km</text>'
       + '<text x="' + (w - padR) + '" y="' + (h - 4) + '" text-anchor="end" font-size="9" fill="' + C.muted + '">' + pd.totalKm.toFixed(1) + ' km</text>'
       + '</svg><div class="prof-tip" style="opacity:0"></div>';
-    // 图例（通道名 + 数值范围）
+    // 图例（通道名 + 平均值 + 数值范围）
     if (chanInfo.length) {
       const items = chanInfo.map(ci => {
         const sc = ci.c.scale || 1;
         const lo = Math.round(ci.vmin * sc), hi = Math.round(ci.vmax * sc);
+        const av = Math.abs(ci.avg * sc) >= 10 ? Math.round(ci.avg * sc) : (ci.avg * sc).toFixed(1);
         return '<span class="pl-legend"><i style="background:' + ci.c.color + '"></i>' + escapeHtml(t(ci.c.label))
-          + '<em>' + lo + (lo === hi ? '' : '~' + hi) + (ci.c.unit ? ' ' + ci.c.unit : '') + '</em></span>';
+          + '<em>ø' + av + (ci.c.unit ? ' ' + ci.c.unit : '') + ' · ' + lo + (lo === hi ? '' : '~' + hi) + '</em></span>';
       });
       svg += '<div class="pl-legends">' + items.join('') + '</div>';
     }
