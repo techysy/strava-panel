@@ -991,7 +991,17 @@ ${trkpts}
       const lat = la / SEMI, lon = lo / SEMI;
       if (!validLatLon(lat, lon)) continue;
       const ele = eleOf(r.data);
-      pts.push({ lat, lon, ele, ts: r.data[REC.timestamp] });
+      // 多通道原始值（复合剖面图用）：速度优先 enhanced(73)，回退 speed(6)
+      const spd = r.data[73] != null ? r.data[73] / 1000 : (r.data[6] != null ? r.data[6] / 1000 : null);
+      pts.push({
+        lat, lon, ele, ts: r.data[REC.timestamp],
+        hr: r.data[REC.heart_rate] != null ? r.data[REC.heart_rate] : null,
+        cad: r.data[REC.cadence] != null ? r.data[REC.cadence] : null,
+        pw: r.data[REC.power] != null ? r.data[REC.power] : null,
+        spd,
+        temp: r.data[REC.temperature] != null ? r.data[REC.temperature] : null,
+        surface: r.data[85] != null ? r.data[85] : null,   // 路面类型（enum）
+      });
     }
     const clean = dedriftPoints(pts);
     if (clean.length <= maxPts) return clean;

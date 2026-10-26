@@ -266,6 +266,18 @@ html[data-theme="dark"] .tm-float.tm-float-glass .tm-float-t{color:var(--text)}
 .fit-ele-body{min-height:40px}
 .tm-float-ele{width:430px;max-width:calc(100vw - 48px)}
 .tm-float-ele .fit-ele-head .btn{padding:2px 8px;font-size:11px}
+.pl-menu-wrap{position:relative;display:inline-flex}
+.pl-menu{position:absolute;top:calc(100% + 4px);right:0;z-index:60;min-width:132px;padding:5px;border-radius:9px;border:1px solid var(--border-subtle);background:var(--surface);box-shadow:0 8px 24px rgba(0,0,0,.14)}
+.pl-menu-item{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:6px;font-size:12px;color:var(--text);cursor:pointer;white-space:nowrap}
+.pl-menu-item:hover{background:var(--hover)}
+.pl-menu-item input{width:auto;margin:0;accent-color:var(--accent)}
+.pl-menu-item.off{color:var(--text-3);cursor:default}
+.pl-menu-item.off input{opacity:.45}
+.pl-menu-item .pl-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+.pl-legends{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px;font-size:11px;color:var(--text-3)}
+.pl-legend{display:inline-flex;align-items:center;gap:4px}
+.pl-legend i{width:9px;height:2.5px;border-radius:2px;display:inline-block}
+.pl-legend em{font-style:normal;opacity:.7;margin-left:2px}
 /* 出行计划 */
 .trip-grid{display:grid;grid-template-columns:1fr;gap:12px}
 .trip-card{border:1px solid var(--border-subtle);border-radius:12px;padding:12px;background:var(--surface)}
@@ -1086,6 +1098,10 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
             <span class="fo-t"><svg class="ic" aria-hidden="true"><use href="#i-mountain"/></svg><span data-i18n="fit_eleProfile">海拔剖面</span></span>
             <span class="tt fo-hint" id="fitEleStats"></span>
             <span style="flex:1"></span>
+            <div class="pl-menu-wrap">
+              <button class="btn btn-sm" id="fitProfileMenuBtn" onclick="FitUI.toggleProfileMenu(event)" data-i18n-title="fit_chMenu" title="选择要叠加显示的曲线"><svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg></button>
+              <div class="pl-menu" id="fitProfileMenu" style="display:none"></div>
+            </div>
             <button class="btn btn-sm" id="fitEleBtn" onclick="FitUI.runEleCalib()" data-i18n="fit_eleRun" data-i18n-title="fit_eleHint" title="查询 DEM 补全为 0 / 缺失的海拔，生成新文件。仅对含 GPS 的文件有效">校准海拔</button>
             <button class="btn btn-sm" onclick="FitUI.runEleCalib('list')" data-i18n="fit_toList">应用到列表</button>
             <span class="fo-sep"></span>
@@ -1334,6 +1350,8 @@ const I18N = {
     fit_authOk:'已授权', fit_authNeed:'点击授权上传',
     fit_eleTitle:'海拔校准', fit_eleRun:'校准海拔', fit_eleHint:'查询 DEM（Open-Meteo）补全为 0 / 缺失的海拔，生成新文件。仅对含 GPS 的文件有效', fit_eleQuerying:'查询中…', fit_eleDone:'已补全 {n} 个点的海拔', fit_eleNone:'所有轨迹点海拔完整，无需校准', fit_eleFail:'海拔查询失败：',
     fit_eleProfile:'海拔剖面', fit_eleNoData:'无海拔数据（含 GPS 的文件可先「校准海拔」）', fit_eleZeroHint:'海拔全为 0？点「校准海拔」补全真实地形',
+    fit_chMenu:'选择要叠加显示的曲线', fit_chGrade:'坡度', fit_chSurface:'路面', fit_chSpeed:'时速', fit_chHr:'心率', fit_chCad:'踏频', fit_chTemp:'温度', fit_chPw:'功率',
+    fit_surfaceRoad:'道路', fit_surfaceGravel:'碎石', fit_surfaceDirt:'泥土', fit_surfaceGrass:'草地', fit_surfaceSand:'沙地', fit_surfaceSnow:'雪', fit_surfaceIce:'冰', fit_surfaceRock:'岩', fit_surfaceWood:'木栈道', fit_surfaceOther:'其他',
     fit_gcjTitle:'GCJ-02 校正', fit_gcjRun:'转 WGS-84', fit_gcjHint:'轨迹整体偏移约 300~600 米时使用：国内码表（佳明国行/迈金等）可能记录 GCJ-02 加密坐标，本地逆变换还原 WGS-84', fit_gcjDone:'已将 {n} 个点由 GCJ-02 转为 WGS-84', fit_gcjNone:'没有境内坐标点需要转换',
     fit_uploadAuthNeed:'当前授权缺少上传权限（activity:write）。', fit_uploadReauth:'重新授权', fit_uploadReauthWait:'完成新窗口授权后将自动继续上传…', fit_uploadReauthOk:'权限已更新，继续上传…', fit_uploadReauthFail:'授权超时或失败，请重试',
     fit_uploadAuthOpenHint:'授权窗口未能自动打开，', fit_uploadAuthOpenLink:'点此打开 Strava 授权页',
@@ -1479,6 +1497,8 @@ const I18N = {
     fit_authOk:'Authorized', fit_authNeed:'Authorize upload',
     fit_eleTitle:'Elevation Calib', fit_eleRun:'Calibrate', fit_eleHint:'Fill zero/missing elevation from the DEM (Open-Meteo) and write a new file. GPS files only', fit_eleQuerying:'Querying…', fit_eleDone:'Filled elevation for {n} pts', fit_eleNone:'All points already have elevation', fit_eleFail:'Elevation query failed: ',
     fit_eleProfile:'Elevation', fit_eleNoData:'No elevation data (GPS files can be calibrated first)', fit_eleZeroHint:'All zeros? Click Calibrate to fill real terrain',
+    fit_chMenu:'Choose curves to overlay', fit_chGrade:'Grade', fit_chSurface:'Surface', fit_chSpeed:'Speed', fit_chHr:'Heart rate', fit_chCad:'Cadence', fit_chTemp:'Temperature', fit_chPw:'Power',
+    fit_surfaceRoad:'Road', fit_surfaceGravel:'Gravel', fit_surfaceDirt:'Dirt', fit_surfaceGrass:'Grass', fit_surfaceSand:'Sand', fit_surfaceSnow:'Snow', fit_surfaceIce:'Ice', fit_surfaceRock:'Rock', fit_surfaceWood:'Boardwalk', fit_surfaceOther:'Other',
     fit_gcjTitle:'GCJ-02 Fix', fit_gcjRun:'→ WGS-84', fit_gcjHint:'Use when the whole track is offset by ~300-600 m: domestic devices (Garmin CN / Magene) may record GCJ-02 encrypted coordinates; converted back to WGS-84 locally', fit_gcjDone:'Converted {n} pts from GCJ-02 to WGS-84', fit_gcjNone:'No in-China points to convert',
     fit_uploadAuthNeed:'Current authorization lacks upload permission (activity:write).', fit_uploadReauth:'Re-authorize', fit_uploadReauthWait:'Upload resumes automatically once you finish the new authorization…', fit_uploadReauthOk:'Permission granted, resuming upload…', fit_uploadReauthFail:'Authorization timed out or failed, please retry',
     fit_uploadAuthOpenHint:'The authorization window could not open automatically, ', fit_uploadAuthOpenLink:'click here to open the Strava authorization page',

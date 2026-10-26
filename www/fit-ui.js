@@ -385,10 +385,19 @@ const FitUI = (() => {
     let lastEle = null;
     for (let i = 0; i < pts.length; i += step) {
       if (pts[i].ele != null) lastEle = pts[i].ele;
-      prof.push({ distKm: cum[i] / 1000, ele: lastEle, _lat: pts[i].lat, _lon: pts[i].lon });
+      prof.push({
+        distKm: cum[i] / 1000, ele: lastEle, _lat: pts[i].lat, _lon: pts[i].lon,
+        hr: pts[i].hr, cad: pts[i].cad, pw: pts[i].pw, spd: pts[i].spd,
+        temp: pts[i].temp, surface: pts[i].surface,
+      });
     }
-    if (pts[pts.length - 1].ele != null) lastEle = pts[pts.length - 1].ele;
-    prof.push({ distKm: totalKm, ele: lastEle, _lat: pts[pts.length - 1].lat, _lon: pts[pts.length - 1].lon });
+    const lastPt = pts[pts.length - 1];
+    if (lastPt.ele != null) lastEle = lastPt.ele;
+    prof.push({
+      distKm: totalKm, ele: lastEle, _lat: lastPt.lat, _lon: lastPt.lon,
+      hr: lastPt.hr, cad: lastPt.cad, pw: lastPt.pw, spd: lastPt.spd,
+      temp: lastPt.temp, surface: lastPt.surface,
+    });
     // 爬升/下降（±3m 阈值锚点法，与码表习惯一致）
     let gain = 0, loss = 0, anchor = null;
     for (const p of pts) {
@@ -397,36 +406,151 @@ const FitUI = (() => {
       if (p.ele - anchor > 3) { gain += p.ele - anchor; anchor = p.ele; }
       else if (p.ele - anchor < -3) { loss += anchor - p.ele; anchor = p.ele; }
     }
-    return { prof, totalKm, hasEle, gain, loss };
+    // 坡度（%）：相邻采样点的海拔差 / 水平距离；距离过近的点跳过（噪声）
+    for (let i = 0; i < prof.length; i++) {
+      const a = prof[i], b = prof[i + 1];
+      if (!a || !b || a.ele == null || b.ele == null) { if (a) a.grade = null; continue; }
+      const dm = (b.distKm - a.distKm) * 1000;
+      a.grade = dm > 8 ? ((b.ele - a.ele) / dm) * 100 : null;
+    }
+    // 各通道可用性（菜单里只列文件真有的通道）
+    const avail = {};
+    for (const k of ['grade', 'surface', 'spd', 'hr', 'cad', 'temp', 'pw']) {
+      avail[k] = prof.some(p => p[k] != null);
+    }
+    return { prof, totalKm, hasEle, gain, loss, avail };
   }
+  // 复合剖面：海拔为底图，其他通道按各自量程叠加（右侧图例标注）。
+  // 通道定义参照 gpx.studio 的剖面设置：坡度/路面/时速/心率/踏频/温度/功率
+  const PROFILE_CHANNELS = [
+    { key: 'grade',   color: '#f59e0b', unit: '%',    label: 'fit_chGrade' },
+    { key: 'surface', color: '#8b5cf6', unit: '',     label: 'fit_chSurface' },
+    { key: 'spd',     color: '#3b82f6', unit: 'km/h', label: 'fit_chSpeed', scale: 3.6 },
+    { key: 'hr',      color: '#ec4899', unit: 'bpm',  label: 'fit_chHr' },
+    { key: 'cad',     color: '#10b981', unit: 'rpm',  label: 'fit_chCad' },
+    { key: 'temp',    color: '#06b6d4', unit: 'C',    label: 'fit_chTemp' },
+    { key: 'pw',      color: '#ef4444', unit: 'W',    label: 'fit_chPw' },
+  ];
+  const PROFILE_KEY = 'sp-fit-profile-channels';
+  function loadProfileChannels() {
+    try {
+      const raw = localStorage.getItem(PROFILE_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) return arr;
+      }
+    } catch (e) { /* 忽略非法值 */ }
+    return [];
+  }
+  function saveProfileChannels(keys) {
+    try { localStorage.setItem(PROFILE_KEY, JSON.stringify(keys)); } catch (e) { /* 隐私模式忽略 */ }
+  }
+  // 路面类型（FIT record field 85 enum）→ i18n key
+  const SURFACE_NAMES = ['fit_surfaceRoad', 'fit_surfaceGravel', 'fit_surfaceDirt', 'fit_surfaceGrass', 'fit_surfaceSand', 'fit_surfaceSnow', 'fit_surfaceIce', 'fit_surfaceRock', 'fit_surfaceWood', 'fit_surfaceOther'];
+  // 路面类型配色
+  function surfaceColor(v) {
+    const map = ['#9ca3af', '#a16207', '#92400e', '#4d7c0f', '#d97706', '#e0f2fe', '#bae6fd', '#78716c', '#b45309', '#9ca3af'];
+    return map[v] || '#9ca3af';
+  }
+
   function drawEleProfile(container, pd, linkedMap) {
     if (!container || !pd || !pd.prof.length) return;
     const prof = pd.prof;
     const C = chartColors();
-    const w = Math.max(280, container.clientWidth || 560), h = 120, padL = 36, padR = 8, padT = 8, padB = 16;
-    const iw = w - padL - padR, ih = h - padT - padB;
+    const active = loadProfileChannels().filter(k => (pd.avail || {})[k]);
+    const chans = PROFILE_CHANNELS.filter(c => active.indexOf(c.key) >= 0);
+    const numChans = chans.filter(c => c.key !== 'surface');
+    const hasSurf = chans.some(c => c.key === 'surface');
+    const w = Math.max(280, container.clientWidth || 560);
+    // 分层布局：海拔占主区，每条叠加曲线各占一条横带（互不遮挡，比全叠一起可读得多）
+    const LANE = 30;                                   // 单条曲线带高度
+    const surfH = hasSurf ? 12 : 0;                     // 路面色带高度
+    const laneH = numChans.length * LANE;
+    const padL = 36, padR = 44, padT = 8, padB = 16;
+    const h = 108 + laneH + surfH;                     // 主区 108 + 各曲线带 + 路面带
+    const iw = w - padL - padR;
+    const elevH = h - padT - padB - laneH - surfH;     // 海拔主区高度
     const es = prof.filter(p => p.ele != null).map(p => p.ele);
-    let eMin = es.length ? Math.min(...es) : 0, eMax = es.length ? Math.max(...es) : 0;
+    let eMin = es.length ? Math.min.apply(null, es) : 0, eMax = es.length ? Math.max.apply(null, es) : 0;
     if (eMax - eMin < 10) { const mid = (eMax + eMin) / 2; eMin = mid - 5; eMax = mid + 5; }
     const X = i => padL + iw * i / (prof.length - 1);
-    const Y = e => padT + ih - (e - eMin) / (eMax - eMin) * ih;
-    const line = prof.map((p, i) => X(i).toFixed(1) + ',' + Y(p.ele).toFixed(1)).join(' ');
-    const area = `M${X(0).toFixed(1)},${(padT + ih).toFixed(1)} L${line.split(' ').join(' L')} L${X(prof.length - 1).toFixed(1)},${(padT + ih).toFixed(1)} Z`;
-    container.innerHTML = '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" style="display:block;width:100%">'
-      + '<path d="' + area + '" fill="' + C.viz + '" opacity="0.18"/>'
-      + '<polyline points="' + line + '" fill="none" stroke="' + C.viz + '" stroke-width="1.6" stroke-linejoin="round"/>'
-      + '<line class="pc-cursor" x1="0" y1="' + padT + '" x2="0" y2="' + (padT + ih) + '" stroke="' + C.brand + '" stroke-width="1" stroke-dasharray="3 3" opacity="0"/>'
-      + '<circle class="pc-dot" r="4" fill="' + C.brand + '" stroke="#fff" stroke-width="1.5" opacity="0"/>'
+    const Y = e => padT + elevH - (e - eMin) / (eMax - eMin) * elevH;
+    // 像素级采样：每 2px 取一点，线条平滑不锯齿
+    const pxStep = Math.max(1, Math.floor(prof.length / Math.max(20, Math.floor(iw / 2))));
+    const samp = [];
+    for (let i = 0; i < prof.length; i += pxStep) samp.push(i);
+    if (samp[samp.length - 1] !== prof.length - 1) samp.push(prof.length - 1);
+
+    let svg = '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" style="display:block;width:100%">';
+    // 海拔主区（面积 + 线）
+    const eline = samp.map(i => X(i).toFixed(1) + ',' + Y(prof[i].ele).toFixed(1)).join(' ');
+    const earea = `M${X(samp[0]).toFixed(1)},${(padT + elevH).toFixed(1)} L${eline.split(' ').join(' L')} L${X(prof.length - 1).toFixed(1)},${(padT + elevH).toFixed(1)} Z`;
+    svg += '<path d="' + earea + '" fill="' + C.viz + '" opacity="0.16"/>'
+      + '<polyline points="' + eline + '" fill="none" stroke="' + C.viz + '" stroke-width="1.8" stroke-linejoin="round"/>'
       + '<text x="' + (padL - 4) + '" y="' + (padT + 8) + '" text-anchor="end" font-size="9" fill="' + C.muted + '">' + Math.round(eMax) + 'm</text>'
-      + '<text x="' + (padL - 4) + '" y="' + (padT + ih) + '" text-anchor="end" font-size="9" fill="' + C.muted + '">' + Math.round(eMin) + 'm</text>'
+      + '<text x="' + (padL - 4) + '" y="' + (padT + elevH) + '" text-anchor="end" font-size="9" fill="' + C.muted + '">' + Math.round(eMin) + 'm</text>';
+    // 各曲线独立横带
+    const chanInfo = [];
+    numChans.forEach((c, li) => {
+      const vals = prof.map(p => p[c.key]).filter(v => v != null);
+      if (!vals.length) return;
+      const s = c.scale || 1;
+      const vmin = Math.min.apply(null, vals), vmax = Math.max.apply(null, vals);
+      const span = (vmax - vmin) || 1;
+      const top = padT + elevH + 4 + li * LANE;         // 本带顶部
+      const bot = top + LANE - 6;                       // 本带底部
+      const bh = bot - top;
+      const Yc = v => bot - ((v * s - vmin * s) / (span * s)) * bh;
+      const pts = [];
+      samp.forEach(i => { const p = prof[i]; if (p[c.key] != null) pts.push(X(i).toFixed(1) + ',' + Yc(p[c.key]).toFixed(1)); });
+      if (pts.length < 2) return;
+      svg += '<rect x="' + padL + '" y="' + top + '" width="' + iw + '" height="' + bh + '" rx="2" fill="' + c.color + '" opacity="0.07"/>'
+        + '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + c.color + '" stroke-width="1.2" stroke-linejoin="round" opacity="0.9"/>'
+        + '<text x="' + (padL - 4) + '" y="' + (top + 9) + '" text-anchor="end" font-size="8.5" fill="' + C.muted + '">' + escapeHtml(t(c.label)) + '</text>'
+        + '<text x="' + (w - padR + 4) + '" y="' + (top + 9) + '" font-size="8.5" fill="' + c.color + '">'
+        + Math.round(vmin * s) + (vmin === vmax ? '' : '~' + Math.round(vmax * s)) + '</text>';
+      chanInfo.push({ c: c, vmin: vmin, vmax: vmax });
+    });
+    // 路面色带（分类数据 → 底部色块）
+    if (hasSurf) {
+      const yTop = padT + elevH + 4 + laneH;
+      const yBot = yTop + surfH - 3;
+      svg += '<rect x="' + padL + '" y="' + yTop + '" width="' + iw + '" height="' + (yBot - yTop) + '" fill="' + C.border + '" rx="2"/>'
+        + '<text x="' + (padL - 4) + '" y="' + (yTop + 8) + '" text-anchor="end" font-size="8.5" fill="' + C.muted + '">' + escapeHtml(t('fit_chSurface')) + '</text>';
+      let runStart = -1, runVal = null;
+      for (let i = 0; i <= prof.length; i++) {
+        const v = i < prof.length ? prof[i].surface : undefined;
+        const cur = v == null ? runVal : v;
+        if (cur !== runVal) {
+          if (runStart >= 0 && runVal != null) {
+            const x1 = X(runStart), x2 = X(Math.max(runStart, i - 1));
+            svg += '<rect x="' + x1.toFixed(1) + '" y="' + yTop + '" width="' + Math.max(1, x2 - x1).toFixed(1) + '" height="' + (yBot - yTop) + '" fill="' + surfaceColor(runVal) + '"/>';
+          }
+          runStart = i; runVal = cur;
+        }
+      }
+    }
+    svg += '<line class="pc-cursor" x1="0" y1="' + padT + '" x2="0" y2="' + (padT + elevH) + '" stroke="' + C.brand + '" stroke-width="1" stroke-dasharray="3 3" opacity="0"/>'
+      + '<circle class="pc-dot" r="4" fill="' + C.brand + '" stroke="#fff" stroke-width="1.5" opacity="0"/>'
       + '<text x="' + padL + '" y="' + (h - 4) + '" font-size="9" fill="' + C.muted + '">0 km</text>'
       + '<text x="' + (w - padR) + '" y="' + (h - 4) + '" text-anchor="end" font-size="9" fill="' + C.muted + '">' + pd.totalKm.toFixed(1) + ' km</text>'
       + '</svg><div class="prof-tip" style="opacity:0"></div>';
-    const svg = container.querySelector('svg'), cursor = container.querySelector('.pc-cursor'),
+    // 图例（通道名 + 数值范围）
+    if (chanInfo.length) {
+      const items = chanInfo.map(ci => {
+        const sc = ci.c.scale || 1;
+        const lo = Math.round(ci.vmin * sc), hi = Math.round(ci.vmax * sc);
+        return '<span class="pl-legend"><i style="background:' + ci.c.color + '"></i>' + escapeHtml(t(ci.c.label))
+          + '<em>' + lo + (lo === hi ? '' : '~' + hi) + (ci.c.unit ? ' ' + ci.c.unit : '') + '</em></span>';
+      });
+      svg += '<div class="pl-legends">' + items.join('') + '</div>';
+    }
+    container.innerHTML = svg;
+    const svgEl = container.querySelector('svg'), cursor = container.querySelector('.pc-cursor'),
       dot = container.querySelector('.pc-dot'), tip = container.querySelector('.prof-tip');
     let mapDot = null;
-    svg.addEventListener('mousemove', (ev) => {
-      const rect = svg.getBoundingClientRect();
+    svgEl.addEventListener('mousemove', (ev) => {
+      const rect = svgEl.getBoundingClientRect();
       const px = (ev.clientX - rect.left) * (w / rect.width);
       const frac = Math.max(0, Math.min(1, (px - padL) / iw));
       const i = Math.round(frac * (prof.length - 1));
@@ -434,20 +558,35 @@ const FitUI = (() => {
       const cx = X(i), cy = Y(p.ele);
       cursor.setAttribute('x1', cx); cursor.setAttribute('x2', cx); cursor.setAttribute('opacity', '1');
       dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('opacity', '1');
-      tip.textContent = p.distKm.toFixed(1) + ' km · ' + Math.round(p.ele) + ' m';
+      // 提示：里程 + 海拔 + 所有可见通道的当前值
+      const bits = [p.distKm.toFixed(1) + ' km'];
+      if (p.ele != null) bits.push(Math.round(p.ele) + ' m');
+      chans.forEach(c => {
+        if (c.key === 'surface') { if (p.surface != null) bits.push(t('fit_chSurface') + ' ' + t(SURFACE_NAMES[p.surface] || 'fit_surfaceOther')); return; }
+        if (p[c.key] != null) {
+          const v = (c.scale ? p[c.key] * c.scale : p[c.key]);
+          bits.push(t(c.label) + ' ' + (Math.abs(v) >= 10 ? Math.round(v) : v.toFixed(1)) + (c.unit ? ' ' + c.unit : ''));
+        }
+      });
+      tip.textContent = bits.join(' · ');
       tip.style.opacity = '1';
       tip.style.left = (cx / w * 100) + '%';
-      tip.style.top = (cy / h * 100) + '%';
+      tip.style.top = (Math.min(cy, padT + elevH) / h * 100) + '%';
       if (linkedMap && p._lat != null) {
         if (!mapDot) mapDot = L.circleMarker([p._lat, p._lon], { radius: 6, color: '#fc4c02', weight: 2, fillColor: '#fff', fillOpacity: 0.9 }).addTo(linkedMap);
         else mapDot.setLatLng([p._lat, p._lon]);
       }
     });
-    svg.addEventListener('mouseleave', () => {
+    svgEl.addEventListener('mouseleave', () => {
       cursor.setAttribute('opacity', '0'); dot.setAttribute('opacity', '0'); tip.style.opacity = '0';
       if (mapDot) { mapDot.remove(); mapDot = null; }
     });
   }
+  function surfaceColor(v) {
+    const map = ['#9ca3af', '#a16207', '#92400e', '#4d7c0f', '#d97706', '#e0f2fe', '#bae6fd', '#78716c', '#b45309', '#9ca3af'];
+    return map[v] || '#9ca3af';
+  }
+
   function renderProfile() {
     const card = $('fitEleCard');
     if (!card) return;
@@ -458,6 +597,9 @@ const FitUI = (() => {
     const stats = $('fitEleStats');
     const pd = eleProfileData(sf);
     if (!pd) { body.innerHTML = ''; if (stats) stats.textContent = '-'; return; }
+    // 无海拔时曲线菜单无意义（剖面以海拔为底图）→ 隐藏按钮
+    const mbtn = $('fitProfileMenuBtn');
+    if (mbtn) mbtn.style.display = pd.hasEle ? '' : 'none';
     const es = pd.prof.filter(p => p.ele != null).map(p => p.ele);
     const eMin = es.length ? Math.round(Math.min(...es)) : null, eMax = es.length ? Math.round(Math.max(...es)) : null;
     if (stats) {
@@ -478,6 +620,61 @@ const FitUI = (() => {
       + '<button class="btn btn-sm" onclick="FitUI.runGcjFix()" data-i18n="fit_gcjRun" data-i18n-title="fit_gcjHint" title="' + escapeHtml(t('fit_gcjHint')) + '">' + escapeHtml(t('fit_gcjRun')) + '</button>'
       + '<button class="btn btn-sm" onclick="FitUI.runGcjFix(\'list\')" data-i18n="fit_toList">' + escapeHtml(t('fit_toList')) + '</button>';
   }
+
+  // ---- 剖面曲线选择菜单（参照 gpx.studio 的「海拔剖面图设置」）----
+  // 只列出当前文件真正有数据的通道；勾选即时生效并记到 localStorage。
+  // 内嵌卡与全屏浮窗各有一个菜单容器，取「当前可见的那个」。
+  function profileMenus() {
+    const out = [];
+    const a = $('fitProfileMenu'); if (a) out.push(a);
+    const b = document.querySelector('.tm-float-ele .pl-menu'); if (b) out.push(b);
+    return out;
+  }
+  function activeProfileMenu() {
+    const ms = profileMenus();
+    for (const m of ms) if (m.style.display !== 'none') return m;
+    return ms[0] || null;
+  }
+  function profileMenuHtml(pd) {
+    const avail = (pd && pd.avail) || {};
+    const active = loadProfileChannels();
+    return PROFILE_CHANNELS.map(c => {
+      const on = active.indexOf(c.key) >= 0;
+      const ok = !!avail[c.key];
+      return '<label class="pl-menu-item' + (ok ? '' : ' off') + '">'
+        + '<input type="checkbox" data-k="' + c.key + '"' + (on ? ' checked' : '') + (ok ? '' : ' disabled') + '>'
+        + '<span class="pl-dot" style="background:' + c.color + '"></span>'
+        + escapeHtml(t(c.label)) + '</label>';
+    }).join('');
+  }
+  function renderProfileMenu() {
+    const sf = getSelectedFile();
+    const pd = sf ? eleProfileData(sf) : null;
+    const html = profileMenuHtml(pd);
+    profileMenus().forEach(m => { m.innerHTML = html; });
+  }
+  function toggleProfileMenu(ev) {
+    if (ev) ev.stopPropagation();
+    const menu = activeProfileMenu();
+    if (!menu) return;
+    const open = menu.style.display === 'none';
+    if (open) { renderProfileMenu(); menu.style.display = ''; }
+    else menu.style.display = 'none';
+  }
+  function closeProfileMenu() {
+    profileMenus().forEach(m => { m.style.display = 'none'; });
+  }
+  function onProfileMenuChange(ev) {
+    const inp = ev.target;
+    if (!inp || inp.type !== 'checkbox') return;
+    const k = inp.dataset.k;
+    if (!k) return;
+    const set = new Set(loadProfileChannels());
+    if (inp.checked) set.add(k); else set.delete(k);
+    saveProfileChannels([...set]);
+    renderProfile();      // 立即重绘剖面
+    renderProfileMenu();  // 同步勾选态
+  }
   // 全屏态：剖面 + 校正按钮收进右下玻璃浮窗（GPX 同款 .tm-float-glass），hover 联动全屏地图
   function mountFsProfileFloat(st, map) {
     const host = st && st.fsMapEl; if (!host) return;
@@ -487,11 +684,18 @@ const FitUI = (() => {
     fl = document.createElement('div');
     fl.className = 'tm-float tm-float-glass tm-float-ele';
     fl.innerHTML = '<div class="tm-float-t">' + escapeHtml(t('fit_eleProfile')) + '</div>'
-      + '<div class="fit-ele-head">' + eleButtonsHtml() + '</div><div class="fit-ele-body"></div>';
+      + '<div class="fit-ele-head">'
+      + '<div class="pl-menu-wrap"><button class="btn btn-sm" onclick="FitUI.toggleProfileMenu(event)" data-i18n-title="fit_chMenu" title="' + escapeHtml(t('fit_chMenu')) + '">'
+      + '<svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg></button><div class="pl-menu" style="display:none"></div></div>'
+      + eleButtonsHtml() + '</div><div class="fit-ele-body"></div>';
     host.appendChild(fl);
     const body = fl.querySelector('.fit-ele-body');
     if (pd && pd.hasEle) drawEleProfile(body, pd, map);
     else body.innerHTML = '<div class="tt" style="color:var(--text-3);font-size:11px">' + escapeHtml(t('fit_eleNoData')) + '</div>';
+    // 浮窗里的菜单也要挂 change 委托
+    const fmenu = fl.querySelector('.pl-menu');
+    if (fmenu) fmenu.addEventListener('change', onProfileMenuChange);
+    renderProfileMenu();
   }
 
   // ---- 裁剪模式：地图拖端点调整起止（草稿层 + 全局应用）----
@@ -1025,6 +1229,7 @@ const FitUI = (() => {
     renderPanel();   // → renderMap：非裁剪全量重绘 / 裁剪态走 renderCropMap + syncCropBtn
     if (cropMode) { renderCropBar(); renderFsSide(); }
     refreshAuthPill();   // 胶囊文案跟随语言
+    renderProfileMenu(); // 剖面曲线菜单文案跟随语言
     // 底图切换按钮文案在 setTile 首建时写死，语言切换只刷这里（含全屏壳）
     const labKey = { light: 'map_light', street: 'map_street', sat: 'map_sat' };
     document.querySelectorAll('.tm-tiles button[data-k]').forEach(b => {
@@ -1226,11 +1431,22 @@ const FitUI = (() => {
       $('fitCountRow').style.display = m === 'count' ? '' : 'none';
     });
     $('fitSplitMode').dispatchEvent(new Event('change'));
+    // 剖面曲线选择菜单：change 委托 + 点击外部关闭
+    const plMenu = $('fitProfileMenu');
+    if (plMenu) {
+      plMenu.addEventListener('change', onProfileMenuChange);
+      document.addEventListener('click', (e) => {
+        if (plMenu.style.display === 'none') return;
+        if (plMenu.contains(e.target)) return;
+        if (e.target && e.target.closest && e.target.closest('#fitProfileMenuBtn')) return;
+        closeProfileMenu();
+      });
+    }
     renderList(); renderPanel();
     refreshAuthPill();
     if (_authPillTimer) clearInterval(_authPillTimer);
     _authPillTimer = setInterval(refreshAuthPill, 60000);   // 授权状态低频轮询（用户可能在别处完成授权）
   }
 
-  return { init, relang, addFiles, remove, clearAll, pickFiles, runStrip, runConvert, runEleCalib, runGcjFix, runSplit, runCombine, toggleCrop, toggleSplit, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, splitSuggest, splitClearCuts, splitGo, runUpload, reauthForUpload, ensureFs };
+  return { init, relang, addFiles, remove, clearAll, pickFiles, runStrip, runConvert, runEleCalib, runGcjFix, runSplit, runCombine, toggleCrop, toggleSplit, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, splitSuggest, splitClearCuts, splitGo, runUpload, reauthForUpload, ensureFs, toggleProfileMenu, closeProfileMenu };
 })();
