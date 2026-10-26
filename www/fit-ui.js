@@ -114,6 +114,7 @@ const FitUI = (() => {
       cropMode = false;
       splitMode = false;
       cropHandles = null;
+      fsProfileChannels = [];
       const st = typeof TrackMap !== 'undefined' ? TrackMap.state('fitMap') : null;
       if (st && st.fullscreen) {
         try { TrackMap.toggleFullscreen(st); } catch (e) {}
@@ -132,6 +133,7 @@ const FitUI = (() => {
     cropMode = false;
     splitMode = false;
     cropHandles = null;
+    fsProfileChannels = [];
     const st = typeof TrackMap !== 'undefined' ? TrackMap.state('fitMap') : null;
     if (st && st.fullscreen) {
       try { TrackMap.toggleFullscreen(st); } catch (e) {}
@@ -465,11 +467,12 @@ const FitUI = (() => {
     return map[v] || '#9ca3af';
   }
 
-  function drawEleProfile(container, pd, linkedMap) {
+  function drawEleProfile(container, pd, linkedMap, customChannels) {
     if (!container || !pd || !pd.prof.length) return;
     const prof = pd.prof;
     const C = chartColors();
-    const active = loadProfileChannels().filter(k => (pd.avail || {})[k]);
+    const rawActive = customChannels !== undefined ? customChannels : loadProfileChannels();
+    const active = rawActive.filter(k => (pd.avail || {})[k]);
     const chans = PROFILE_CHANNELS.filter(c => active.indexOf(c.key) >= 0);
     const numChans = chans.filter(c => c.key !== 'surface');
     const hasSurf = chans.some(c => c.key === 'surface');
@@ -677,10 +680,12 @@ const FitUI = (() => {
   }
 
   // ---- 剖面曲线选择菜单（参照 gpx.studio 的「海拔剖面图设置」）----
-  // 只列出当前文件真正有数据的通道；勾选即时生效并记到 localStorage。
-  function profileMenuHtml(pd) {
+  // 内嵌卡持久化到 localStorage；全屏浮窗独立控制，默认仅海拔，勾选临时生效（退出全屏重置）
+  let fsProfileChannels = []; // 全屏浮窗临时独立控制，默认空（仅显示海拔）
+
+  function profileMenuHtml(pd, customChannels) {
     const avail = (pd && pd.avail) || {};
-    const active = loadProfileChannels();
+    const active = customChannels !== undefined ? customChannels : loadProfileChannels();
     return PROFILE_CHANNELS.map(c => {
       const on = active.indexOf(c.key) >= 0;
       const ok = !!avail[c.key];
@@ -696,12 +701,13 @@ const FitUI = (() => {
     const wrap = btn ? btn.closest('.pl-menu-wrap') : null;
     const menu = wrap ? wrap.querySelector('.pl-menu') : $('fitProfileMenu');
     if (!menu) return;
+    const isFs = !!(btn && btn.closest('.tm-float-ele'));
     const open = menu.style.display === 'none';
     closeProfileMenu();
     if (open) {
       const sf = getSelectedFile();
       const pd = sf ? eleProfileData(sf) : null;
-      menu.innerHTML = profileMenuHtml(pd);
+      menu.innerHTML = profileMenuHtml(pd, isFs ? fsProfileChannels : undefined);
       menu.style.display = '';
     }
   }
@@ -713,14 +719,30 @@ const FitUI = (() => {
     if (!inp || inp.type !== 'checkbox') return;
     const k = inp.dataset.k;
     if (!k) return;
-    const set = new Set(loadProfileChannels());
-    if (inp.checked) set.add(k); else set.delete(k);
-    saveProfileChannels([...set]);
-    renderProfile();      // 立即重绘剖面
-    // 同步所有打开的曲线菜单中对应项的勾选状态
-    document.querySelectorAll('.pl-menu input[data-k="' + k + '"]').forEach(el => {
-      el.checked = inp.checked;
-    });
+    const isFs = !!inp.closest('.tm-float-ele');
+    if (isFs) {
+      // 全屏浮窗：仅在内存中临时记录，不写入 localStorage，退出全屏时自动重置
+      const set = new Set(fsProfileChannels);
+      if (inp.checked) set.add(k); else set.delete(k);
+      fsProfileChannels = [...set];
+      const fl = inp.closest('.tm-float-ele');
+      if (fl) {
+        const sf = getSelectedFile();
+        const pd = sf ? eleProfileData(sf) : null;
+        const body = fl.querySelector('.fit-ele-body');
+        const st = (typeof TrackMap !== 'undefined') ? TrackMap.state('fitMap') : null;
+        if (body && pd && pd.hasEle) drawEleProfile(body, pd, st?.map, fsProfileChannels);
+        const menu = fl.querySelector('.pl-menu');
+        if (menu && menu.style.display !== 'none') menu.innerHTML = profileMenuHtml(pd, fsProfileChannels);
+      }
+    } else {
+      // 内嵌普通视图：存入 localStorage 跨会话记住用户偏好
+      const set = new Set(loadProfileChannels());
+      if (inp.checked) set.add(k); else set.delete(k);
+      saveProfileChannels([...set]);
+      renderProfile();      // 立即重绘内嵌剖面
+      renderProfileMenu();  // 同步内嵌菜单
+    }
   }
   // 全屏态：剖面 + 校正按钮收进右下玻璃浮窗（GPX 同款 .tm-float-glass），hover 联动全屏地图
   function mountFsProfileFloat(st, map) {
@@ -747,13 +769,16 @@ const FitUI = (() => {
       + '</div><div class="fit-ele-body"></div>';
     host.appendChild(fl);
     const body = fl.querySelector('.fit-ele-body');
-    if (pd && pd.hasEle) drawEleProfile(body, pd, map);
+    // 全屏浮窗默认仅显示海拔（fsProfileChannels 初始为空），用户手动勾选临时生效
+    if (pd && pd.hasEle) drawEleProfile(body, pd, map, fsProfileChannels);
     else body.innerHTML = '<div class="tt" style="color:var(--text-3);font-size:11px">' + escapeHtml(t('fit_eleNoData')) + '</div>';
 
     // 内部事件代理：保证即使事件被 stopPropagation 也能在浮窗内部直接触发
     fl.addEventListener('click', (e) => {
       const item = e.target && e.target.closest ? e.target.closest('.pl-menu-item') : null;
       if (item) { onActionMenuClick(e); return; }
+      if (e.target && e.target.closest && e.target.closest('.pl-menu-wrap')) return;
+      closeProfileMenu();
     });
     fl.addEventListener('change', (e) => {
       if (e.target && e.target.type === 'checkbox') {
@@ -845,6 +870,7 @@ const FitUI = (() => {
         renderCropMap(); renderCropBar();
         renderFsSide();
       } else if (!on) {
+        fsProfileChannels = [];   // 退出全屏重置浮窗曲线选择，恢复默认仅显示海拔
         if (cropMode) {
           const bar = document.getElementById('fitCropBar');
           const head = st.fsShell && st.fsShell.querySelector('.tm-fs-head');
