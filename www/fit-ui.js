@@ -54,10 +54,11 @@ const FitUI = (() => {
       const timePart = (mov != null && mov > 0 && Math.abs(dur - mov) >= 10)
         ? `${escapeHtml(t('fit_elapsed'))} ${fmtDur(dur)} · ${escapeHtml(t('fit_moving'))} ${fmtDur(mov)}`
         : (mov != null && mov > 0 ? `${escapeHtml(t('fit_moving'))} ${fmtDur(mov)}` : fmtDur(dur));
+      const elePart = (s.elevGain != null && s.elevGain > 0) ? ` · ↑${s.elevGain}m` : '';
       return `<div class="fit-file${cropCls}" data-i="${i}"${clickAttr}>
         <div class="ff-main">
           <div class="ff-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
-          <div class="ff-meta">${s.points} ${escapeHtml(t('fit_tagPoints'))} · ${timePart} · ${s.distanceKm != null ? s.distanceKm.toFixed(2) + ' km' : escapeHtml(t('fit_noDist'))} · ${fmtSize(s.size)}</div>
+          <div class="ff-meta">${s.points} ${escapeHtml(t('fit_tagPoints'))} · ${timePart} · ${s.distanceKm != null ? s.distanceKm.toFixed(2) + ' km' : escapeHtml(t('fit_noDist'))}${elePart} · ${fmtSize(s.size)}</div>
           <div class="ff-tags">${cropTag}${tags.join('')}${s.crcOk ? '' : '<b class="t-bad">' + escapeHtml(t('fit_tagCrcBad')) + '</b>'}</div>
         </div>
         <div class="ff-time">${fmtTime(s.startUnix)}</div>
@@ -398,13 +399,21 @@ const FitUI = (() => {
       hr: lastPt.hr, cad: lastPt.cad, pw: lastPt.pw, spd: lastPt.spd,
       temp: lastPt.temp, surface: lastPt.surface,
     });
-    // 爬升/下降（±3m 阈值锚点法，与码表习惯一致）
-    let gain = 0, loss = 0, anchor = null;
-    for (const p of pts) {
-      if (p.ele == null) continue;
-      if (anchor == null) { anchor = p.ele; continue; }
-      if (p.ele - anchor > 3) { gain += p.ele - anchor; anchor = p.ele; }
-      else if (p.ele - anchor < -3) { loss += anchor - p.ele; anchor = p.ele; }
+    // 爬升/下降：优先尊重官方码表气压计真实统计（如 3166m），否则按 1m 阈值累积法实算（与 gpx.js 对齐）
+    let gain = f && f.sum ? f.sum.elevGain : null;
+    let loss = f && f.sum ? f.sum.elevLoss : null;
+    if (gain == null || loss == null) {
+      gain = 0; loss = 0; let pending = 0, prev = null;
+      for (const p of pts) {
+        if (p.ele == null) continue;
+        if (prev != null) {
+          pending += p.ele - prev;
+          if (pending >= 1) { gain += pending; pending = 0; }
+          else if (pending <= -1) { loss += -pending; pending = 0; }
+        }
+        prev = p.ele;
+      }
+      gain = Math.round(gain); loss = Math.round(loss);
     }
     // 坡度（%）：相邻采样点的海拔差 / 水平距离；距离过近的点跳过（噪声）
     for (let i = 0; i < prof.length; i++) {
@@ -631,7 +640,7 @@ const FitUI = (() => {
     drawEleProfile(body, pd, linked);
   }
   // 剖面头部的动作菜单：「校准海拔」「转 WGS-84」各带「执行并下载 / 应用到列表」
-  // 两个动作共用一个下拉菜单容器，按钮上带 ▾，避免一排按钮里出现两个「应用到列表」。
+  // 按钮带 ▾ 下拉菜单，点击对应按钮展开各自的菜单项。
   const FIT_ACTIONS = {
     ele: { run: () => runEleCalib(''), list: () => runEleCalib('list') },
     gcj: { run: () => runGcjFix(''), list: () => runGcjFix('list') },
@@ -642,27 +651,19 @@ const FitUI = (() => {
     return '<div class="pl-menu-item" data-act="run">' + escapeHtml(t('fit_actionRun')) + '</div>'
       + '<div class="pl-menu-item" data-act="list">' + escapeHtml(t('fit_toList')) + '</div>';
   }
-  function actionMenus() {
-    const out = [];
-    const a = $('fitActMenu'); if (a) out.push(a);
-    const b = document.querySelector('.tm-float-ele .pl-act-menu'); if (b) out.push(b);
-    return out;
-  }
-  function activeActionMenu() {
-    const ms = actionMenus();
-    for (const m of ms) if (m.style.display !== 'none') return m;
-    return ms[0] || null;
-  }
   function toggleActionMenu(ev, kind) {
     if (ev) ev.stopPropagation();
-    const menu = activeActionMenu();
+    const btn = ev && ev.target && ev.target.closest ? ev.target.closest('button') : null;
+    const wrap = btn ? btn.closest('.pl-menu-wrap') : null;
+    const menu = wrap ? wrap.querySelector('.pl-menu') : null;
     if (!menu) return;
     const open = menu.style.display === 'none';
+    closeProfileMenu();
     if (open) {
       menu.innerHTML = actionMenuHtml(kind);
       menu.dataset.kind = kind;
       menu.style.display = '';
-    } else menu.style.display = 'none';
+    }
   }
   function onActionMenuClick(ev) {
     const item = ev.target && ev.target.closest ? ev.target.closest('.pl-menu-item') : null;
@@ -670,26 +671,13 @@ const FitUI = (() => {
     const menu = item.closest('.pl-menu');
     const kind = menu && menu.dataset.kind;
     const a = FIT_ACTIONS[kind];
+    closeProfileMenu();
     if (!a) return;
-    closeProfileMenu();          // 关闭动作菜单（同一层的其它菜单）
-    if (menu) menu.style.display = 'none';
     if (item.dataset.act === 'list') a.list(); else a.run();
   }
 
   // ---- 剖面曲线选择菜单（参照 gpx.studio 的「海拔剖面图设置」）----
   // 只列出当前文件真正有数据的通道；勾选即时生效并记到 localStorage。
-  // 内嵌卡与全屏浮窗各有一个菜单容器，取「当前可见的那个」。
-  function profileMenus() {
-    const out = [];
-    const a = $('fitProfileMenu'); if (a) out.push(a);
-    const b = document.querySelector('.tm-float-ele .pl-menu'); if (b) out.push(b);
-    return out;
-  }
-  function activeProfileMenu() {
-    const ms = profileMenus();
-    for (const m of ms) if (m.style.display !== 'none') return m;
-    return ms[0] || null;
-  }
   function profileMenuHtml(pd) {
     const avail = (pd && pd.avail) || {};
     const active = loadProfileChannels();
@@ -702,23 +690,23 @@ const FitUI = (() => {
         + escapeHtml(t(c.label)) + '</label>';
     }).join('');
   }
-  function renderProfileMenu() {
-    const sf = getSelectedFile();
-    const pd = sf ? eleProfileData(sf) : null;
-    const html = profileMenuHtml(pd);
-    profileMenus().forEach(m => { m.innerHTML = html; });
-  }
   function toggleProfileMenu(ev) {
     if (ev) ev.stopPropagation();
-    const menu = activeProfileMenu();
+    const btn = ev && ev.target && ev.target.closest ? ev.target.closest('button') : null;
+    const wrap = btn ? btn.closest('.pl-menu-wrap') : null;
+    const menu = wrap ? wrap.querySelector('.pl-menu') : $('fitProfileMenu');
     if (!menu) return;
     const open = menu.style.display === 'none';
-    if (open) { renderProfileMenu(); menu.style.display = ''; }
-    else menu.style.display = 'none';
+    closeProfileMenu();
+    if (open) {
+      const sf = getSelectedFile();
+      const pd = sf ? eleProfileData(sf) : null;
+      menu.innerHTML = profileMenuHtml(pd);
+      menu.style.display = '';
+    }
   }
   function closeProfileMenu() {
-    profileMenus().forEach(m => { m.style.display = 'none'; });
-    actionMenus().forEach(m => { m.style.display = 'none'; });
+    document.querySelectorAll('.pl-menu').forEach(m => { m.style.display = 'none'; });
   }
   function onProfileMenuChange(ev) {
     const inp = ev.target;
@@ -729,7 +717,10 @@ const FitUI = (() => {
     if (inp.checked) set.add(k); else set.delete(k);
     saveProfileChannels([...set]);
     renderProfile();      // 立即重绘剖面
-    renderProfileMenu();  // 同步勾选态
+    // 同步所有打开的曲线菜单中对应项的勾选状态
+    document.querySelectorAll('.pl-menu input[data-k="' + k + '"]').forEach(el => {
+      el.checked = inp.checked;
+    });
   }
   // 全屏态：剖面 + 校正按钮收进右下玻璃浮窗（GPX 同款 .tm-float-glass），hover 联动全屏地图
   function mountFsProfileFloat(st, map) {
@@ -739,25 +730,36 @@ const FitUI = (() => {
     const pd = eleProfileData(sf);
     fl = document.createElement('div');
     fl.className = 'tm-float tm-float-glass tm-float-ele';
-    fl.innerHTML = '<div class="tm-float-t">' + escapeHtml(t('fit_eleProfile')) + '</div>'
+    // 关键：阻止 Leaflet 地图捕获浮窗内的点击/拖拽/滚轮，否则浮窗内所有按钮与下拉菜单无法响应
+    if (typeof L !== 'undefined' && L.DomEvent) {
+      L.DomEvent.disableClickPropagation(fl);
+      L.DomEvent.disableScrollPropagation(fl);
+    }
+    const statText = pd && pd.gain != null ? ` · ↑${Math.round(pd.gain)}m · ↓${Math.round(pd.loss)}m` : '';
+    fl.innerHTML = '<div class="tm-float-t">' + escapeHtml(t('fit_eleProfile')) + statText + '</div>'
       + '<div class="fit-ele-head">'
-      + '<div class="pl-menu-wrap"><button class="btn btn-sm" onclick="FitUI.toggleProfileMenu(event)" data-i18n-title="fit_chMenu" title="' + escapeHtml(t('fit_chMenu')) + '">'
+      + '<div class="pl-menu-wrap"><button type="button" class="btn btn-sm" onclick="FitUI.toggleProfileMenu(event)" data-i18n-title="fit_chMenu" title="' + escapeHtml(t('fit_chMenu')) + '">'
       + '<svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg></button><div class="pl-menu" style="display:none"></div></div>'
-      + '<div class="pl-menu-wrap"><button class="btn btn-sm" onclick="FitUI.toggleActionMenu(event,\'ele\')" data-i18n-title="fit_eleHint" title="' + escapeHtml(t('fit_eleHint')) + '">'
-      + escapeHtml(t('fit_eleRun')) + ' ▾</button><div class="pl-menu pl-act-menu" style="display:none"></div></div>'
-      + '<div class="pl-menu-wrap"><button class="btn btn-sm" onclick="FitUI.toggleActionMenu(event,\'gcj\')" data-i18n-title="fit_gcjHint" title="' + escapeHtml(t('fit_gcjHint')) + '">'
-      + escapeHtml(t('fit_gcjRun')) + ' ▾</button></div>'
+      + '<div class="pl-menu-wrap"><button type="button" class="btn btn-sm" onclick="FitUI.toggleActionMenu(event,\'ele\')" data-i18n-title="fit_eleHint" title="' + escapeHtml(t('fit_eleHint')) + '">'
+      + escapeHtml(t('fit_eleRun')) + ' ▾</button><div class="pl-menu" style="display:none"></div></div>'
+      + '<div class="pl-menu-wrap"><button type="button" class="btn btn-sm" onclick="FitUI.toggleActionMenu(event,\'gcj\')" data-i18n-title="fit_gcjHint" title="' + escapeHtml(t('fit_gcjHint')) + '">'
+      + escapeHtml(t('fit_gcjRun')) + ' ▾</button><div class="pl-menu" style="display:none"></div></div>'
       + '</div><div class="fit-ele-body"></div>';
     host.appendChild(fl);
     const body = fl.querySelector('.fit-ele-body');
     if (pd && pd.hasEle) drawEleProfile(body, pd, map);
     else body.innerHTML = '<div class="tt" style="color:var(--text-3);font-size:11px">' + escapeHtml(t('fit_eleNoData')) + '</div>';
-    // 浮窗里的菜单也要挂委托
-    const fmenu = fl.querySelector('.pl-menu:not(.pl-act-menu)');
-    if (fmenu) fmenu.addEventListener('change', onProfileMenuChange);
-    const amenu = fl.querySelector('.pl-act-menu');
-    if (amenu) amenu.addEventListener('click', onActionMenuClick);
-    renderProfileMenu();
+
+    // 内部事件代理：保证即使事件被 stopPropagation 也能在浮窗内部直接触发
+    fl.addEventListener('click', (e) => {
+      const item = e.target && e.target.closest ? e.target.closest('.pl-menu-item') : null;
+      if (item) { onActionMenuClick(e); return; }
+    });
+    fl.addEventListener('change', (e) => {
+      if (e.target && e.target.type === 'checkbox') {
+        onProfileMenuChange(e);
+      }
+    });
   }
 
   // ---- 裁剪模式：地图拖端点调整起止（草稿层 + 全局应用）----
@@ -1493,17 +1495,21 @@ const FitUI = (() => {
       $('fitCountRow').style.display = m === 'count' ? '' : 'none';
     });
     $('fitSplitMode').dispatchEvent(new Event('change'));
-    // 剖面曲线选择菜单：change 委托 + 点击外部关闭
-    const plMenu = $('fitProfileMenu');
-    if (plMenu) plMenu.addEventListener('change', onProfileMenuChange);
-    // 动作菜单（校准海拔 / 转 WGS-84）：click 委托
-    const actMenu = $('fitActMenu');
-    if (actMenu) actMenu.addEventListener('click', onActionMenuClick);
+    // 剖面菜单事件代理：change 委托 + 动作点击 + 点击外部关闭
+    document.addEventListener('change', (e) => {
+      if (e.target && e.target.type === 'checkbox' && e.target.closest('.pl-menu-item')) {
+        onProfileMenuChange(e);
+      }
+    });
     document.addEventListener('click', (e) => {
-      const inPl = plMenu && plMenu.style.display !== 'none' && plMenu.contains(e.target);
-      const inAct = actMenu && actMenu.style.display !== 'none' && actMenu.contains(e.target);
-      const inActBtn = e.target && e.target.closest && e.target.closest('[onclick*="toggleActionMenu"]');
-      if (!inPl && !inAct && !inActBtn) closeProfileMenu();
+      if (e.target && e.target.closest) {
+        if (e.target.closest('.pl-menu-item')) {
+          onActionMenuClick(e);
+          return;
+        }
+        if (e.target.closest('.pl-menu-wrap')) return;
+      }
+      closeProfileMenu();
     });
     renderList(); renderPanel();
     refreshAuthPill();

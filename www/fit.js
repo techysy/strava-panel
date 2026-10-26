@@ -499,10 +499,11 @@ const FIT = (() => {
       const dur = lastTs - firstTs;
       const dist = distanceMeters(slice) ?? 0;   // cm；无效时 GPS 兜底
       const moveSec = calcMoveTime(slice);
+      const { gain, loss } = elevationGainLoss(slice);
       addEnhancedAltitude(msgs);   // 平台优先读 enhanced_altitude(78) 算爬升
       msgs.push(makeEvent(MSG.event, first.data, baseTs));
-      msgs.push(makeLap(first.data, baseTs, dur, dist, moveSec));
-      msgs.push(makeSession(first.data, baseTs, dur, dist, moveSec));
+      msgs.push(makeLap(first.data, baseTs, dur, dist, moveSec, gain, loss));
+      msgs.push(makeSession(first.data, baseTs, dur, dist, moveSec, gain, loss));
       files.push(serialize(msgs, { protocolVer: p.protocolVer }));
     }
     return files;
@@ -528,10 +529,11 @@ const FIT = (() => {
     const dur = last.data[REC.timestamp] - baseTs;
     const dist = distanceMeters(slice) ?? 0;   // cm；无效时 GPS 兜底
     const moveSec = calcMoveTime(slice);
+    const { gain, loss } = elevationGainLoss(slice);
     addEnhancedAltitude(msgs);   // 平台优先读 enhanced_altitude(78) 算爬升
     msgs.push(makeEvent(MSG.event, first.data, baseTs));
-    msgs.push(makeLap(first.data, baseTs, dur, dist, moveSec));
-    msgs.push(makeSession(first.data, baseTs, dur, dist, moveSec));
+    msgs.push(makeLap(first.data, baseTs, dur, dist, moveSec, gain, loss));
+    msgs.push(makeSession(first.data, baseTs, dur, dist, moveSec, gain, loss));
     return serialize(msgs, { protocolVer: p.protocolVer });
   }
 
@@ -664,56 +666,67 @@ const FIT = (() => {
       data: { 253: ts, 0: 0 },   // timer start
     };
   }
-  // lap 字段语义（FIT profile）：14=total_ascent(uint16, scale1000,m) 15=avg_speed(uint16, scale1000,m/s)
-  //   16=avg_cadence 17=total_descent(uint16, scale1000,m)
-  // 注意：total_ascent 是 uint16 scale1000 → 上限仅 65.535m，装不下千级爬升。
-  //   Garmin 码表原生文件同样把 14/17 写 0（字段留空），让平台从 record 自行推算。
-  //   故此处保持 0，不写入超出量程的值（写超了会被当 uint16 无效哨兵 0xFFFF 解析成 null）。
-  function makeLap(sample, ts, dur, dist, moveTime) {
+  // lap 字段语义（FIT profile 规范）：
+  //   15=avg_speed (uint16, scale 1000, m/s)
+  //   21=total_ascent (uint16, scale 1, m，最大 65535 米)
+  //   22=total_descent (uint16, scale 1, m，最大 65535 米)
+  function makeLap(sample, ts, dur, dist, moveTime, asc, desc) {
     const fields = [
       { num: 253, size: 4, base: 4 }, { num: 2, size: 4, base: 4 }, { num: 7, size: 4, base: 4 },
       { num: 8, size: 4, base: 4 }, { num: 9, size: 4, base: 4 }, { num: 15, size: 2, base: 4 },
+      { num: 21, size: 2, base: 4 }, { num: 22, size: 2, base: 4 },
       { num: 24, size: 1, base: 0 },
     ];
     const timer = (moveTime != null && moveTime > 0) ? moveTime : dur;
     return {
       type: 'data', global: MSG.lap, fields, dev: null, devData: null,
       __defKey: defKey(MSG.lap, fields, null),
-      data: { 253: ts + dur, 2: ts, 7: dur * 1000, 8: timer * 1000, 9: dist, 15: 0, 24: 9 },
+      data: {
+        253: ts + dur, 2: ts, 7: dur * 1000, 8: timer * 1000, 9: dist, 15: 0,
+        21: asc != null && Number.isFinite(asc) && asc > 0 ? Math.min(65535, Math.round(asc)) : 0,
+        22: desc != null && Number.isFinite(desc) && desc > 0 ? Math.min(65535, Math.round(desc)) : 0,
+        24: 9,
+      },
     };
   }
-  // session 字段语义（FIT profile，与码表原生文件一致）：
-  //   14=avg_speed(uint16,scale1000,m/s) 16=total_ascent(uint16,scale1000,m)
-  //   17=total_descent(uint16,scale1000,m) 26=avg_cadence
-  // 爬升/下降同样受 uint16 量程限制（≤65.535m），与 Garmin 原生文件一致写 0，
-  // 由平台从 record 自行推算——这正是 Strava 校准爬升的路径，故不可用错值覆盖。
-  function makeSession(sample, ts, dur, dist, moveTime) {
+  // session 字段语义（FIT profile 规范）：
+  //   14=avg_speed (uint16, scale 1000, m/s)
+  //   22=total_ascent (uint16, scale 1, m，最大 65535 米)
+  //   23=total_descent (uint16, scale 1, m，最大 65535 米)
+  function makeSession(sample, ts, dur, dist, moveTime, asc, desc) {
     const fields = [
       { num: 253, size: 4, base: 4 }, { num: 2, size: 4, base: 4 }, { num: 5, size: 1, base: 0 },
       { num: 7, size: 4, base: 4 }, { num: 8, size: 4, base: 4 }, { num: 9, size: 4, base: 4 },
-      { num: 14, size: 2, base: 4 }, { num: 16, size: 2, base: 4 }, { num: 17, size: 2, base: 4 },
+      { num: 14, size: 2, base: 4 }, { num: 22, size: 2, base: 4 }, { num: 23, size: 2, base: 4 },
       { num: 26, size: 2, base: 4 },
     ];
     const timer = (moveTime != null && moveTime > 0) ? moveTime : dur;
     return {
       type: 'data', global: MSG.session, fields, dev: null, devData: null,
       __defKey: defKey(MSG.session, fields, null),
-      data: { 253: ts + dur, 2: ts, 5: 2, 7: dur * 1000, 8: timer * 1000, 9: dist, 14: 0, 16: 0, 17: 0, 26: 0 },
+      data: {
+        253: ts + dur, 2: ts, 5: 2, 7: dur * 1000, 8: timer * 1000, 9: dist, 14: 0,
+        22: asc != null && Number.isFinite(asc) && asc > 0 ? Math.min(65535, Math.round(asc)) : 0,
+        23: desc != null && Number.isFinite(desc) && desc > 0 ? Math.min(65535, Math.round(desc)) : 0,
+        26: 0,
+      },
     };
   }
-  // 从 record 实算累计爬升/下降（米）：3m 死区锚点法，与 Strava/码表口径接近
-  function elevationGainLoss(records) {
-    let gain = 0, loss = 0, anchor = null;
+  // 从 record 实算累计爬升/下降（米）：连续微增量累积阈值法（与 gpx.js 对齐，threshold 默认 1m）
+  // 连续小增量累加到 pending，越过 1m 阈值才计入 —— 平缓起伏不被大死区吞噬，GPS 微小抖动不虚增。
+  function elevationGainLoss(records, threshold = 1) {
+    let gain = 0, loss = 0, pending = 0, prev = null;
     for (const r of records) {
       const e = eleOf(r.data);
-      if (e == null) continue;
-      if (!Number.isFinite(e)) continue;
-      if (anchor == null) { anchor = e; continue; }
-      const d = e - anchor;
-      if (d > 3) { gain += d; anchor = e; }
-      else if (d < -3) { loss += -d; anchor = e; }
+      if (e == null || !Number.isFinite(e)) continue;
+      if (prev != null) {
+        pending += e - prev;
+        if (pending >= threshold) { gain += pending; pending = 0; }
+        else if (pending <= -threshold) { loss += -pending; pending = 0; }
+      }
+      prev = e;
     }
-    return { gain, loss };
+    return { gain: Math.round(gain), loss: Math.round(loss) };
   }
 
   // 补齐 enhanced_altitude（record field 78, uint32, scale 5, offset 500）。
@@ -1182,6 +1195,26 @@ ${trkpts}
       }
     }
 
+    // 爬升与下降：若原文件官方码表 session/lap 记录了有效值则优先尊重气压计真实统计（如 3166m），
+    // 否则按 1m 阈值累积法实算（与 gpx.js 对齐）
+    let elevGain = null, elevLoss = null;
+    if (sess && sess.data) {
+      if (sess.data[22] != null && Number.isFinite(sess.data[22]) && sess.data[22] > 0) elevGain = Math.round(sess.data[22]);
+      if (sess.data[23] != null && Number.isFinite(sess.data[23]) && sess.data[23] > 0) elevLoss = Math.round(sess.data[23]);
+    }
+    if (elevGain == null) {
+      const lap = p.messages.find(m => m.type === 'data' && m.global === MSG.lap);
+      if (lap && lap.data) {
+        if (lap.data[21] != null && Number.isFinite(lap.data[21]) && lap.data[21] > 0) elevGain = Math.round(lap.data[21]);
+        if (lap.data[22] != null && Number.isFinite(lap.data[22]) && lap.data[22] > 0) elevLoss = Math.round(lap.data[22]);
+      }
+    }
+    if ((elevGain == null || elevLoss == null) && has.ele) {
+      const gl = elevationGainLoss(recs);
+      if (elevGain == null) elevGain = gl.gain;
+      if (elevLoss == null) elevLoss = gl.loss;
+    }
+
     return {
       size: u8.length, crcOk: p.crcOk,
       points: recs.length,
@@ -1189,6 +1222,8 @@ ${trkpts}
       endUnix: lastTs != null ? FIT.fitToUnix(lastTs) : null,
       duration,
       moveTime,
+      elevGain,
+      elevLoss,
       distanceKm: distCm != null ? distCm / 100000 : null,   // cm → km
       manufacturer: fid ? fid.data[1] : null,
       product: fid ? fid.data[2] : null,

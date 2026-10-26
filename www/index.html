@@ -211,7 +211,7 @@ html[data-theme="dark"] .tm-shell{background:var(--bg-dark,#111)}
 .tm-side-item .si-badge.draft{background:#fc4c02;color:#fff}
 .tm-side-item .si-badge.edit{background:var(--tertiary);color:var(--text-2)}
 /* 全屏浮窗（海拔剖面等 extra 浮层挂地图上） */
-.tm-float{position:absolute;right:12px;bottom:14px;z-index:800;width:min(520px,calc(100% - 24px));background:var(--surface);border:1px solid var(--border-subtle);border-radius:12px;box-shadow:var(--shadow);padding:10px 12px}
+.tm-float{position:absolute;right:12px;bottom:14px;z-index:1005;width:min(520px,calc(100% - 24px));background:var(--surface);border:1px solid var(--border-subtle);border-radius:12px;box-shadow:var(--shadow);padding:10px 12px;pointer-events:auto}
 .tm-float .tm-float-t{font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px}
 /* 海拔剖面 hover 联动 */
 .trip-profile{cursor:crosshair;position:relative}
@@ -1104,10 +1104,11 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
             </div>
             <div class="pl-menu-wrap">
               <button class="btn btn-sm" id="fitEleBtn" onclick="FitUI.toggleActionMenu(event,'ele')" data-i18n="fit_eleRun" data-i18n-title="fit_eleHint" title="查询 DEM 补全为 0 / 缺失的海拔，生成新文件。仅对含 GPS 的文件有效">校准海拔 ▾</button>
-              <div class="pl-menu" id="fitActMenu" style="display:none"></div>
+              <div class="pl-menu" style="display:none"></div>
             </div>
             <div class="pl-menu-wrap">
               <button class="btn btn-sm" onclick="FitUI.toggleActionMenu(event,'gcj')" data-i18n="fit_gcjRun" data-i18n-title="fit_gcjHint" title="轨迹整体偏移约 300~600 米时使用：国内码表（佳明国行/迈金等）可能记录 GCJ-02 加密坐标，本地逆变换还原 WGS-84">转 WGS-84 ▾</button>
+              <div class="pl-menu" style="display:none"></div>
             </div>
           </div>
           <div class="fit-ele-body" id="fitEleProfile"></div>
