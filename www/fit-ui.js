@@ -303,16 +303,19 @@ const FitUI = (() => {
     if (fitFiles.length < 2) { toast(t('fit_needMulti'), false); return; }
     try {
       const r = FIT.combine(fitFiles.map(f => f.bytes));
+      // 去重提示：同一活动被导出/合并多份时，明确告知已去掉重复采样点
+      const dupNote = (r.skippedDup || r.deduped)
+        ? t('fit_combineDedup', { d: r.skippedDup || 0, p: r.deduped || 0 }) : '';
       if (mode === 'list') {
         const added = pushDerived('combined.fit', r.bytes);
         if (!added) { toast(t('fit_parseFail'), false); return; }
         selectedFid = added.id;
         renderList(); renderPanel();
-        toast(t('fit_combineInList', { name: added.name }), true);
+        toast(t('fit_combineInList', { name: added.name }) + dupNote, true);
       } else {
         download(new Blob([r.bytes], { type: 'application/octet-stream' }), 'combined.fit');
         renderMap([r.bytes]);   // 合并产物在地图上渲染
-        toast(t('fit_doneCombine', { n: r.count }), true);
+        toast(t('fit_doneCombine', { n: r.count }) + dupNote, true);
       }
     } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); }
   }

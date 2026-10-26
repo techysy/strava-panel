@@ -167,6 +167,26 @@ const cTs = fieldsOf(rC, 20).map(r => val(r, 253));
 ok(cTs.every((v, i) => i === 0 || v > cTs[i-1]), '时间戳严格递增（无重叠）', cTs);
 ok(cTs[5] >= cTs[4] + 1, '第二段起点在第一段结束后', [cTs[4], cTs[5]]);
 
+// 合并去重：同一活动被导出/合并两遍时不得重复计入（否则里程与爬升成倍膨胀，
+// Strava 按 record 重算就会报出离谱爬升）
+{
+  const same = FIT.combine([cA, cA]);
+  ok(same.count === 5, '完全相同的两个文件合并后不重复计入（5 点）', same.count);
+  ok(same.skippedDup === 1, '识别出 1 份镜像文件', same.skippedDup);
+  // 时间戳序列相同但采样间隔不同 → 不是镜像，按采样点去重后拼接
+  const cB2 = buildFit({ points: 5, time: 1000000000, step: 2 });
+  const mirror = FIT.combine([cA, cB2]);
+  ok(mirror.count === 7, '采样间隔不同的同源文件：撞时刻的去重、其余保留（7 点）', mirror.count);
+  ok(mirror.deduped === 3, '统计出 3 个重复采样点', mirror.deduped);
+  // 真重叠（部分重复采样点）→ 采样级去重
+  const half = buildFit({ points: 3, time: 1000000002 });
+  const overlap = FIT.combine([cA, half]);
+  ok(overlap.count === 5, '部分重叠时按采样点去重（5 点）', overlap.count);
+  ok(overlap.deduped === 3, '统计出 3 个重复采样点', overlap.deduped);
+  const oTs = FIT.parse(overlap.bytes).messages.filter(m => m.type === 'data' && m.global === 20).map(m => m.data[253]);
+  ok(oTs.every((v, i) => i === 0 || v > oTs[i - 1]), '去重后时间轴仍严格递增', oTs);
+}
+
 console.log('\n[7] 工具：转换 GPX/TCX');
 const gpx = FIT.toGpx(fSplit, '测试骑行');
 ok(gpx.includes('<gpx'), 'GPX 根元素正确');

@@ -596,6 +596,11 @@ const FIT = (() => {
       data: { 253: ts, 0: 0 },   // timer start
     };
   }
+  // lap 字段语义（FIT profile）：14=total_ascent(uint16, scale1000,m) 15=avg_speed(uint16, scale1000,m/s)
+  //   16=avg_cadence 17=total_descent(uint16, scale1000,m)
+  // 注意：total_ascent 是 uint16 scale1000 → 上限仅 65.535m，装不下千级爬升。
+  //   Garmin 码表原生文件同样把 14/17 写 0（字段留空），让平台从 record 自行推算。
+  //   故此处保持 0，不写入超出量程的值（写超了会被当 uint16 无效哨兵 0xFFFF 解析成 null）。
   function makeLap(sample, ts, dur, dist, moveTime) {
     const fields = [
       { num: 253, size: 4, base: 4 }, { num: 2, size: 4, base: 4 }, { num: 7, size: 4, base: 4 },
@@ -609,6 +614,11 @@ const FIT = (() => {
       data: { 253: ts + dur, 2: ts, 7: dur * 1000, 8: timer * 1000, 9: dist, 15: 0, 24: 9 },
     };
   }
+  // session 字段语义（FIT profile，与码表原生文件一致）：
+  //   14=avg_speed(uint16,scale1000,m/s) 16=total_ascent(uint16,scale1000,m)
+  //   17=total_descent(uint16,scale1000,m) 26=avg_cadence
+  // 爬升/下降同样受 uint16 量程限制（≤65.535m），与 Garmin 原生文件一致写 0，
+  // 由平台从 record 自行推算——这正是 Strava 校准爬升的路径，故不可用错值覆盖。
   function makeSession(sample, ts, dur, dist, moveTime) {
     const fields = [
       { num: 253, size: 4, base: 4 }, { num: 2, size: 4, base: 4 }, { num: 5, size: 1, base: 0 },
@@ -623,25 +633,56 @@ const FIT = (() => {
       data: { 253: ts + dur, 2: ts, 5: 2, 7: dur * 1000, 8: timer * 1000, 9: dist, 14: 0, 16: 0, 17: 0, 26: 0 },
     };
   }
+  // 从 record 实算累计爬升/下降（米）：3m 死区锚点法，与 Strava/码表口径接近
+  function elevationGainLoss(records) {
+    let gain = 0, loss = 0, anchor = null;
+    for (const r of records) {
+      const raw = r.data[REC.altitude];
+      if (raw == null) continue;
+      const e = (raw - 500) / 5;
+      if (!Number.isFinite(e)) continue;
+      if (anchor == null) { anchor = e; continue; }
+      const d = e - anchor;
+      if (d > 3) { gain += d; anchor = e; }
+      else if (d < -3) { loss += -d; anchor = e; }
+    }
+    return { gain, loss };
+  }
 
   // ======================= 工具 3：合并 =======================
   // 把多个文件首尾相接成一条长活动：时间轴自动去重平移，采样点按时间排序，
   // 最后重建 lap/session。适合「码表分段记录」拼成一次完整骑行。
+  //
+  // 关键：码表分段记录常把同一活动导出成多个文件，且各文件内容高度重叠
+  // （同一批采样点）。若不去重，合并后点数/里程/爬升会成倍膨胀——
+  // Strava 按 record 重算就会报出离谱的爬升。��此按「时间戳+坐标」去重：
+  //   1) 精确键 ts|lat|lon 完全一致的点只保留一份；
+  //   2) 坐标序列完全相同但时间戳不同的文件（内容镜像），整份跳过。
   function combine(files) {
-    if (!files || files.length < 2) throw new Error('至少需要 2 个文件才能合并');
+    if (!files || !files.length || files.length < 2) throw new Error('至少需要 2 个文件才能合并');
     const parsed = files.map(u8 => tagDefs(parse(u8)));
 
     let all = [];
     let offset = 0;
     let lastEnd = null;
-    const defsPool = [];
     let sharedFileId = null;
+    const seenTs = new Set();        // 已收录的采样时刻（同一时刻 = 同一采样点）
+    const seenKey = new Set();        // 时刻+坐标（坐标缺失时的次级判据）
+    const tsSeqs = [];                // 已收录文件的时间戳序列指纹（整份镜像检测）
+    let skippedDup = 0;
+    let skippedRecs = 0;
 
     for (const p of parsed) {
       const recs = p.messages.filter(m => m.type === 'data' && m.global === MSG.record && m.data[REC.timestamp] != null);
       if (!recs.length) continue;
       const fid = p.messages.find(m => m.type === 'data' && m.global === MSG.file_id);
       if (!sharedFileId && fid) sharedFileId = fid;
+
+      // 整份镜像检测：时间戳序列与已收录文件完全一致 → 整份跳过
+      // （同一活动被两次导出/合并时，采样时刻完全一致，不能重复计入）
+      const tsKey = recs.map(r => r.data[REC.timestamp]).join(';');
+      if (tsKey && tsSeqs.includes(tsKey)) { skippedDup++; continue; }
+      if (tsKey) tsSeqs.push(tsKey);
 
       const first = recs[0].data[REC.timestamp];
       const last = recs[recs.length - 1].data[REC.timestamp];
@@ -650,9 +691,21 @@ const FIT = (() => {
       if (lastEnd != null) shift = Math.max(lastEnd + 1 - first, 0);
 
       for (const r of recs) {
+        // 采样级去重：同一时刻（码表分段记录的重叠区）只保留第一个出现的点。
+        // 坐标同时一致时用二级键；坐标缺失时仅按时刻判重。
+        const ts = r.data[REC.timestamp];
+        const hasPos = r.data[REC.position_lat] != null && r.data[REC.position_long] != null;
+        if (hasPos) {
+          const k = ts + '|' + r.data[REC.position_lat] + '|' + r.data[REC.position_long];
+          if (seenKey.has(k) || seenTs.has(ts)) { skippedRecs++; continue; }
+          seenKey.add(k); seenTs.add(ts);
+        } else {
+          if (seenTs.has(ts)) { skippedRecs++; continue; }
+          seenTs.add(ts);
+        }
         const c = Object.assign({}, r);
         c.data = Object.assign({}, r.data);
-        c.data[REC.timestamp] = r.data[REC.timestamp] + shift;
+        c.data[REC.timestamp] = ts + shift;
         all.push(c);
       }
       lastEnd = last + shift;
@@ -675,11 +728,18 @@ const FIT = (() => {
     const dur = lastTs - firstTs;
     const dist = distanceMeters(all) ?? 0;   // cm；无效时 GPS 兜底
     const moveSec = calcMoveTime(all);
+    const { gain, loss } = elevationGainLoss(all);
     msgs.push(makeEvent(MSG.event, all[0].data, firstTs));
-    msgs.push(makeLap(all[0].data, firstTs, dur, dist, moveSec));
-    msgs.push(makeSession(all[0].data, firstTs, dur, dist, moveSec));
+    msgs.push(makeLap(all[0].data, firstTs, dur, dist, moveSec, gain, loss));
+    msgs.push(makeSession(all[0].data, firstTs, dur, dist, moveSec, gain, loss));
 
-    return { bytes: serialize(msgs, { protocolVer: parsed[0].protocolVer }), count: all.length, files: offset };
+    return {
+      bytes: serialize(msgs, { protocolVer: parsed[0].protocolVer }),
+      count: all.length, files: offset,
+      skippedDup,            // 整份跳过的镜像文件数
+      deduped: skippedRecs,   // 被精确去重掉的采样点数
+      ascent: gain, descent: loss,
+    };
   }
 
   // ======================= 工具 4：FIT → GPX / TCX =======================
