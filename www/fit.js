@@ -347,10 +347,25 @@ const FIT = (() => {
     }
     return prev ? dist : null;
   }
-  // 优先 record.distance 累计字段，缺失/无效（null）时回退 GPS 轨迹
+  // record.distance 累计字段优先，缺失/无效（null）时回退 GPS 轨迹。
+  // 注意：不能用「末点 - 首点」——码表长时间记录会在中途重启（distance 归零，
+  // 但位置/海拔连续），末-首只覆盖最后一段，会少算一大截里程
+  // （实测 13.5h/232.7km 的文件被算成 98.5km）。改为跨重置逐点累加。
   function distanceMeters(records) {
-    const first = records[0]?.data[REC.distance], last = records[records.length - 1]?.data[REC.distance];
-    if (first != null && last != null && last >= first) return last - first;   // 单位 cm
+    let sum = 0, prev = null, got = false;
+    for (const r of records) {
+      const v = r.data[REC.distance];
+      if (v == null) continue;                        // 无效哨兵/缺失：跳过该点，保留 prev 继续累加
+      if (prev != null && v >= prev) sum += v - prev; // 负跳变视为码表重启，不减
+      prev = v;
+      got = true;
+    }
+    if (got) {
+      // 码表中途丢计数时累加值会明显偏小（哨兵/缺字段）→ 回退 GPS 轨迹
+      const gps = gpsDistanceM(records);
+      if (gps != null && sum < gps * 100 * 0.8) return gps * 100;
+      return sum;                                     // 单位 cm
+    }
     const gps = gpsDistanceM(records);
     return gps != null ? gps * 100 : null;
   }
@@ -463,6 +478,7 @@ const FIT = (() => {
     const dur = last.data[REC.timestamp] - baseTs;
     const dist = distanceMeters(slice) ?? 0;   // cm；无效时 GPS 兜底
     const moveSec = calcMoveTime(slice);
+    addEnhancedAltitude(msgs);   // 平台优先读 enhanced_altitude(78) 算爬升
     msgs.push(makeEvent(MSG.event, first.data, baseTs));
     msgs.push(makeLap(first.data, baseTs, dur, dist, moveSec));
     msgs.push(makeSession(first.data, baseTs, dur, dist, moveSec));
@@ -649,6 +665,26 @@ const FIT = (() => {
     return { gain, loss };
   }
 
+  // 补齐 enhanced_altitude（record field 78, uint32, scale 5, offset 500）。
+  // 很多码表只写 field 2 (altitude, uint16)，而 Strava 等平台优先读 78；
+  // 缺 78 时平台会退回自己的海拔模型，爬升可能离谱（实测 232km 骑行被算成 13000m）。
+  // 这里按 2 的值补一份 78（同编码），并同步更新字段表与 __defKey。
+  function addEnhancedAltitude(messages) {
+    let added = 0;
+    for (const m of messages) {
+      if (m.type !== 'data' || m.global !== MSG.record) continue;
+      if (m.fields.find(f => f.num === 78)) continue;          // 已有 78
+      if (!m.fields.find(f => f.num === REC.altitude)) continue; // 无海拔字段
+      const alt = m.data[REC.altitude];
+      if (alt == null) continue;
+      m.fields = m.fields.concat([{ num: 78, size: 4, base: 4 }]);
+      m.data[78] = alt;                                          // 同 scale/offset
+      m.__defKey = defKey(m.global, m.fields, m.dev);
+      added++;
+    }
+    return added;
+  }
+
   // ======================= 工具 3：合并 =======================
   // 把多个文件首尾相接成一条长活动：时间轴自动去重平移，采样点按时间排序，
   // 最后重建 lap/session。适合「码表分段记录」拼成一次完整骑行。
@@ -723,6 +759,9 @@ const FIT = (() => {
     }
     msgs.push(...all);
 
+    // 补 enhanced_altitude(78)：平台优先读它算爬升，缺失会退用自己的模型
+    const addedEle = addEnhancedAltitude(msgs);
+
     const firstTs = all[0].data[REC.timestamp];
     const lastTs = all[all.length - 1].data[REC.timestamp];
     const dur = lastTs - firstTs;
@@ -739,6 +778,7 @@ const FIT = (() => {
       skippedDup,            // 整份跳过的镜像文件数
       deduped: skippedRecs,   // 被精确去重掉的采样点数
       ascent: gain, descent: loss,
+      addedEle,               // 补齐 enhanced_altitude 的 record 数
     };
   }
 
@@ -948,9 +988,13 @@ ${trkpts}
   // ======================= 工具 6：海拔校准（DEM 补全）=======================
   // 部分设备/骑行台文件海拔为 0 或哨兵缺失。此函数只负责「定位缺失点 + 写回」；
   // DEM 查询（Open-Meteo）在 UI 层完成（fit.js 保持零依赖纯函数，自测注入假 fetcher）。
-  // 写回字段：2(altitude uint16) 为主，定义里同时存在 13(enhanced_altitude) 时同步写，
-  // 两者同编码（scale 5 / offset 500），避免平台优先读 13 时拿到旧值。
-  const ELE_FIELDS = [REC.altitude, 13];
+  //
+  // 字段号务必区分清楚（曾把 13 当海拔写，导致温度被覆盖）：
+  //   record 2  = altitude           uint16, scale 5, offset 500
+  //   record 78 = enhanced_altitude  uint32, scale 5, offset 500   ← 平台（Strava）优先读这个
+  //   record 13 = temperature        sint8, °C                      ← 不是海拔！
+  // 写回策略：主写 2；若定义里已有 78 则同步写（平台读 78 时才拿到新值）。
+  const ELE_FIELDS = [REC.altitude, 78];
   function eleLooksMissing(m) {
     let has = false;
     for (const num of ELE_FIELDS) {

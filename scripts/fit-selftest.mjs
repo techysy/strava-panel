@@ -187,6 +187,49 @@ ok(cTs[5] >= cTs[4] + 1, '第二段起点在第一段结束后', [cTs[4], cTs[5]
   ok(oTs.every((v, i) => i === 0 || v > oTs[i - 1]), '去重后时间轴仍严格递增', oTs);
 }
 
+// 码表长时间记录会中途重启（distance 归零，位置/海拔连续）：
+// 距离必须跨重置累加，否则「末点-首点」只覆盖最后一段，会少算一大截里程。
+{
+  const hdr=12, body=[];
+  const w=(v,n)=>{for(let i=0;i<n;i++)body.push(Math.floor(v/Math.pow(2,i*8))&0xFF);};
+  const S32=v=>{const b=Buffer.alloc(4);b.writeInt32LE(v,0);body.push(...b);};
+  body.push(0x00|0x40,0,0); body.push(20,0); body.push(4);
+  body.push(253,4,4); body.push(0,4,5); body.push(1,4,5); body.push(5,4,4);
+  const base=1000000000;
+  // distance: 0→3000000（30km）→ 重置为 0 → 0→2000000（20km），真实总里程 50km
+  const dists=[0,1000000,2000000,3000000, 0,1000000,2000000];
+  for(let i=0;i<dists.length;i++){
+    body.push(0x00);
+    w(base+i,4);
+    S32(Math.round((30+i*0.001)*Math.pow(2,31)/180));
+    S32(Math.round(120*Math.pow(2,31)/180));
+    w(dists[i],4);
+  }
+  const total=hdr+body.length+2,out=new Uint8Array(total);
+  out[0]=hdr;out[1]=0x20;const dv=new DataView(out.buffer);
+  dv.setUint16(2,2140,true);dv.setUint32(4,body.length,true);
+  out[8]=0x2E;out[9]=0x46;out[10]=0x49;out[11]=0x54;
+  for(let i=0;i<body.length;i++)out[hdr+i]=body[i];
+  dv.setUint16(hdr+body.length,FIT.crc16(out,0,hdr+body.length),true);
+  const s2=FIT.summarize(out);
+  ok(Math.abs(s2.distanceKm-50)<0.01, 'distance 字段重置时总里程按累加计（50km）', s2.distanceKm);
+  ok(s2.distanceKm>40, '不再退化为「末点-首点」的 20km', s2.distanceKm);
+}
+
+// 合并产物必须补 enhanced_altitude(78)：平台（Strava）优先读它算爬升，
+// 缺 78 时会退回自己的海拔模型，爬升可能离谱（实测 232km 骑行被算成 13000m）
+{
+  const c = FIT.combine([buildFit({ points: 5, time: 1000000000 }), buildFit({ points: 5, time: 1000000100 })]);
+  const msgs = FIT.parse(c.bytes).messages;
+  const def = msgs.find(m => m.type === 'def' && m.global === 20);
+  ok(def && def.fields.some(f => f.num === 78), '合并产物 record 定义含 enhanced_altitude(78)');
+  const recs = msgs.filter(m => m.type === 'data' && m.global === 20);
+  ok(recs.every(m => m.data[78] != null), '每条 record 都写入了 78 的值');
+  ok(recs.every(m => m.data[78] === m.data[2]), '78 的值与 altitude(2) 一致（同 scale/offset）');
+  // 13 是 temperature，不是海拔——不能被海拔校准覆盖
+  ok(recs[0].data[13] === undefined || typeof recs[0].data[13] !== 'number' || recs[0].data[13] < 100, 'field 13 仍是温度量级，未被当作海拔写入');
+}
+
 console.log('\n[7] 工具：转换 GPX/TCX');
 const gpx = FIT.toGpx(fSplit, '测试骑行');
 ok(gpx.includes('<gpx'), 'GPX 根元素正确');
