@@ -1692,7 +1692,7 @@ function switchNav(nav){
   if(nav==='rides'){ sortKey='date'; sortDir=-1; page=1; loadActivities(); }   // 最近骑行：进入时恢复默认(最近时间在前)排序
   if(nav==='power'){ loadPowerCurve(); }   // 功率曲线：打开视图才懒加载
   if(nav==='coach'){ loadCoach(); }
-  if(nav==='fit'){ /* FIT 工具无网络请求，切 tab 无需额外加载 */ }
+  if(nav==='fit'){ /* FIT 工具无网络请求 */ if(typeof FitUI!=='undefined'&&typeof FitUI.ensureFs==='function') FitUI.ensureFs(); }
   if(nav==='trip'){ tripInit(); }   // 出行计划：进入时初始化日期与目的地
   if(nav==='settings'){ loadCredConfig(); }  // cred 是默认子tab，直接进入时也回填凭据
   if(nav==='api'||nav==='settings'){ /* handled by subtab */ }

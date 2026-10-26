@@ -347,6 +347,7 @@ const FitUI = (() => {
     wrap.style.display = '';
     TrackMap.show('fitMap', tracks);
     const st = TrackMap.state('fitMap');
+    if (st) registerFs(st);   // 地图实例此刻才存在 → 注册全屏回调
     if (st) registerFs(st);
   }
 
@@ -546,6 +547,8 @@ const FitUI = (() => {
   function registerFs(st) {
     if (!st || st._fsRegistered) return;
     st._fsRegistered = true;
+    // 容器从不可见变可见（tab 切回）时 Leaflet 补画轨迹 → 此刻补注册全屏回调
+    st.onShow = () => { try { registerFs(st); } catch (e) {} };
     st.onFullscreen = (on) => {
       cropHandles = null;
       if (on && cropMode) {
@@ -591,6 +594,19 @@ const FitUI = (() => {
           else if (v === 'third') { proceed(); }
         });
     };
+  }
+  // 确保全屏回调已注册。地图实例只在容器可见时才创建（TrackMap.show 在容器
+  // 零尺寸时提前返回），若用户在别的 tab 里加载 FIT 文件，此时 state() 为 null，
+  // registerFs 不会被调用 → 全屏时缺剖面浮窗/退出全屏不重绘。
+  // 因此切到 FIT 工具 tab 时必须补注册；容器刚可见时 Leaflet 建图是异步的，
+  // 故连续重试几帧直到拿到实例。
+  let _fsRetry = 0;
+  function ensureFs() {
+    if (typeof TrackMap === 'undefined') return;
+    const st = TrackMap.state('fitMap');
+    if (st) { registerFs(st); return; }
+    if (_fsRetry++ > 10) return;
+    setTimeout(ensureFs, 100);
   }
   // 全屏裁剪文件浮窗（地图左下）：列表 + 当前目标 + 待应用徽标，点击快速切换编辑对象。
   // 右下留给海拔剖面类浮窗；空态（非裁剪/退出）自动移除。
@@ -1187,5 +1203,5 @@ const FitUI = (() => {
     _authPillTimer = setInterval(refreshAuthPill, 60000);   // 授权状态低频轮询（用户可能在别处完成授权）
   }
 
-  return { init, relang, addFiles, remove, clearAll, pickFiles, runStrip, runConvert, runEleCalib, runGcjFix, runSplit, runCombine, toggleCrop, toggleSplit, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, splitSuggest, splitClearCuts, splitGo, runUpload, reauthForUpload };
+  return { init, relang, addFiles, remove, clearAll, pickFiles, runStrip, runConvert, runEleCalib, runGcjFix, runSplit, runCombine, toggleCrop, toggleSplit, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, splitSuggest, splitClearCuts, splitGo, runUpload, reauthForUpload, ensureFs };
 })();

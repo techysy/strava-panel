@@ -69,6 +69,8 @@ const TrackMap = (() => {
         const p = st.pendingShow;
         st.pendingShow = null;
         try { show(host, p.tracks, p.opts); } catch (e) { console.error('pendingShow', e); }
+        // 补画完成：通知场景方注册回调（如 FIT 的全屏剖面浮窗）
+        if (st.onShow) { try { st.onShow(st); } catch (e) { console.error('onShow', e); } }
       }
     });
     ro.observe(host);
