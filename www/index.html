@@ -267,7 +267,9 @@ html[data-theme="dark"] .tm-float.tm-float-glass .tm-float-t{color:var(--text)}
 .tm-float-ele{width:430px;max-width:calc(100vw - 48px)}
 .tm-float-ele .fit-ele-head .btn{padding:2px 8px;font-size:11px}
 .pl-menu-wrap{position:relative;display:inline-flex}
-.pl-menu{position:absolute;top:calc(100% + 4px);right:0;z-index:60;min-width:132px;padding:5px;border-radius:9px;border:1px solid var(--border-subtle);background:var(--surface);box-shadow:0 8px 24px rgba(0,0,0,.14)}
+.pl-menu{position:absolute;top:calc(100% + 4px);right:0;z-index:60;min-width:132px;max-height:280px;overflow-y:auto;padding:5px;border-radius:9px;border:1px solid var(--border-subtle);background:var(--surface);box-shadow:0 8px 24px rgba(0,0,0,.14)}
+/* 全屏浮窗靠底停靠：菜单必须向上弹出，避免触底被任务栏截断 */
+.tm-float-ele .pl-menu{top:auto;bottom:calc(100% + 6px);left:0;right:auto;box-shadow:0 -8px 24px rgba(0,0,0,.18)}
 .pl-menu-item{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:6px;font-size:12px;color:var(--text);cursor:pointer;white-space:nowrap}
 .pl-menu-item:hover{background:var(--hover)}
 .pl-menu-item input{width:auto;margin:0;accent-color:var(--accent)}
