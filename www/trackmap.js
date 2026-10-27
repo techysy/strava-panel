@@ -49,9 +49,7 @@ const TrackMap = (() => {
     const map = L.map(host, {
       zoomControl: false, attributionControl: false, scrollWheelZoom: false,
       dragging: true, doubleClickZoom: true,
-      // 步进减半（用户反馈跨度太大）。zoomSnap 保持 1——半级缩放会让 Esri 瓦片
-      // 出现灰色空洞（半级瓦片缺失），只调步进不动吸附。
-      zoomSnap: 1, zoomDelta: 0.5, wheelPxPerZoomLevel: 120,
+      zoomSnap: 1, zoomDelta: 1, wheelPxPerZoomLevel: 120,
     });
     // 默认浅色（Esri 素底，不花）；偏好键 sp-tiles（旧键 sp-map-tiles 作废）
     st = { map, layers: [], tile: null, tileKey: localStorage.getItem('sp-tiles') || 'light', markers: [], cropHandles: [], cutMarkers: [], fullscreen: false, savedView: null };
@@ -89,8 +87,8 @@ const TrackMap = (() => {
       L.DomEvent.disableScrollPropagation(box);
       box.addEventListener('click', e => {
         const z = e.target?.dataset?.z;
-        if (z === 'in') st.map.zoomIn();
-        if (z === 'out') st.map.zoomOut();
+        if (z === 'in') st.map.zoomIn(1);
+        if (z === 'out') st.map.zoomOut(1);
       });
       return box;
     };
@@ -147,7 +145,7 @@ const TrackMap = (() => {
     const map2 = L.map(fsMap, {
       zoomControl: false, attributionControl: false, scrollWheelZoom: true,
       dragging: true, doubleClickZoom: true,
-      zoomSnap: 1, zoomDelta: 0.5, wheelPxPerZoomLevel: 120,
+      zoomSnap: 1, zoomDelta: 1, wheelPxPerZoomLevel: 120,
     });
     st.map = map2;
     st.layers = []; st.markers = [];
