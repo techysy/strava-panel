@@ -1231,6 +1231,8 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
               <label><span data-i18n="trip_speed">匀速 (km/h)</span><input type="number" id="tripSpeed" class="num" value="20" min="1" max="120" step="0.5" onchange="tripSpeedChanged()"></label>
               <label><span data-i18n="trip_startTime">开始时间</span><input type="time" id="tripStartTime" value="08:00" onchange="tripSpeedChanged()"></label>
               <button class="btn" id="tripRouteWxBtn" onclick="tripLoadRouteWeather()" style="display:none" data-i18n="trip_routeWeather">沿途天气</button>
+              <button class="btn" id="tripEleBtn" onclick="tripEleCalib()" style="display:none" data-i18n="trip_eleCalib">校准海拔</button>
+              <button class="btn" id="tripGcjBtn" onclick="tripGcjFix()" style="display:none" data-i18n="trip_gcjFix">转 WGS-84</button>
             </div>
             <div id="tripGpxInfo"></div>
             <div class="tm-wrap" id="tripMapWrap" style="display:none"><div class="tm-map tall" id="tripMap"></div></div>
@@ -1392,6 +1394,10 @@ const I18N = {
     trip_gpxParseFail:'GPX 解析失败：', trip_gpxNoPoints:'GPX 中没有轨迹点',
     trip_sumDist:'总距离', trip_sumGain:'累计爬升', trip_sumEle:'海拔范围', trip_sumEta:'预计用时', trip_sumFinish:'预计到达',
     trip_noEle:'该 GPX 无高程数据', trip_elevProfile2:'海拔剖面',
+    trip_eleCalib:'校准海拔（DEM）', trip_gcjFix:'转 WGS-84', trip_eleQuerying:'查询中…',
+    trip_eleNone:'无需校准：海拔完整', trip_eleDone:'已校准 {n} 个点并重新加载路线',
+    trip_eleFail:'海拔校准失败：', trip_gcjNone:'坐标无偏移（非 GCJ-02），无需转换',
+    trip_gcjDone:'已转换 {n} 个点并重新加载路线',
     trip_tlDist:'里程', trip_tlEta:'预计时刻', trip_wind:'风', trip_gust:'阵风',
     trip_routeWxNote:'按匀速 {v} km/h 从 {t} 出发推算各采样点到达时刻；天气取自 Open-Meteo 逐时预报（最近 {d} 天）。',
     trip_outOfRange:'出行日期超出逐时预报范围，时间线按最近两天预报推算，仅供参考。',
@@ -1540,6 +1546,10 @@ const I18N = {
     trip_gpxParseFail:'GPX parse failed: ', trip_gpxNoPoints:'No track points in the GPX',
     trip_sumDist:'Distance', trip_sumGain:'Elev. gain', trip_sumEle:'Elev. range', trip_sumEta:'Est. time', trip_sumFinish:'Est. finish',
     trip_noEle:'This GPX has no elevation data', trip_elevProfile2:'Elevation',
+    trip_eleCalib:'Calibrate elev. (DEM)', trip_gcjFix:'Convert to WGS-84', trip_eleQuerying:'Querying…',
+    trip_eleNone:'Nothing to calibrate: elevations complete', trip_eleDone:'Calibrated {n} points and reloaded route',
+    trip_eleFail:'Elevation calibration failed: ', trip_gcjNone:'No offset detected (not GCJ-02)',
+    trip_gcjDone:'Converted {n} points and reloaded route',
     trip_tlDist:'Dist.', trip_tlEta:'ETA', trip_wind:'Wind', trip_gust:'Gust',
     trip_routeWxNote:'Sampling times estimated at {v} km/h from {t}; weather from Open-Meteo hourly forecast (next {d} days).',
     trip_outOfRange:'The trip date is beyond the hourly forecast window; the timeline uses the next two days and is indicative only.',
@@ -4219,6 +4229,7 @@ async function savePrefs(){
 let tripDests = [];           // 服务端预设目的地
 let tripRecentDests = [];     // 自定义/最近使用（localStorage sp-trip-dests，≤8 条）
 let tripGpx = null;           // GPX.parse 结果
+let tripEleBusy = false;      // DEM 校准进行中（防重复点击）
 let tripRouteWeatherMarkers = null; // 沿途天气采样点标记（持久化供全屏/重绘/切图）
 let tripWeatherData = null;   // /api/trip/weather 响应缓存（含逐时）
 let tripHourlyDay = null;     // 逐时图表当前选中日
@@ -4362,10 +4373,12 @@ async function tripGpxFile(file){
     const text = await file.text();
     tripGpx = GPX.parse(text);
     tripGpx.fileName = file.name;
+    tripGpx.xmlText = text;   // 保留原文：校准海拔 / 转 WGS-84 时做属性级替换
     tripRouteWeatherMarkers = null;   // 更换路线，旧天气锚点作废
     if(typeof TrackMap !== 'undefined') TrackMap.clear('tripMap');
     const rw = document.getElementById('tripRouteWxBox'); if(rw) rw.innerHTML = '';
     tripRenderGpx();
+    tripRenderFixBtns();
     if(tripWeatherData) tripRenderWeather();   // 运动窗口随 ETA 更新
   }catch(e){
     tripGpx = null;
@@ -4375,6 +4388,7 @@ async function tripGpxFile(file){
     document.getElementById('tripRouteWxBtn').style.display = 'none';
     const mw = document.getElementById('tripMapWrap'); if(mw) mw.style.display = 'none';
     tripRenderGpxFileCard();
+    tripRenderFixBtns();
   }
 }
 // 已导入文件卡片：让用户清楚当前加载的是哪个文件、什么规模
@@ -4405,6 +4419,102 @@ function tripGpxRemove(){
   tripRenderGpx();
   tripRenderGpxFileCard();
   const rw = document.getElementById('tripRouteWxBox'); if(rw) rw.innerHTML = '';
+}
+// 按钮显隐：有路线时才出现「校准海拔」「转 WGS-84」（与 FIT 工具同一用途）
+function tripRenderFixBtns(){
+  const has = !!(tripGpx && tripGpx.points && tripGpx.points.length);
+  const eb = document.getElementById('tripEleBtn'), gb = document.getElementById('tripGcjBtn');
+  if(eb) eb.style.display = has ? '' : 'none';
+  if(gb) gb.style.display = has ? '' : 'none';
+}
+// 保存当前 GPX 原文 → 解析 → 重绘（海拔按钮完成后共用）
+function tripReloadGpx(newXml, suffix){
+  const name = ((tripGpx && tripGpx.fileName) || 'route.gpx').replace(/\.gpx$/i, '') + suffix + '.gpx';
+  tripGpx = GPX.parse(newXml);
+  tripGpx.fileName = name;
+  tripGpx.xmlText = newXml;
+  tripRouteWeatherMarkers = null;   // 路线已变，旧天气锚点作废
+  if(typeof TrackMap !== 'undefined') TrackMap.clear('tripMap');
+  const rw = document.getElementById('tripRouteWxBox'); if(rw) rw.innerHTML = '';
+  tripRenderGpx();
+  tripRenderGpxFileCard();
+  tripRenderFixBtns();
+  if(tripWeatherData) tripRenderWeather();
+}
+function tripGpxRawXml(){
+  if(tripGpx && tripGpx.xmlText) return tripGpx.xmlText;
+  return null;
+}
+// ---- 海拔校准（Open-Meteo DEM 补全缺失/零海拔点）----
+async function tripEleCalib(){
+  if(!tripGpx || tripEleBusy) return;
+  const xml = tripGpxRawXml();
+  if(!xml){ toast(t('trip_eleNone'), true); return; }
+  tripEleBusy = true;
+  const btn = document.getElementById('tripEleBtn');
+  const btnTxt = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = t('trip_eleQuerying'); }
+  try{
+    const t0 = GPX.elevationTargets(xml);
+    if(!t0.count){ toast(t('trip_eleNone'), true); return; }
+    const eles = await tripFetchDem(t0.pts);
+    const r = GPX.applyElevation(xml, eles);
+    if(!r.xml){ toast(t('trip_eleNone'), true); return; }
+    tripReloadGpx(r.xml, '-ele');
+    toast(t('trip_eleDone', { n: r.count }), true);
+  }catch(e){
+    toast(t('trip_eleFail') + (e.message || e), false);
+  }finally{
+    tripEleBusy = false;
+    if(btn){ btn.disabled = false; btn.textContent = btnTxt; }
+  }
+}
+// ---- GCJ-02 → WGS-84（国内坐标偏移修正）----
+function tripGcjFix(){
+  if(!tripGpx) return;
+  const xml = tripGpxRawXml();
+  if(!xml){ toast(t('trip_gcjNone'), true); return; }
+  try{
+    const r = GPX.fixGcj02(xml);
+    if(!r.xml){ toast(t('trip_gcjNone'), true); return; }
+    tripReloadGpx(r.xml, '-wgs84');
+    toast(t('trip_gcjDone', { n: r.count }), true);
+  }catch(e){
+    toast(t('trip_gpxParseFail') + (e.message || e), false);
+  }
+}
+// Open-Meteo DEM 批量查询（与 fit-ui.js fetchDem 同一逻辑：100/批、toFixed(4) 去重、20s 超时）
+async function tripFetchDem(pts){
+  const cache = new Map();
+  const out = new Array(pts.length).fill(null);
+  const BATCH = 100;
+  for(let i = 0; i < pts.length; i += BATCH){
+    const idxs = [], lats = [], lons = [];
+    for(let j = i; j < Math.min(i + BATCH, pts.length); j++){
+      const k = pts[j].lat.toFixed(4) + ',' + pts[j].lon.toFixed(4);
+      if(cache.has(k)){ out[j] = cache.get(k); continue; }
+      idxs.push(j); lats.push(pts[j].lat.toFixed(5)); lons.push(pts[j].lon.toFixed(5));
+    }
+    if(!idxs.length) continue;
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 20000);
+    let d;
+    try{
+      const resp = await fetch('https://api.open-meteo.com/v1/elevation?latitude=' + lats.join(',') + '&longitude=' + lons.join(','), { signal: ac.signal });
+      if(!resp.ok) throw new Error('HTTP ' + resp.status);
+      d = await resp.json();
+    }finally{ clearTimeout(timer); }
+    if(d && d.error) throw new Error(String(d.reason || 'DEM query failed'));
+    const eles = d && Array.isArray(d.elevation) ? d.elevation : null;
+    if(!eles) throw new Error('DEM data format error');
+    if(eles.length !== idxs.length) throw new Error('DEM count mismatch (' + eles.length + '/' + idxs.length + ')');
+    eles.forEach((ele, k) => {
+      if(ele == null || !Number.isFinite(ele)) return;
+      out[idxs[k]] = ele;
+      cache.set(pts[idxs[k]].lat.toFixed(4) + ',' + pts[idxs[k]].lon.toFixed(4), ele);
+    });
+  }
+  return out;
 }
 function tripSpeedChanged(){
   localStorage.setItem('sp-trip-speed', document.getElementById('tripSpeed').value);
@@ -4442,6 +4552,7 @@ function tripRenderGpx(){
     btn.style.display = 'none';
     info.innerHTML = '';   // 移除后清空摘要/剖面，不留陈旧内容
     const mw = document.getElementById('tripMapWrap'); if(mw) mw.style.display = 'none';
+    tripRenderFixBtns();
     return;
   }
   const g = tripGpx, eta = tripEtaText();
@@ -4481,6 +4592,7 @@ function tripRenderGpx(){
   info.innerHTML = html;
   bindProfileHover();
   tripRenderGpxFileCard();
+  tripRenderFixBtns();
   // 轨迹小地图（Leaflet）：GPX 点直接上地图，起终点 S/E 标记；注册全屏重绘
   const wrap = document.getElementById('tripMapWrap');
   if(wrap){
@@ -4519,16 +4631,25 @@ function tripFsDraw(st, map){
   const prof = g.hasEle ? GPX.profile(g, 400) : [];
   if(!prof.length || !fsMapEl) return;
   const fl = document.createElement('div');
-  fl.className = 'tm-float tm-float-glass';
-  fl.innerHTML = '<div class="tm-float-t">'+escapeHtml(t('trip_elevProfile2'))+'</div><div id="tripFsProfile"></div>';
+  fl.className = 'tm-float tm-float-glass tm-float-ele';
+  fl.innerHTML = '<div class="tm-float-t">'+escapeHtml(t('trip_elevProfile2'))
+    + ' · ↑' + Math.round(g.elevGain) + 'm · ↓' + Math.round(g.elevLoss) + 'm</div><div id="tripFsProfile"></div>';
   fsMapEl.appendChild(fl);
+  // 阻断 Leaflet 对浮窗的拖拽/滚轮捕获（否则悬停剖面会拖动地图、缩放会跳级）
+  if(typeof L !== 'undefined' && L.DomEvent){
+    L.DomEvent.disableClickPropagation(fl);
+    L.DomEvent.disableScrollPropagation(fl);
+  }
   tripDrawProfile(document.getElementById('tripFsProfile'), prof, g, target);
 }
 // 剖面绘制 + hover 联动（宿主 container、剖面数据、联动目标地图）
 function tripDrawProfile(container, prof, g, linkedMap){
   if(!container || !prof.length) return;
   const C = chartColors();
-  const w = Math.max(280, container.clientWidth || 480), h = 110, padL = 34, padR = 8, padT = 8, padB = 16;
+  // 全屏浮窗态（.tm-float-ele）用 70px 紧凑高度 —— 与 FIT 工具全屏浮窗一致
+  const isFs = !!(container.closest && container.closest('.tm-float'));
+  const h = isFs ? 70 : 110, padT = isFs ? 4 : 8, padB = isFs ? 12 : 16;
+  const w = Math.max(280, container.clientWidth || 480), padL = 34, padR = 8;
   const iw = w-padL-padR, ih = h-padT-padB;
   const es = prof.map(p=>p.ele);
   let eMin = Math.min(...es), eMax = Math.max(...es);

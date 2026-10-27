@@ -197,7 +197,7 @@ const TrackMap = (() => {
     try { map2 = L.map(orig.host, {
       zoomControl: false, attributionControl: false, scrollWheelZoom: false,
       dragging: true, doubleClickZoom: true,
-      zoomSnap: 1, zoomDelta: 0.5, wheelPxPerZoomLevel: 120,
+      zoomSnap: 1, zoomDelta: 1, wheelPxPerZoomLevel: 120,
     }); } catch (e) {
       // 兜底：容器残留导致重建失败时，清空容器再试一次（避免退出后地图全空）
       console.error('exitFullscreen rebuild', e);
@@ -206,7 +206,7 @@ const TrackMap = (() => {
       map2 = L.map(orig.host, {
         zoomControl: false, attributionControl: false, scrollWheelZoom: false,
         dragging: true, doubleClickZoom: true,
-        zoomSnap: 1, zoomDelta: 0.5, wheelPxPerZoomLevel: 120,
+        zoomSnap: 1, zoomDelta: 1, wheelPxPerZoomLevel: 120,
       });
     }
     st.map = map2;

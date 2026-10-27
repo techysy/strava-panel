@@ -59,11 +59,12 @@ console.log('# GPX selftest');
 
 // ---- 3. 阈值去噪：小抖动不计入爬升 ----
 {
-  // 100 → 101 → 100 → 101 …(±1m 抖动，阈值 3m 应吞掉)，末点回到基线
+  // 100 → 100.5 → 100 → 100.5 …(±0.5m 抖动，阈值 1m 应吞掉)，末点回到基线
+  // （阈值已与 fit.js 对齐为 1m：±1m 精确越阈会计入，与 FIT 行为一致）
   const pts = [];
-  for (let i = 0; i < 20; i++) pts.push([30 + i * 0.0001, 120, 100 + (i % 2)]);
+  for (let i = 0; i < 20; i++) pts.push([30 + i * 0.0001, 120, 100 + 0.5 * (i % 2)]);
   const r = GPX.parse(trk(pts));
-  ok(r.elevGain === 0 && r.elevLoss === 0, '±1m 抖动爬升=0', [r.elevGain, r.elevLoss]);
+  ok(r.elevGain === 0 && r.elevLoss === 0, '±0.5m 抖动爬升=0', [r.elevGain, r.elevLoss]);
 }
 
 // ---- 4. 持续爬升不丢：每步 +2m 共 10 步 = +20m（应全部计入）----
