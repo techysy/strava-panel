@@ -217,11 +217,16 @@ html[data-theme="dark"] .tm-shell{background:var(--bg-dark,#111)}
 .trip-profile{cursor:crosshair;position:relative}
 .trip-profile .prof-tip,.tm-float .prof-tip{position:absolute;transform:translate(-50%,-110%);background:var(--text);color:var(--surface);font-size:11px;font-weight:600;padding:3px 8px;border-radius:7px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .1s;font-variant-numeric:tabular-nums;z-index:5}
 /* 全屏浮窗：半透明玻璃底（毛玻璃透出底图，不遮挡地图） */
-.tm-float.tm-float-glass{background:color-mix(in srgb,var(--surface) 52%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(0,0,0,.08);box-shadow:0 4px 16px rgba(0,0,0,.15);border-radius:10px}
+.tm-float.tm-float-glass{background:rgba(255,255,255,.45);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border:1px solid rgba(255,255,255,.65);box-shadow:0 8px 32px rgba(0,0,0,.12),0 2px 8px rgba(0,0,0,.06);border-radius:12px}
 /* 暗夜模式半透明玻璃底 */
-html[data-theme="dark"] .tm-float.tm-float-glass{background:color-mix(in srgb,var(--surface) 52%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-color:rgba(255,255,255,.14);box-shadow:0 4px 18px rgba(0,0,0,.45)}
+html[data-theme="dark"] .tm-float.tm-float-glass{background:rgba(22,22,26,.55);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-color:rgba(255,255,255,.14);box-shadow:0 8px 32px rgba(0,0,0,.45)}
 html[data-theme="dark"] .tm-float.tm-float-glass .tm-float-t{color:var(--text)}
-.tm-float.tm-float-glass .tm-float-t{font-size:11.5px;margin-bottom:2px}
+.tm-float.tm-float-glass .tm-float-t{font-size:11px;margin-bottom:2px}
+/* 浮窗内按钮也采用毛玻璃质感，融入整体玻璃面板 */
+.tm-float-glass .btn{background:rgba(255,255,255,.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.7);box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.tm-float-glass .btn:hover{background:rgba(255,255,255,.75)}
+html[data-theme="dark"] .tm-float-glass .btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16)}
+html[data-theme="dark"] .tm-float-glass .btn:hover{background:rgba(255,255,255,.18)}
 .trip-profile svg circle.prof-dot{transition:r .08s}
 .tm-icon{display:flex;align-items:center;justify-content:center}
 .tm-icon b{width:20px;height:20px;border-radius:50%;background:#10b981;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
@@ -264,8 +269,9 @@ html[data-theme="dark"] .tm-float.tm-float-glass .tm-float-t{color:var(--text)}
 .fit-ele-head{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:2px}
 .fit-ele-head .btn{padding:3px 10px;font-size:11.5px}
 .fit-ele-body{min-height:40px}
-.tm-float-ele{width:430px;max-width:calc(100vw - 48px)}
-.tm-float-ele .fit-ele-head .btn{padding:2px 8px;font-size:11px}
+.tm-float-ele{width:400px;max-width:calc(100vw - 32px);padding:8px 10px 6px}
+.tm-float-ele .fit-ele-head{gap:4px;margin-bottom:0}
+.tm-float-ele .fit-ele-head .btn{padding:2px 7px;font-size:10.5px}
 .pl-menu-wrap{position:relative;display:inline-flex}
 .pl-menu{position:absolute;top:calc(100% + 4px);right:0;z-index:60;min-width:132px;max-height:280px;overflow-y:auto;padding:5px;border-radius:9px;border:1px solid var(--border-subtle);background:var(--surface);box-shadow:0 8px 24px rgba(0,0,0,.14)}
 /* 全屏浮窗靠底停靠：菜单必须向上弹出，避免触底被任务栏截断 */

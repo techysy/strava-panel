@@ -476,13 +476,18 @@ const FitUI = (() => {
     const chans = PROFILE_CHANNELS.filter(c => active.indexOf(c.key) >= 0);
     const numChans = chans.filter(c => c.key !== 'surface');
     const hasSurf = chans.some(c => c.key === 'surface');
-    const w = Math.max(280, container.clientWidth || 560);
-    // 分层布局：海拔占主区，每条叠加曲线各占一条横带（互不遮挡，比全叠一起可读得多）
-    const LANE = 30;                                   // 单条曲线带高度
-    const surfH = hasSurf ? 12 : 0;                     // 路面色带高度
+    const isFs = !!container.closest('.tm-float');
+    const w = Math.max(280, container.clientWidth || (isFs ? 380 : 560));
+    // 分层布局：海拔占主区，全屏浮窗下剖面更低更紧凑（基础高 70px vs 内嵌 108px），释放地图视野
+    const baseH = isFs ? 70 : 108;
+    const LANE = isFs ? 22 : 30;                       // 单条曲线带高度
+    const surfH = hasSurf ? (isFs ? 10 : 12) : 0;      // 路面色带高度
     const laneH = numChans.length * LANE;
-    const padL = 48, padR = 44, padT = 8, padB = 16;
-    const h = 108 + laneH + surfH;                     // 主区 108 + 各曲线带 + 路面带
+    const padL = isFs ? 36 : 48;
+    const padR = isFs ? 34 : 44;
+    const padT = isFs ? 4 : 8;
+    const padB = isFs ? 12 : 16;
+    const h = baseH + laneH + surfH;                   // 主区 + 各曲线带 + 路面带
     const iw = w - padL - padR;
     const elevH = h - padT - padB - laneH - surfH;     // 海拔主区高度
     const es = prof.filter(p => p.ele != null).map(p => p.ele);
