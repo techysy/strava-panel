@@ -6,6 +6,23 @@
 
 ---
 
+## 2.7.0 (2026-10-28)
+
+> 聚合发版：v2.6.5 后全部更新（含未发布的 2.6.6 内容与测试包 2.6.6.1 轮次）。
+
+### 更新点
+- GPX 路线地图对齐 FIT：全屏海拔浮窗紧凑化（.tm-float-ele 70px/400px + 毛玻璃 + disableClick/ScrollPropagation + ↑↓统计）；爬升阈值 3m→1m 对齐。
+- GPX 新增「校准海拔（DEM）」与「转 WGS-84」；转 WGS-84 支持再次点击还原（isGcjFixed 状态 + origGcjXml 备份 + toGcj02 正变换兜底），杜绝连续点击坐标漂移；已转状态下校准海拔与还原互通。
+- trackmap.js exitFullscreen 重建地图 zoomDelta 0.5→1（修复全屏退出后地图无法缩小的残留路径）。
+
+### 验证
+- `node scripts/gpx-selftest.mjs`：42 通过 / 0 失败（新增 GCJ⇄WGS 互逆闭环 5 断言）。
+- `node scripts/fit-selftest.mjs`：123 通过 / 0 失败。
+- `node scripts/ui-selftest.mjs`：16 通过 / 0 失败。
+- release-check 14 项审计（发版前执行，见当日运行记录）。
+
+---
+
 ## 2.6.6 (2026-10-23)
 
 > FIT 工具「上传到 Strava」——服务代理 + 写权限引导 + 裁剪产物直传。
