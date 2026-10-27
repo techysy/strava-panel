@@ -1394,10 +1394,10 @@ const I18N = {
     trip_gpxParseFail:'GPX 解析失败：', trip_gpxNoPoints:'GPX 中没有轨迹点',
     trip_sumDist:'总距离', trip_sumGain:'累计爬升', trip_sumEle:'海拔范围', trip_sumEta:'预计用时', trip_sumFinish:'预计到达',
     trip_noEle:'该 GPX 无高程数据', trip_elevProfile2:'海拔剖面',
-    trip_eleCalib:'校准海拔（DEM）', trip_gcjFix:'转 WGS-84', trip_eleQuerying:'查询中…',
+    trip_eleCalib:'校准海拔（DEM）', trip_gcjFix:'转 WGS-84', trip_gcjRestore:'还原坐标', trip_eleQuerying:'查询中…',
     trip_eleNone:'无需校准：海拔完整', trip_eleDone:'已校准 {n} 个点并重新加载路线',
     trip_eleFail:'海拔校准失败：', trip_gcjNone:'坐标无偏移（非 GCJ-02），无需转换',
-    trip_gcjDone:'已转换 {n} 个点并重新加载路线',
+    trip_gcjDone:'已转为 WGS-84（再次点击可还原）', trip_gcjRestored:'已还原原始坐标',
     trip_tlDist:'里程', trip_tlEta:'预计时刻', trip_wind:'风', trip_gust:'阵风',
     trip_routeWxNote:'按匀速 {v} km/h 从 {t} 出发推算各采样点到达时刻；天气取自 Open-Meteo 逐时预报（最近 {d} 天）。',
     trip_outOfRange:'出行日期超出逐时预报范围，时间线按最近两天预报推算，仅供参考。',
@@ -1546,10 +1546,10 @@ const I18N = {
     trip_gpxParseFail:'GPX parse failed: ', trip_gpxNoPoints:'No track points in the GPX',
     trip_sumDist:'Distance', trip_sumGain:'Elev. gain', trip_sumEle:'Elev. range', trip_sumEta:'Est. time', trip_sumFinish:'Est. finish',
     trip_noEle:'This GPX has no elevation data', trip_elevProfile2:'Elevation',
-    trip_eleCalib:'Calibrate elev. (DEM)', trip_gcjFix:'Convert to WGS-84', trip_eleQuerying:'Querying…',
+    trip_eleCalib:'Calibrate elev. (DEM)', trip_gcjFix:'Convert to WGS-84', trip_gcjRestore:'Restore Coords', trip_eleQuerying:'Querying…',
     trip_eleNone:'Nothing to calibrate: elevations complete', trip_eleDone:'Calibrated {n} points and reloaded route',
     trip_eleFail:'Elevation calibration failed: ', trip_gcjNone:'No offset detected (not GCJ-02)',
-    trip_gcjDone:'Converted {n} points and reloaded route',
+    trip_gcjDone:'Converted to WGS-84 (click again to restore)', trip_gcjRestored:'Restored original coordinates',
     trip_tlDist:'Dist.', trip_tlEta:'ETA', trip_wind:'Wind', trip_gust:'Gust',
     trip_routeWxNote:'Sampling times estimated at {v} km/h from {t}; weather from Open-Meteo hourly forecast (next {d} days).',
     trip_outOfRange:'The trip date is beyond the hourly forecast window; the timeline uses the next two days and is indicative only.',
@@ -4374,6 +4374,9 @@ async function tripGpxFile(file){
     tripGpx = GPX.parse(text);
     tripGpx.fileName = file.name;
     tripGpx.xmlText = text;   // 保留原文：校准海拔 / 转 WGS-84 时做属性级替换
+    tripGpx.isGcjFixed = false;
+    tripGpx.origGcjXml = null;
+    tripGpx.origFileName = null;
     tripRouteWeatherMarkers = null;   // 更换路线，旧天气锚点作废
     if(typeof TrackMap !== 'undefined') TrackMap.clear('tripMap');
     const rw = document.getElementById('tripRouteWxBox'); if(rw) rw.innerHTML = '';
@@ -4425,7 +4428,17 @@ function tripRenderFixBtns(){
   const has = !!(tripGpx && tripGpx.points && tripGpx.points.length);
   const eb = document.getElementById('tripEleBtn'), gb = document.getElementById('tripGcjBtn');
   if(eb) eb.style.display = has ? '' : 'none';
-  if(gb) gb.style.display = has ? '' : 'none';
+  if(gb){
+    gb.style.display = has ? '' : 'none';
+    if(has){
+      const isFixed = !!(tripGpx && tripGpx.isGcjFixed);
+      const key = isFixed ? 'trip_gcjRestore' : 'trip_gcjFix';
+      gb.dataset.i18n = key;
+      gb.textContent = t(key);
+      if(isFixed) gb.classList.add('primary');
+      else gb.classList.remove('primary');
+    }
+  }
 }
 // 保存当前 GPX 原文 → 解析 → 重绘（海拔按钮完成后共用）
 function tripReloadGpx(newXml, suffix){
@@ -4460,7 +4473,19 @@ async function tripEleCalib(){
     const eles = await tripFetchDem(t0.pts);
     const r = GPX.applyElevation(xml, eles);
     if(!r.xml){ toast(t('trip_eleNone'), true); return; }
+    const wasFixed = !!(tripGpx && tripGpx.isGcjFixed);
+    const oldOrigXml = tripGpx && tripGpx.origGcjXml;
+    const oldOrigName = tripGpx && tripGpx.origFileName;
     tripReloadGpx(r.xml, '-ele');
+    if(wasFixed){
+      tripGpx.isGcjFixed = true;
+      tripGpx.origFileName = oldOrigName;
+      if(oldOrigXml){
+        const rOrig = GPX.applyElevation(oldOrigXml, eles);
+        tripGpx.origGcjXml = rOrig.xml || oldOrigXml;
+      }
+    }
+    tripRenderFixBtns();
     toast(t('trip_eleDone', { n: r.count }), true);
   }catch(e){
     toast(t('trip_eleFail') + (e.message || e), false);
@@ -4469,15 +4494,50 @@ async function tripEleCalib(){
     if(btn){ btn.disabled = false; btn.textContent = btnTxt; }
   }
 }
-// ---- GCJ-02 → WGS-84（国内坐标偏移修正）----
+// ---- GCJ-02 → WGS-84（国内坐标偏移修正 / 点击还原）----
 function tripGcjFix(){
   if(!tripGpx) return;
+  // 已转换状态：再次点击为还原原坐标，防止重复转换导致坐标持续漂移
+  if(tripGpx.isGcjFixed){
+    let origXml = tripGpx.origGcjXml;
+    let origName = tripGpx.origFileName;
+    if(!origXml){
+      const curXml = tripGpxRawXml();
+      const r = curXml ? GPX.toGcj02(curXml) : null;
+      origXml = r && r.xml;
+      origName = (tripGpx.fileName || 'route.gpx').replace(/-wgs84(\.gpx)$/i, '$1');
+    }
+    if(!origXml){ toast(t('trip_gcjNone'), true); return; }
+    tripGpx = GPX.parse(origXml);
+    tripGpx.fileName = origName || (tripGpx.fileName || 'route.gpx').replace(/-wgs84(\.gpx)$/i, '$1');
+    tripGpx.xmlText = origXml;
+    tripGpx.isGcjFixed = false;
+    tripGpx.origGcjXml = null;
+    tripGpx.origFileName = null;
+    tripRouteWeatherMarkers = null;
+    if(typeof TrackMap !== 'undefined') TrackMap.clear('tripMap');
+    const rw = document.getElementById('tripRouteWxBox'); if(rw) rw.innerHTML = '';
+    tripRenderGpx();
+    tripRenderGpxFileCard();
+    tripRenderFixBtns();
+    if(tripWeatherData) tripRenderWeather();
+    toast(t('trip_gcjRestored'), true);
+    return;
+  }
+
+  // 首次点击：从 GCJ-02 转为 WGS-84
   const xml = tripGpxRawXml();
   if(!xml){ toast(t('trip_gcjNone'), true); return; }
   try{
     const r = GPX.fixGcj02(xml);
     if(!r.xml){ toast(t('trip_gcjNone'), true); return; }
+    const savedXml = xml;
+    const savedName = tripGpx.fileName;
     tripReloadGpx(r.xml, '-wgs84');
+    tripGpx.isGcjFixed = true;
+    tripGpx.origGcjXml = savedXml;
+    tripGpx.origFileName = savedName;
+    tripRenderFixBtns();
     toast(t('trip_gcjDone', { n: r.count }), true);
   }catch(e){
     toast(t('trip_gpxParseFail') + (e.message || e), false);

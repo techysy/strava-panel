@@ -176,5 +176,23 @@ console.log('# GPX selftest');
   }
 }
 
+// ---- 15. GCJ-02 与 WGS-84 互转与还原 ----
+{
+  const orig = `<gpx><trk><trkseg>`
+    + `<trkpt lat="31.1753040" lon="121.5315419"><ele>10</ele></trkpt>`
+    + `<trkpt lon="116.4071310" lat="39.9046970"><ele>20</ele></trkpt>`
+    + `</trkseg></trk></gpx>`;
+  const f = GPX.fixGcj02(orig);
+  ok(f.count === 2, 'fixGcj02 转换 2 点');
+  const pWgs = GPX.parse(f.xml);
+  ok(Math.abs(pWgs.points[0].lat - 31.1774276) < 1e-6, 'WGS-84 lat 接近锚点', pWgs.points[0].lat);
+  // 逆转回 GCJ-02
+  const b = GPX.toGcj02(f.xml);
+  ok(b.count === 2, 'toGcj02 还原 2 点');
+  const pBack = GPX.parse(b.xml);
+  ok(Math.abs(pBack.points[0].lat - 31.1753040) < 1e-6, '还原回原 GCJ-02 lat', pBack.points[0].lat);
+  ok(Math.abs(pBack.points[0].lon - 121.5315419) < 1e-6, '还原回原 GCJ-02 lon', pBack.points[0].lon);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

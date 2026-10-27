@@ -254,6 +254,11 @@ const GPX = (() => {
     }
     return [wLat, wLon];
   }
+  function wgs84ToGcj02(lat, lon) {
+    if (outOfChina(lat, lon)) return [lat, lon];
+    const [dLat, dLon] = gcjDelta(lat, lon);
+    return [lat + dLat, lon + dLon];
+  }
   // 把 GPX 文本中所有境内 trkpt/rtept 的 lat/lon 属性替换为 WGS-84。
   // 属性级正则替换（非 XML 重建）：保留原文件的命名空间 / 元数据 / 扩展节点。
   function fixGcj02(xml) {
@@ -269,6 +274,24 @@ const GPX = (() => {
       return '<' + tag + attrs
         .replace(/(\blat\s*=\s*)("[^"]*"|'[^']*')/, '$1"' + wLat.toFixed(7) + '"')
         .replace(/(\blon\s*=\s*)("[^"]*"|'[^']*')/, '$1"' + wLon.toFixed(7) + '"')
+        + selfClose + '>';
+    });
+    return count ? { xml: outXml, count } : { xml: null, count: 0 };
+  }
+  // 把 GPX 文本中所有境内 trkpt/rtept 的 lat/lon 属性由 WGS-84 还原回 GCJ-02。
+  function toGcj02(xml) {
+    const text = String(xml == null ? '' : xml);
+    const ptRe = /<(trkpt|rtept|wpt)\b([^>]*?)(\/?)>/g;
+    let count = 0;
+    const outXml = text.replace(ptRe, (whole, tag, attrs, selfClose) => {
+      const a = parseAttrs(attrs);
+      const lat = parseFloat(a.lat), lon = parseFloat(a.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon) || outOfChina(lat, lon)) return whole;
+      const [gLat, gLon] = wgs84ToGcj02(lat, lon);
+      count++;
+      return '<' + tag + attrs
+        .replace(/(\blat\s*=\s*)("[^"]*"|'[^']*')/, '$1"' + gLat.toFixed(7) + '"')
+        .replace(/(\blon\s*=\s*)("[^"]*"|'[^']*')/, '$1"' + gLon.toFixed(7) + '"')
         + selfClose + '>';
     });
     return count ? { xml: outXml, count } : { xml: null, count: 0 };
@@ -307,7 +330,7 @@ const GPX = (() => {
   }
 
   return { parse, sample, profile, haversine, etaMinutes,
-           outOfChina, gcj02ToWgs84, fixGcj02, elevationTargets, applyElevation,
+           outOfChina, gcj02ToWgs84, wgs84ToGcj02, fixGcj02, toGcj02, elevationTargets, applyElevation,
            ELE_THRESHOLD, EARTH_R };
 })();
 
