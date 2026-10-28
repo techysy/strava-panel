@@ -49,6 +49,9 @@ jobs:
         with:
           files: cli/*.tgz
           fail_on_unmatched_files: true
+          # 本 job 可能抢先创建 release（标题默认=tag 名）；body 由 build-desktop
+          # 的 create-release 步骤统一 edit 对齐（含完整更新日志与安装渠道）
+          name: Strava Panel ${{ github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
