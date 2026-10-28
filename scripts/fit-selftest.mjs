@@ -166,6 +166,18 @@ ok(fieldsOf(rC, 20).length === 10, '合并后采样点 = 5+5 = 10', fieldsOf(rC,
 const cTs = fieldsOf(rC, 20).map(r => val(r, 253));
 ok(cTs.every((v, i) => i === 0 || v > cTs[i-1]), '时间戳严格递增（无重叠）', cTs);
 ok(cTs[5] >= cTs[4] + 1, '第二段起点在第一段结束后', [cTs[4], cTs[5]]);
+// 段间真实间隔必须保留（一天骑三段：间隔=停车/休息），不得压缩成紧挨串接
+ok(cTs[5] === 1000000100, '真实间隔保留：第二段起点=其原始开始时间', cTs[5]);
+
+// 按活动开始时间排序：乱序传入（先晚后早）时产物时间轴从最早的段开始
+{
+  const cLate = buildFit({ points: 3, time: 1000000100 });
+  const cEarly = buildFit({ points: 3, time: 1000000000 });
+  const r = FIT.combine([cLate, cEarly]);
+  const ts = FIT.parse(r.bytes).messages.filter(m => m.type === 'data' && m.global === 20).map(m => m.data[253]);
+  ok(ts[0] === 1000000000, '合并产物从最早的段开始（按开始时间排序）', ts[0]);
+  ok(ts[3] === 1000000100, '后段保留真实开始时间', ts[3]);
+}
 
 // 合并去重：同一活动被导出/合并两遍时不得重复计入（否则里程与爬升成倍膨胀，
 // Strava 按 record 重算就会报出离谱爬升）

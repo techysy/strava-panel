@@ -749,11 +749,30 @@ const FitUI = (() => {
       renderProfileMenu();  // 同步内嵌菜单
     }
   }
+  // 全屏双浮窗布局：海拔剖面浮窗贴底，文件列表浮窗上移到其上方。
+  // 两者都锚定右下角（right:12px;bottom:14px），多文件裁剪时海拔浮窗会盖住
+  // 文件列表的下半部分——按海拔浮窗实际高度把列表顶上去，并压缩其 max-height。
+  function layoutFsFloats() {
+    const st = (typeof TrackMap !== 'undefined') ? TrackMap.state('fitMap') : null;
+    const host = st && st.fullscreen ? st.fsMapEl : null;
+    const files = host && host.querySelector('.tm-files');
+    if (!files) return;
+    const ele = host.querySelector('.tm-float-ele');
+    if (ele && ele.offsetHeight) {
+      const lift = Math.round(ele.offsetHeight + 14 + 8);   // 底距 14px + 间隙 8px
+      files.style.bottom = lift + 'px';
+      files.style.maxHeight = 'calc(100% - ' + (lift + 8) + 'px)';
+    } else {
+      files.style.bottom = '';
+      files.style.maxHeight = '';
+    }
+  }
   // 全屏态：剖面 + 校正按钮收进右下玻璃浮窗（GPX 同款 .tm-float-glass），hover 联动全屏地图
   function mountFsProfileFloat(st, map) {
     const host = st && st.fsMapEl; if (!host) return;
     let fl = host.querySelector('.tm-float-ele'); if (fl) fl.remove();
-    const sf = getSelectedFile(); if (!sf) return;
+    const sf = getSelectedFile();
+    if (!sf) { layoutFsFloats(); return; }   // 海拔浮窗卸载后文件列表回落贴底
     const pd = eleProfileData(sf);
     fl = document.createElement('div');
     fl.className = 'tm-float tm-float-glass tm-float-ele';
@@ -790,6 +809,7 @@ const FitUI = (() => {
         onProfileMenuChange(e);
       }
     });
+    layoutFsFloats();
   }
 
   // ---- 裁剪模式：地图拖端点调整起止（草稿层 + 全局应用）----
@@ -953,6 +973,7 @@ const FitUI = (() => {
         + '<span class="si-meta">' + f.sum.points + ' pt · ' + (f.sum.distanceKm != null ? f.sum.distanceKm.toFixed(1) + ' km' : '-') + range + '</span></span>'
         + badge + '</button>';
     }).join('');
+    layoutFsFloats();   // 文件列表后挂/重渲染时同样按海拔浮窗高度重排
   }
   async function exitCrop() {
     // 退出裁剪也先拦截未应用草稿（与退出全屏同一提示）

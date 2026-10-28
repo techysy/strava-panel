@@ -805,9 +805,17 @@ const FIT = (() => {
     let skippedDup = 0;
     let skippedRecs = 0;
 
+    // 按各文件开始时间升序排序：合并产物的时间轴必须遵循真实活动顺序
+    // （一天骑三段 → 早中晚依次衔接），而不是文件列表/选择顺序。
+    const segs = [];
     for (const p of parsed) {
       const recs = p.messages.filter(m => m.type === 'data' && m.global === MSG.record && m.data[REC.timestamp] != null);
       if (!recs.length) continue;
+      segs.push({ p, recs, start: recs[0].data[REC.timestamp] });
+    }
+    segs.sort((a, b) => a.start - b.start);
+
+    for (const { p, recs } of segs) {
       const fid = p.messages.find(m => m.type === 'data' && m.global === MSG.file_id);
       if (!sharedFileId && fid) sharedFileId = fid;
 
@@ -819,9 +827,11 @@ const FIT = (() => {
 
       const first = recs[0].data[REC.timestamp];
       const last = recs[recs.length - 1].data[REC.timestamp];
-      // 时间轴衔接：接不上就顺延（留 1 秒间隔），避免时间重叠/倒流
+      // 时间轴衔接：段间有真实间隔（一天分几段骑）→ 保留真实时间戳不动，
+      // 间隔就是停车/休息（移动时间识别会剔除）；仅在时间重叠时顺延 1 秒衔接，
+      // 避免同一时刻被两段同时占用或时间倒流。
       let shift = 0;
-      if (lastEnd != null) shift = Math.max(lastEnd + 1 - first, 0);
+      if (lastEnd != null && first < lastEnd + 1) shift = lastEnd + 1 - first;
 
       for (const r of recs) {
         // 采样级去重：同一时刻（码表分段记录的重叠区）只保留第一个出现的点。
