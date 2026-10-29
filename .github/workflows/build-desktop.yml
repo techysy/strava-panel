@@ -63,11 +63,11 @@ jobs:
           RELEASE_NOTES: ${{ steps.changelog.outputs.notes }}
         run: |
           # 其他 workflow（build-cli 的 softprops / build-fpk）可能抢先创建 release
-          # （默认标题=tag 名、正文空）——所以创建后必须无条件 edit 对齐标题与正文
-          gh release view "${{ github.ref_name }}" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1 || \
-            gh release create "${{ github.ref_name }}" --repo "$GITHUB_REPOSITORY" \
-              --title "Strava Panel ${{ github.ref_name }}" \
-              --notes "$RELEASE_NOTES"
+          # （默认标题=tag 名、正文空）。create 若在 view→create 窗口内撞上竞态会报
+          # "already exists" 退出非零——必须容忍，靠下面无条件 edit 对齐标题与正文
+          gh release create "${{ github.ref_name }}" --repo "$GITHUB_REPOSITORY" \
+            --title "Strava Panel ${{ github.ref_name }}" \
+            --notes "$RELEASE_NOTES" || true
           gh release edit "${{ github.ref_name }}" --repo "$GITHUB_REPOSITORY" \
             --title "Strava Panel ${{ github.ref_name }}" \
             --notes "$RELEASE_NOTES"

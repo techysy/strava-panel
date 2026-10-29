@@ -179,6 +179,18 @@ ok(cTs[5] === 1000000100, '真实间隔保留：第二段起点=其原始开始�
   ok(ts[3] === 1000000100, '后段保留真实开始时间', ts[3]);
 }
 
+// 整段被去重的段不得推进 lastEnd：否则幻影时间戳会把后续真实段错误平移
+{
+  const cA = buildFit({ points: 5, time: 1000000000 });      // t0..t4
+  const cB = buildFit({ points: 3, time: 1000000002 });      // t2..t4 全撞 A → 整段去重
+  const cC = buildFit({ points: 3, time: 1000000005 });      // t5..t7 紧随 A 结束
+  const r = FIT.combine([cA, cB, cC]);
+  const ts = FIT.parse(r.bytes).messages.filter(m => m.type === 'data' && m.global === 20).map(m => m.data[253]);
+  ok(r.count === 8, 'A(5)+B(0 去重)+C(3) = 8 点', r.count);
+  ok(ts[5] === 1000000005, 'C 段不被幻影 lastEnd 平移（保留真实时间）', ts[5]);
+  ok(ts.every((v, i) => i === 0 || v > ts[i - 1]), '时间轴严格递增', ts);
+}
+
 // 合并去重：同一活动被导出/合并两遍时不得重复计入（否则里程与爬升成倍膨胀，
 // Strava 按 record 重算就会报出离谱爬升）
 {

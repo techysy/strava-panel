@@ -807,15 +807,23 @@ const FIT = (() => {
 
     // 按各文件开始时间升序排序：合并产物的时间轴必须遵循真实活动顺序
     // （一天骑三段 → 早中晚依次衔接），而不是文件列表/选择顺序。
+    // start/first/last 都按采样点真实极值取——个别第三方拼接文件 record
+    // 非时间序（合法），用首条会排错位、重叠判定也会算错方向。
     const segs = [];
     for (const p of parsed) {
       const recs = p.messages.filter(m => m.type === 'data' && m.global === MSG.record && m.data[REC.timestamp] != null);
       if (!recs.length) continue;
-      segs.push({ p, recs, start: recs[0].data[REC.timestamp] });
+      let start = Infinity, end = -Infinity;
+      for (const r of recs) {
+        const t = r.data[REC.timestamp];
+        if (t < start) start = t;
+        if (t > end) end = t;
+      }
+      segs.push({ p, recs, start, end });
     }
     segs.sort((a, b) => a.start - b.start);
 
-    for (const { p, recs } of segs) {
+    for (const { p, recs, start: first, end: last } of segs) {
       const fid = p.messages.find(m => m.type === 'data' && m.global === MSG.file_id);
       if (!sharedFileId && fid) sharedFileId = fid;
 
@@ -825,14 +833,14 @@ const FIT = (() => {
       if (tsKey && tsSeqs.includes(tsKey)) { skippedDup++; continue; }
       if (tsKey) tsSeqs.push(tsKey);
 
-      const first = recs[0].data[REC.timestamp];
-      const last = recs[recs.length - 1].data[REC.timestamp];
+      // first/last 由循环头从 segs 解构（真实 min/max 极值）
       // 时间轴衔接：段间有真实间隔（一天分几段骑）→ 保留真实时间戳不动，
       // 间隔就是停车/休息（移动时间识别会剔除）；仅在时间重叠时顺延 1 秒衔接，
       // 避免同一时刻被两段同时占用或时间倒流。
       let shift = 0;
       if (lastEnd != null && first < lastEnd + 1) shift = lastEnd + 1 - first;
 
+      let kept = 0;
       for (const r of recs) {
         // 采样级去重：同一时刻（码表分段记录的重叠区）只保留第一个出现的点。
         // 坐标同时一致时用二级键；坐标缺失时仅按时刻判重。
@@ -851,8 +859,11 @@ const FIT = (() => {
         c.data[REC.timestamp] = ts + shift;
         c.__srcSeg = offset;      // 来源文件序号：距离按段累加，跨段差值不是真实里程
         all.push(c);
+        kept++;
       }
-      lastEnd = last + shift;
+      // 整段被去重（kept=0）时不得推进 lastEnd：它的 last+shift 是幻影时间戳，
+      // 会把后续真实段错误平移（产物时间轴凭空多出一段「假期」）
+      if (kept) lastEnd = last + shift;
       offset++;
     }
     if (!all.length) throw new Error('所有文件都没有有效的采样数据');

@@ -739,6 +739,8 @@ const FitUI = (() => {
         if (body && pd && pd.hasEle) drawEleProfile(body, pd, st?.map, fsProfileChannels);
         const menu = fl.querySelector('.pl-menu');
         if (menu && menu.style.display !== 'none') menu.innerHTML = profileMenuHtml(pd, fsProfileChannels);
+        // 每勾一个通道浮窗高度 +LANE——高度变了必须重排文件列表，否则又盖回去
+        layoutFsFloats();
       }
     } else {
       // 内嵌普通视图：存入 localStorage 跨会话记住用户偏好
@@ -759,7 +761,9 @@ const FitUI = (() => {
     if (!files) return;
     const ele = host.querySelector('.tm-float-ele');
     if (ele && ele.offsetHeight) {
-      const lift = Math.round(ele.offsetHeight + 14 + 8);   // 底距 14px + 间隙 8px
+      // 底距读 CSS 实际值（.tm-float 定义 bottom:14px），别和样式表脱钩
+      const cssBottom = parseFloat(getComputedStyle(ele).bottom) || 14;
+      const lift = Math.round(ele.offsetHeight + cssBottom + 8);
       files.style.bottom = lift + 'px';
       files.style.maxHeight = 'calc(100% - ' + (lift + 8) + 'px)';
     } else {
@@ -946,8 +950,8 @@ const FitUI = (() => {
     if (_fsRetry++ > 10) return;
     setTimeout(ensureFs, 100);
   }
-  // 全屏裁剪文件浮窗（地图左下）：列表 + 当前目标 + 待应用徽标，点击快速切换编辑对象。
-  // 右下留给海拔剖面类浮窗；空态（非裁剪/退出）自动移除。
+  // 全屏裁剪文件浮窗（地图右下；有海拔浮窗时由 layoutFsFloats 抬升到其上方）：
+  // 列表 + 当前目标 + 待应用徽标，点击快速切换编辑对象。空态（非裁剪/退出）自动移除。
   function renderFsSide() {
     const st = (typeof TrackMap !== 'undefined') ? TrackMap.state('fitMap') : null;
     const host = st && st.fullscreen ? st.fsMapEl : null;
