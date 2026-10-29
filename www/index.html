@@ -400,9 +400,9 @@ html[data-theme="dark"] .tm-float-glass .btn:hover{background:rgba(255,255,255,.
 .card .label{font-size:12.5px;color:var(--text-3);margin-bottom:2px}
 .card .value{font-size:26px;font-weight:800;letter-spacing:-.6px;line-height:1.2;font-variant-numeric:tabular-nums}
 .card .unit{font-size:13.5px;color:var(--text-3);font-weight:500;margin-left:3px;letter-spacing:0}
-/* 环比涨跌角标(官方 "vs last week" 风格) */
+/* 环比涨跌角标(国内惯例：红涨绿跌) */
 .delta{font-size:12px;font-weight:600;margin-top:4px;min-height:16px;color:var(--text-3);font-variant-numeric:tabular-nums}
-.delta.up{color:var(--ok)}.delta.down{color:var(--err)}.delta.flat{color:var(--text-3)}
+.delta.up{color:var(--err)}.delta.down{color:var(--ok)}.delta.flat{color:var(--text-3)}
 
 /* 图表容器 + hover tooltip */
 .chart-wrap{position:relative}
@@ -831,7 +831,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         <div class="card" id="cardPw" style="display:none"><div class="label" data-i18n="stats_pw">平均功率</div><div class="value"><span id="cPw">-</span><span class="unit">W</span></div><div class="delta" id="dPw"></div></div>
       </div>
       <div class="panel">
-        <h2><svg class="ic" aria-hidden="true"><use href="#i-trend"/></svg><span data-i18n="panel_monthly">每月骑行距离 (km)</span><span class="clegend" id="chartLegend" style="display:none"><span class="sw"><i class="box"></i><span data-i18n="cmp_this">本期</span></span><span class="sw"><i class="dash"></i><span data-i18n="cmp_prev">上期</span></span></span><span class="pop-anchor" style="margin-left:auto;margin-right:10px"><button class="btn" onclick="toggleCoachPop('stypePop',event)" style="padding:4px 10px"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span data-i18n="stype_label">运动类型</span><span class="pi-meta" id="stypeCur">—</span></button><div class="pop-list right" id="stypePop"></div></span><span class="cmp-toggle" id="cmpToggle" onclick="toggleCompare()"><span data-i18n="cmp_label">对比上期</span><span class="switch"></span></span></h2>
+        <h2><svg class="ic" aria-hidden="true"><use href="#i-trend"/></svg><span data-i18n="panel_monthly">每月骑行距离 (km)</span><span class="clegend" id="chartLegend" style="display:none"><span class="sw"><i class="box"></i><span data-i18n="cmp_this">本期</span></span><span class="sw"><i class="dash"></i><span data-i18n="cmp_prev">上期</span></span></span><span class="cmp-toggle" id="cmpToggle" onclick="toggleCompare()" style="margin-left:auto"><span data-i18n="cmp_label">对比上期</span><span class="switch"></span></span><span class="pop-anchor" style="margin-left:8px"><button class="btn" onclick="toggleCoachPop('stypePop',event)" style="padding:4px 10px"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span data-i18n="stype_label">运动类型</span><span class="pi-meta" id="stypeCur">—</span></button><div class="pop-list right" id="stypePop"></div></span></h2>
         <div id="weeklyChart"></div>
       </div>
     </div>
@@ -1406,7 +1406,7 @@ const I18N = {
     trip_noHourly:'无逐时数据',
     map_street:'街道', map_light:'浅色', map_sat:'卫星', map_unavailable:'地图库未加载',
     atype_ride:'骑行', atype_run:'跑步', atype_all:'全部', atype_label:'类型',
-    stype_label:'运动类型', stype_human:'人力运动', stype_selected:'项', stype_allBtn:'全选', stype_humanBtn:'仅人力运动',
+    stype_label:'运动类型', stype_selected:'项', stype_allBtn:'全选',
 
     fit_durH:'小时', fit_durM:'分', fit_durS:'秒', fit_tagCad:'踏频', fit_tagGeo:'轨迹', fit_tagPoints:'点', fit_noDist:'无距离', fit_tagCrcBad:'CRC 异常', fit_remove:'移除', fit_elapsed:'历时', fit_moving:'移动',
     nav_coach:'训练建议', coach_title:'AI 训练建议', coach_noLlm:'尚未配置模型', coach_gotoSettings:'前往 设置 → 模型',
@@ -1559,7 +1559,7 @@ const I18N = {
     trip_noHourly:'No hourly data',
     map_street:'Street', map_light:'Light', map_sat:'Satellite', map_unavailable:'Map library not loaded',
     atype_ride:'Cycling', atype_run:'Running', atype_all:'All', atype_label:'Type',
-    stype_label:'Sport types', stype_human:'Human-powered', stype_selected:' sel.', stype_allBtn:'Select all', stype_humanBtn:'Human-powered only',
+    stype_label:'Sport types', stype_selected:' sel.', stype_allBtn:'Select all',
 
     fit_durH:'h', fit_durM:'min', fit_durS:'s', fit_tagCad:'Cadence', fit_tagGeo:'Track', fit_tagPoints:'pts', fit_noDist:'no distance', fit_tagCrcBad:'CRC bad', fit_remove:'Remove', fit_elapsed:'elapsed', fit_moving:'moving',
     nav_coach:'Coach', coach_title:'AI Training Coach', coach_noLlm:'Model not configured', coach_gotoSettings:'Go to Settings → Model',
@@ -2095,7 +2095,7 @@ const STYPE_OPTS = [
   { id: 'WeightTraining,Workout', zh: '力量训练/综训', en: 'Strength / Workout' },
   { id: 'Rowing,Yoga',     zh: '划船/瑜伽',         en: 'Rowing / Yoga' },
 ];
-// 默认 = 人力运动（排除电助力和虚拟）；持久化 sp-stats-types（逗号分隔组 id）
+// 默认排除电助力与虚拟（数据才不被吹爆）；持久化 sp-stats-types（组 id 数组）
 const STYPE_DEFAULT = ['Ride', 'GravelRide', 'Run,TrailRun', 'Hike,Walk', 'Swim', 'Snowboard,Ski', 'WeightTraining,Workout', 'Rowing,Yoga'];
 let statTypes = (() => {
   try{
@@ -2118,7 +2118,6 @@ function statTypesParam(){
 }
 function statTypesShort(){
   if(statTypes.length === STYPE_OPTS.length) return t('atype_all');
-  if(statTypes.length === STYPE_DEFAULT.length && STYPE_DEFAULT.every(id => statTypes.includes(id))) return t('stype_human');
   return statTypes.length + ' ' + t('stype_selected');
 }
 function renderStypePop(){
@@ -2133,7 +2132,6 @@ function renderStypePop(){
       + '</button>';
   }).join('') + '<div style="display:flex;gap:6px;padding:6px 4px 2px;border-top:1px solid var(--border-subtle);margin-top:4px">'
     + '<button class="btn" style="flex:1;padding:5px 8px;font-size:11.5px" onclick="setStatTypesAll()">'+escapeHtml(t('stype_allBtn'))+'</button>'
-    + '<button class="btn" style="flex:1;padding:5px 8px;font-size:11.5px" onclick="setStatTypesHuman()">'+escapeHtml(t('stype_humanBtn'))+'</button>'
     + '</div>';
   const cur = document.getElementById('stypeCur');
   if(cur) cur.textContent = statTypesShort();
@@ -2147,7 +2145,6 @@ function toggleStatType(id){
   loadData();   // 统计卡/图表/对比即时生效
 }
 function setStatTypesAll(){ statTypes = STYPE_OPTS.map(o => o.id); persistStatTypes(); }
-function setStatTypesHuman(){ statTypes = STYPE_DEFAULT.slice(); persistStatTypes(); }
 function persistStatTypes(){
   localStorage.setItem('sp-stats-types', JSON.stringify(statTypes));
   renderStypePop();
