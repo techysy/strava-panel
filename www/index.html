@@ -831,7 +831,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
         <div class="card" id="cardPw" style="display:none"><div class="label" data-i18n="stats_pw">平均功率</div><div class="value"><span id="cPw">-</span><span class="unit">W</span></div><div class="delta" id="dPw"></div></div>
       </div>
       <div class="panel">
-        <h2><svg class="ic" aria-hidden="true"><use href="#i-trend"/></svg><span data-i18n="panel_monthly">每月骑行距离 (km)</span><span class="clegend" id="chartLegend" style="display:none"><span class="sw"><i class="box"></i><span data-i18n="cmp_this">本期</span></span><span class="sw"><i class="dash"></i><span data-i18n="cmp_prev">上期</span></span></span><span class="cmp-toggle" id="cmpToggle" onclick="toggleCompare()"><span data-i18n="cmp_label">对比上期</span><span class="switch"></span></span></h2>
+        <h2><svg class="ic" aria-hidden="true"><use href="#i-trend"/></svg><span data-i18n="panel_monthly">每月骑行距离 (km)</span><span class="clegend" id="chartLegend" style="display:none"><span class="sw"><i class="box"></i><span data-i18n="cmp_this">本期</span></span><span class="sw"><i class="dash"></i><span data-i18n="cmp_prev">上期</span></span></span><span class="pop-anchor" style="margin-left:auto;margin-right:10px"><button class="btn" onclick="toggleCoachPop('stypePop',event)" style="padding:4px 10px"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span data-i18n="stype_label">运动类型</span><span class="pi-meta" id="stypeCur">—</span></button><div class="pop-list right" id="stypePop"></div></span><span class="cmp-toggle" id="cmpToggle" onclick="toggleCompare()"><span data-i18n="cmp_label">对比上期</span><span class="switch"></span></span></h2>
         <div id="weeklyChart"></div>
       </div>
     </div>
@@ -1406,6 +1406,7 @@ const I18N = {
     trip_noHourly:'无逐时数据',
     map_street:'街道', map_light:'浅色', map_sat:'卫星', map_unavailable:'地图库未加载',
     atype_ride:'骑行', atype_run:'跑步', atype_all:'全部', atype_label:'类型',
+    stype_label:'运动类型', stype_human:'人力运动', stype_selected:'项', stype_allBtn:'全选', stype_humanBtn:'仅人力运动',
 
     fit_durH:'小时', fit_durM:'分', fit_durS:'秒', fit_tagCad:'踏频', fit_tagGeo:'轨迹', fit_tagPoints:'点', fit_noDist:'无距离', fit_tagCrcBad:'CRC 异常', fit_remove:'移除', fit_elapsed:'历时', fit_moving:'移动',
     nav_coach:'训练建议', coach_title:'AI 训练建议', coach_noLlm:'尚未配置模型', coach_gotoSettings:'前往 设置 → 模型',
@@ -1558,6 +1559,7 @@ const I18N = {
     trip_noHourly:'No hourly data',
     map_street:'Street', map_light:'Light', map_sat:'Satellite', map_unavailable:'Map library not loaded',
     atype_ride:'Cycling', atype_run:'Running', atype_all:'All', atype_label:'Type',
+    stype_label:'Sport types', stype_human:'Human-powered', stype_selected:' sel.', stype_allBtn:'Select all', stype_humanBtn:'Human-powered only',
 
     fit_durH:'h', fit_durM:'min', fit_durS:'s', fit_tagCad:'Cadence', fit_tagGeo:'Track', fit_tagPoints:'pts', fit_noDist:'no distance', fit_tagCrcBad:'CRC bad', fit_remove:'Remove', fit_elapsed:'elapsed', fit_moving:'moving',
     nav_coach:'Coach', coach_title:'AI Training Coach', coach_noLlm:'Model not configured', coach_gotoSettings:'Go to Settings → Model',
@@ -1643,6 +1645,7 @@ function setLang(lang){
   reRenderPowerCurve();
   if(typeof reRenderTrip === 'function') reRenderTrip();
   if(typeof renderAtypeSeg === 'function') renderAtypeSeg();
+  if(typeof renderStypePop === 'function'){ renderStypePop(); document.querySelectorAll('.pop-anchor .pop-list').forEach(p=>p.classList.remove('show')); }   // 弹窗开着切语言也即时重渲染
   // 注意：FitUI 是 classic script 的顶层 const，不挂 window —— 必须用 typeof 探测
   if(typeof FitUI !== 'undefined' && typeof FitUI.relang === 'function') FitUI.relang();   // FIT 动态 DOM（卡片/工具条/裁剪条/底图按钮）
   if(document.getElementById('cardsMask')?.classList.contains('show')) openCardSettings();   // 重渲染弹窗内名称
@@ -2076,6 +2079,81 @@ function renderAtypeSeg(){
   const cntLabel = document.querySelector('#cardCount .label');
   if(cntLabel) cntLabel.textContent = currentLang === 'en' ? 'Activities' : '活动次数';
 }
+// ---- 统计运动类型过滤（图表面板弹窗，多选）----
+// 作用于统计卡 + 图表 + 上期对比；与「最近」列表的单选 atype 互不影响。
+// 默认排除 EBikeRide/VirtualRide 等非人力类型——电助力/骑行台会把里程爬升吹爆。
+const STYPE_OPTS = [
+  { id: 'Ride',            zh: '骑行（公路/山地）', en: 'Ride (road/MTB)' },
+  { id: 'GravelRide',      zh: '砾石骑行',          en: 'Gravel Ride' },
+  { id: 'EBikeRide',       zh: '电助力骑行',        en: 'E-Bike Ride' },
+  { id: 'VirtualRide',     zh: '骑行台/虚拟骑行',   en: 'Virtual Ride' },
+  { id: 'VirtualRun',      zh: '跑步机/虚拟跑步',   en: 'Virtual Run' },
+  { id: 'Run,TrailRun',    zh: '跑步/越野跑',       en: 'Run / Trail Run' },
+  { id: 'Hike,Walk',       zh: '徒步/步行',         en: 'Hike / Walk' },
+  { id: 'Swim',            zh: '游泳',              en: 'Swim' },
+  { id: 'Snowboard,Ski',   zh: '滑雪',              en: 'Snowboard / Ski' },
+  { id: 'WeightTraining,Workout', zh: '力量训练/综训', en: 'Strength / Workout' },
+  { id: 'Rowing,Yoga',     zh: '划船/瑜伽',         en: 'Rowing / Yoga' },
+];
+// 默认 = 人力运动（排除电助力和虚拟）；持久化 sp-stats-types（逗号分隔组 id）
+const STYPE_DEFAULT = ['Ride', 'GravelRide', 'Run,TrailRun', 'Hike,Walk', 'Swim', 'Snowboard,Ski', 'WeightTraining,Workout', 'Rowing,Yoga'];
+let statTypes = (() => {
+  try{
+    const raw = JSON.parse(localStorage.getItem('sp-stats-types') || 'null');
+    if(Array.isArray(raw) && raw.length){
+      const valid = raw.filter(id => STYPE_OPTS.some(o => o.id === id));
+      if(valid.length) return valid;
+    }
+  }catch(e){}
+  return STYPE_DEFAULT.slice();
+})();
+// /^[a-z]+$/i 无逗号的组 → 拼 types 参数时不需要去重处理，直接收集展开
+function statTypesParam(){
+  const parts = [];
+  for(const id of statTypes){
+    const o = STYPE_OPTS.find(x => x.id === id);
+    if(o) parts.push(o.id);
+  }
+  return parts.join(',');
+}
+function statTypesShort(){
+  if(statTypes.length === STYPE_OPTS.length) return t('atype_all');
+  if(statTypes.length === STYPE_DEFAULT.length && STYPE_DEFAULT.every(id => statTypes.includes(id))) return t('stype_human');
+  return statTypes.length + ' ' + t('stype_selected');
+}
+function renderStypePop(){
+  const pop = document.getElementById('stypePop');
+  if(!pop) return;
+  pop.innerHTML = STYPE_OPTS.map(o => {
+    const on = statTypes.includes(o.id);
+    const label = escapeHtml(currentLang === 'en' ? o.en : o.zh);
+    return '<button class="pop-item'+(on?' on':'')+'" onclick="toggleStatType(\''+o.id+'\')">'
+      + '<span class="pi-title">'+label+'</span>'
+      + (on?'<span class="pi-meta" style="margin-left:auto">✓</span>':'')
+      + '</button>';
+  }).join('') + '<div style="display:flex;gap:6px;padding:6px 4px 2px;border-top:1px solid var(--border-subtle);margin-top:4px">'
+    + '<button class="btn" style="flex:1;padding:5px 8px;font-size:11.5px" onclick="setStatTypesAll()">'+escapeHtml(t('stype_allBtn'))+'</button>'
+    + '<button class="btn" style="flex:1;padding:5px 8px;font-size:11.5px" onclick="setStatTypesHuman()">'+escapeHtml(t('stype_humanBtn'))+'</button>'
+    + '</div>';
+  const cur = document.getElementById('stypeCur');
+  if(cur) cur.textContent = statTypesShort();
+}
+function toggleStatType(id){
+  const i = statTypes.indexOf(id);
+  if(i >= 0){ if(statTypes.length > 1) statTypes.splice(i, 1); }   // 至少留一个
+  else statTypes.push(id);
+  localStorage.setItem('sp-stats-types', JSON.stringify(statTypes));
+  renderStypePop();
+  loadData();   // 统计卡/图表/对比即时生效
+}
+function setStatTypesAll(){ statTypes = STYPE_OPTS.map(o => o.id); persistStatTypes(); }
+function setStatTypesHuman(){ statTypes = STYPE_DEFAULT.slice(); persistStatTypes(); }
+function persistStatTypes(){
+  localStorage.setItem('sp-stats-types', JSON.stringify(statTypes));
+  renderStypePop();
+  document.querySelectorAll('.pop-anchor .pop-list').forEach(p=>p.classList.remove('show'));
+  loadData();
+}
 // ---- 组件设置：统计卡显隐 + 排序（拖拽），持久化 sp-cards ----
 // 卡片定义与 DOM id 对应；hr/pw 原本就存在(有数据自动显示)，此处纳入统一管理
 const CARD_DEFS = [
@@ -2168,8 +2246,9 @@ function resetCardCfg(){
 async function loadData(){
   try{
     const r = periodRange();
-    // 统计卡/图表恒为全部运动视角（ALL）；运动类型过滤只作用于「最近」列表
-    const tQs = 'types=' + encodeURIComponent(ATYPE_OPTS[0].api);
+    // 统计卡/图表遵循「运动类型」弹窗的多选过滤（默认人力运动，排除电助力/虚拟）
+    const typesQs = statTypesParam() || 'Ride';
+    const tQs = 'types=' + encodeURIComponent(typesQs);
     const qs = (r ? `start=${r.start}&end=${r.end}&` : '') + tQs;
     const pr = prevPeriodRange();
     const pqs = (pr ? `start=${pr.start}&end=${pr.end}&` : '') + tQs;
@@ -3686,6 +3765,7 @@ function toggleCoachPop(id, ev){
     if(id === 'modelPop') renderCoachModelPop();
     if(id === 'sportPop') renderSportPop();
     if(id === 'atypePop') renderAtypePop();
+    if(id === 'stypePop') renderStypePop();
   }
 }
 function renderCoachModelPop(){
@@ -5067,6 +5147,7 @@ applyI18n();
 FitUI.init();
 renderCompareUI();
 renderAtypeSeg();
+renderStypePop();
 applyCardCfg();
 refreshStatus();
 switchNav(currentNav);
