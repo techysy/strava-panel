@@ -102,8 +102,10 @@ html[data-theme="dark"] .nav button.active{box-shadow:none;outline:1px solid var
 .view{display:none}
 .view.active{display:flex;flex-direction:column;min-height:calc(100vh - 212px)}
 #tab-data .panel:last-child,#tab-rides .panel,#tab-dash .panel:last-child,#tab-coach .panel,#tab-power .panel{flex:1;display:flex;flex-direction:column}
-#weeklyChart{flex:1;min-height:220px}
-#powerChart{flex:1;min-height:280px}
+/* 图表高度固定：容器不能用 flex 拉到视口剩余高——内容/滚动条一变 clientHeight 就漂移，
+   SVG 是按绘制时的 clientHeight 定死的，脱节后出现大片空白或截断（仅宽度自适应重绘） */
+#weeklyChart{height:320px}
+#powerChart{height:340px}
 /* FIT 工具：原生实现（本地处理，不上传） */
 .fit-drop{border:1.5px dashed var(--border-strong);border-radius:14px;padding:26px 16px;text-align:center;cursor:pointer;transition:all .15s;background:var(--surface)}
 .fit-drop:hover,.fit-drop.over{border-color:var(--accent);background:var(--hover)}
@@ -2378,7 +2380,7 @@ function renderPowerCurve(){
   const minDur = Math.min(...allDurations), maxDur = Math.max(...allDurations);
   const logMin = Math.log2(minDur), logMax = Math.log2(maxDur);
   const w = Math.max(320, host.clientWidth || 560);
-  const h = Math.max(280, host.clientHeight || 280), padL = 46, padR = 14, padT = 18, padB = 30;
+  const h = Math.max(280, Math.min(400, host.clientHeight || 340)), padL = 46, padR = 14, padT = 18, padB = 30;
   const iw = w - padL - padR, ih = h - padT - padB;
   const baseY = padT + ih;
 
@@ -2636,7 +2638,10 @@ function renderMonthly(months, key, prev){
   const data = months.slice(-31);
   const n = data.length;
   const w = Math.max(320, host.clientWidth || 560);
-  const h = Math.max(300, host.clientHeight || 300), padL = 34, padR = 6, padT = 14, padB = 28;
+  // 高度固定（CSS height:320px），clientHeight 读数仅在容器异常时兜底——
+  // 旧逻辑 flex:1 跟随视口拉伸，内容变化后 SVG 高度与容器脱节（超一屏大空白）
+  const h = Math.max(280, Math.min(400, host.clientHeight || 320));
+  const padL = 34, padR = 6, padT = 14, padB = 28;
   const iw = w - padL - padR, ih = h - padT - padB;
   const MF = METRIC_FIELD[chartMetric] || 'dist_km';
   const MDEC = chartMetric === 'count' ? 0 : 1;
