@@ -38,12 +38,22 @@ export async function tripWeather(qs) {
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new Error('缺少 lat/lon 参数');
   const days = Math.min(7, Math.max(1, Number(qs.days) || 7));
   const tz = qs.tz || 'Asia/Shanghai';
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
-    + `&hourly=temperature_2m,precipitation_probability,precipitation,weathercode,wind_speed_10m,wind_direction_10m,wind_gusts_10m`
+  const baseParams = '&hourly=temperature_2m,precipitation_probability,precipitation,weathercode,wind_speed_10m,wind_direction_10m,wind_gusts_10m'
     + `&timezone=${encodeURIComponent(tz)}&forecast_days=${days}`;
-  const resp = await fetchTimeout(url, { headers: HEADERS }, 15000);
-  if (!resp.ok) throw new Error(`Open-Meteo HTTP ${resp.status}`);
-  const d = await resp.json();
+  const baseUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`;
+
+  // 多模型并行：主结果取默认（Open-Meteo 自动择优），另取两个独立模型做交叉校验。
+  // ECMWF(欧洲中心) / GFS(美国) / ICON(德国) 是全球三大主力，山区短临预报分歧往往很大，
+  // 只报单一模型会给出虚假的确定感。
+  const EXTRA_MODELS = ['ecmwf_ifs025', 'gfs_seamless', 'icon_seamless'];
+  const [mainResp, ...modelResps] = await Promise.all([
+    fetchTimeout(baseUrl + baseParams, { headers: HEADERS }, 15000),
+    ...EXTRA_MODELS.map(m => fetchTimeout(
+      baseUrl + baseParams + '&models=' + m, { headers: HEADERS }, 15000
+    ).then(r => r.ok ? r.json() : null).catch(() => null)),
+  ]);
+  if (!mainResp.ok) throw new Error(`Open-Meteo HTTP ${mainResp.status}`);
+  const d = await mainResp.json();
   const h = d.hourly || {};
   // 全量逐时行（前端逐时图表 + 运动窗口用）
   const hourly = (h.time || []).map((t, i) => ({
@@ -71,10 +81,55 @@ export async function tripWeather(qs) {
     rainMax: Math.max(0, ...hours.map(x => x.rainProb ?? 0)),
     worst: hours.slice().sort((a, b) => (b.rainProb ?? 0) - (a.rainProb ?? 0))[0]?.code,
   }));
+  // ---- 多模型一致性校验 ----
+  // 对每个时刻，取各模型温度/降雨概率的离散度：温差越大、降雨分歧越大，
+  // 预报越不可信。输出逐时 spread 供前端提示，并汇总成 overall 等级。
+  const models = [];
+  for (let mi = 0; mi < EXTRA_MODELS.length; mi++) {
+    const md = modelResps[mi];
+    if (!md || !md.hourly || md.error) continue;
+    models.push({ id: EXTRA_MODELS[mi], time: md.hourly.time || [], temp: md.hourly.temperature_2m || [], rain: md.hourly.precipitation_probability || [] });
+  }
+  const idxByTime = new Map(hourly.map((x, i) => [x.time, i]));
+  const spread = hourly.map((x, i) => {
+    const temps = [], rains = [];
+    if (Number.isFinite(x.temp)) temps.push(x.temp);
+    if (Number.isFinite(x.rainProb)) rains.push(x.rainProb);
+    for (const m of models) {
+      const j = m.time.indexOf(x.time);   // 模型时间轴可能不一致，按时间查找
+      if (j < 0) continue;
+      if (Number.isFinite(m.temp[j])) temps.push(m.temp[j]);
+      if (Number.isFinite(m.rain[j])) rains.push(m.rain[j]);
+    }
+    if (temps.length < 2) return null;
+    const tMin = Math.min(...temps), tMax = Math.max(...temps);
+    const rMin = rains.length ? Math.min(...rains) : null;
+    const rMax = rains.length ? Math.max(...rains) : null;
+    return {
+      tempRange: +(tMax - tMin).toFixed(1),
+      rainRange: (rMin != null && rMax != null) ? Math.round(rMax - rMin) : null,
+      n: temps.length,
+    };
+  });
+  const vals = spread.filter(Boolean);
+  const avgTempSpread = vals.length ? +(vals.reduce((a, b) => a + b.tempRange, 0) / vals.length).toFixed(1) : null;
+  const maxTempSpread = vals.length ? Math.max(...vals.map(v => v.tempRange)) : null;
+  // 一致性等级：平均温差 ≤1.5°C 高、≤3.5°C 中、否则低（预报越分歧越不可信）
+  const consistency = avgTempSpread == null ? null
+    : avgTempSpread <= 1.5 ? 'high' : avgTempSpread <= 3.5 ? 'medium' : 'low';
+
   return {
     ok: true, tz,
     unit: { temp: d.hourly_units?.temperature_2m || '°C', wind: d.hourly_units?.wind_speed_10m || 'km/h' },
     hourly, days: daysOut, wmo: WMO,
+    // 多模型校验（前端据此提示「预报分歧大」「多模型一致」）
+    verification: {
+      models: models.map(m => m.id),
+      spread,                 // 逐时：{tempRange, rainRange, n} 或 null
+      avgTempSpread,          // 全程平均温差（°C）
+      maxTempSpread,          // 最大温差
+      consistency,            // 'high' | 'medium' | 'low' | null
+    },
   };
 }
 
@@ -211,13 +266,100 @@ async function loadStations(dataDir) {
 }
 
 function resolveStation(data, name) {
-  if (data.NAME_STATIONS[name]) return data.NAME_STATIONS[name];
-  if (data.CITY_CODES[name]) return data.CITY_CODES[name];
-  if (data.CITY_STATIONS[name]) return data.CITY_STATIONS[name][0];
-  const trimmed = String(name).replace(/[市站]$/, '');
+  const raw = String(name == null ? '' : name).trim();
+  if (data.NAME_STATIONS[raw]) return data.NAME_STATIONS[raw];
+  if (data.CITY_CODES[raw]) return data.CITY_CODES[raw];
+  if (data.CITY_STATIONS[raw]) return data.CITY_STATIONS[raw][0];
+  const trimmed = raw.replace(/[市站]$/, '');
   if (data.CITY_CODES[trimmed]) return data.CITY_CODES[trimmed];
   if (data.CITY_STATIONS[trimmed]) return data.CITY_STATIONS[trimmed][0];
-  return null;
+  // 精确匹配失败 → 模糊匹配（12306 常见误输入：方位字记错、少字、多字、
+  // 拼音/首字母输入）。候选只有一个才采用，多个歧义时交给调用方报错并列出候选，
+  // 绝不静默挑一个（选错站会查出完全错误的余票）。
+  const fuzzy = fuzzyStations(data, raw);
+  return fuzzy.length === 1 ? fuzzy[0].station : null;
+}
+
+// 模糊匹配候选：站名/拼音/首字母包含关系 + 编辑距离兜底
+function fuzzyStations(data, raw) {
+  const q = String(raw == null ? '' : raw).trim();
+  if (!q) return [];
+  const key = q.replace(/[市站]$/, '');
+  if (!key) return [];
+
+  // 1) 站名互相包含（「淮口」⊂「淮口南」成立；「淮口北」与「淮口南」靠下面的
+  //    编辑距离兜底）：
+  //    输入是站名的一部分，或站名包含输入 —— 取最短（最贴近城市名）的几个
+  const byContains = [];
+  for (const name of Object.keys(data.NAME_STATIONS)) {
+    if (!name.includes(key) && !key.includes(name)) continue;
+    byContains.push({ station: data.NAME_STATIONS[name], name });
+  }
+  if (byContains.length) {
+    // 长度差越小越贴近；同名优先
+    byContains.sort((a, b) =>
+      Math.abs(a.name.length - key.length) - Math.abs(b.name.length - key.length) || a.name.localeCompare(b.name));
+    const best = Math.abs(byContains[0].name.length - key.length);
+    // 只保留最短的那批（避免「淮口北」匹配到几十个带「淮」的站）
+    const kept = byContains.filter(x => Math.abs(x.name.length - key.length) === best);
+    if (kept.length === 1) return [{ station: kept[0].station, score: 0, kind: 'contains' }];
+    return kept.map(x => ({ station: x.station, score: 1, kind: 'contains' }));
+  }
+
+  // 2) 同前缀 + 同长度（方位字记错：淮口北 → 淮口南）：比编辑距离更贴切，
+  //    且能压住「淮北 / 河口北」这类碰巧距离 1 的干扰
+  if (key.length >= 3) {
+    const stem = key.slice(0, -1), tail = key.slice(-1);
+    const sameStem = [];
+    for (const name of Object.keys(data.NAME_STATIONS)) {
+      if (name.length !== key.length || !name.startsWith(stem) || name === key) continue;
+      sameStem.push({ station: data.NAME_STATIONS[name], name, same: name.slice(-1) === tail });
+    }
+    // 双字方位（东/南/西/北 与 东/南/西/北）取最近的；只有一个则直接采用
+    if (sameStem.length === 1) return [{ station: sameStem[0].station, score: 1, kind: 'stem' }];
+    if (sameStem.length > 1) return sameStem.map(x => ({ station: x.station, score: 1, kind: 'stem' }));
+  }
+
+  // 3) 编辑距离 1 的近似（错一个字）：仅当目标长度相近时做，且要求唯一
+  const near = [];
+  for (const name of Object.keys(data.NAME_STATIONS)) {
+    if (Math.abs(name.length - key.length) > 1) continue;
+    if (editDistanceAtMost1(name, key)) near.push({ station: data.NAME_STATIONS[name], name });
+  }
+  if (near.length) return near.map(x => ({ station: x.station, score: 2, kind: 'typo' }));
+
+  // 3) 拼音 / 首字母前缀（用户可能输入 huikoubei / hkb）
+  const pk = q.toLowerCase().replace(/[^a-z]/g, '');
+  if (pk.length >= 2) {
+    const byPy = [];
+    for (const [code, s] of Object.entries(data.STATIONS)) {
+      if ((s.station_pinyin || '').startsWith(pk) || (s.station_short || '') === pk) {
+        byPy.push({ station: s, name: s.station_name });
+      }
+    }
+    if (byPy.length) return byPy.map(x => ({ station: x.station, score: 3, kind: 'pinyin' }));
+  }
+  return [];
+}
+
+// 编辑距离 ≤ 1 的快速判定（插入/删除/替换单个字符）
+function editDistanceAtMost1(a, b) {
+  if (a === b) return true;
+  const la = a.length, lb = b.length;
+  if (Math.abs(la - lb) > 1) return false;
+  let i = 0;
+  while (i < Math.min(la, lb) && a[i] === b[i]) i++;
+  if (la === lb) return a.slice(i + 1) === b.slice(i + 1);        // 替换一个字符
+  if (la > lb) return a.slice(i + 1) === b.slice(i);              // a 多一个字符
+  return a.slice(i) === b.slice(i + 1);                            // b 多一个字符
+}
+
+// 车站解析失败的提示：列出模糊候选，让用户点选而不是干瞪眼
+function stationErr(data, name, label) {
+  const cands = fuzzyStations(data, name).slice(0, 6).map(c => c.station.station_name);
+  if (!cands.length) return `找不到${label}：${name}`;
+  if (cands.length === 1) return `找不到${label}「${name}」，是否指「${cands[0]}」？`;
+  return `找不到${label}「${name}」，可能是：${cands.join(' / ')}`;
 }
 
 async function get12306Cookie() {
@@ -238,8 +380,8 @@ export async function tripTrains(qs, dataDir) {
   const data = await loadStations(dataDir);
   const from = resolveStation(data, fromName);
   const to = resolveStation(data, toName);
-  if (!from) throw new Error(`找不到车站：${fromName}`);
-  if (!to) throw new Error(`找不到车站：${toName}`);
+  if (!from) throw new Error(stationErr(data, fromName, '出发站'));
+  if (!to) throw new Error(stationErr(data, toName, '到达站'));
 
   const cookie = await get12306Cookie();
   const params = new URLSearchParams({

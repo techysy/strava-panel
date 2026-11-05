@@ -1405,6 +1405,7 @@ const I18N = {
     trip_outOfRange:'出行日期超出逐时预报范围，时间线按最近两天预报推算，仅供参考。',
     trip_timeRange:'出发时间范围', trip_arrive:'到达',
     trip_hourlyChart:'逐时天气', trip_hourlyNote:'温度折线 + 降雨概率柱；竖线间为运动窗口（开始时间起按匀速推算用时；未加载 GPX 时为 6~18 点）。悬停查看该小时详情。',
+    trip_modelBadge:'{n} 模型 · 均差 {avg}°C', trip_modelTip:'多模型交叉校验（{models}）。全程平均温差 {avg}°C、最大 {max}°C——温差越小预报越可信。',
     trip_noHourly:'无逐时数据',
     map_street:'街道', map_light:'浅色', map_sat:'卫星', map_unavailable:'地图库未加载',
     atype_ride:'骑行', atype_run:'跑步', atype_all:'全部', atype_label:'类型',
@@ -1558,6 +1559,7 @@ const I18N = {
     trip_outOfRange:'The trip date is beyond the hourly forecast window; the timeline uses the next two days and is indicative only.',
     trip_timeRange:'Departure window', trip_arrive:'Arrive',
     trip_hourlyChart:'Hourly weather', trip_hourlyNote:'Temperature line + rain-probability bars; the vertical band is the workout window (from the start time, using the constant-speed duration; 6-18 without a GPX). Hover for hourly detail.',
+    trip_modelBadge:'{n} models · Δ {avg}°C', trip_modelTip:'Multi-model cross-check ({models}). Average spread {avg}°C, max {max}°C — smaller spread means a more reliable forecast.',
     trip_noHourly:'No hourly data',
     map_street:'Street', map_light:'Light', map_sat:'Satellite', map_unavailable:'Map library not loaded',
     atype_ride:'Cycling', atype_run:'Running', atype_all:'All', atype_label:'Type',
@@ -1622,7 +1624,8 @@ let currentLang = localStorage.getItem('sv_lang') || 'zh';
 function t(key, vars){
   const dict = I18N[currentLang] || I18N.zh;
   let s = dict[key] !== undefined ? dict[key] : (I18N.zh[key] || key);
-  if(vars) for(const k in vars) s = s.replace('{'+k+'}', vars[k]);
+  // 全部替换而非首个：字符串里同一占位符可能出现多次（如「均差 {avg}，最大 {avg}」类文案）
+  if(vars) for(const k in vars) s = s.split('{'+k+'}').join(vars[k]);
   return s;
 }
 function applyI18n(){
@@ -4996,7 +4999,16 @@ function tripRenderWeather(){
   }).join('');
   const table = '<table class="trip-table"><tr><th>'+t('trip_date')+'</th><th>'+t('trip_weather')+'</th><th>'+t('trip_temp')+'</th><th>'+t('trip_rain')+'</th></tr>'+rows+'</table>'+
     '<div class="tt" style="margin-top:6px;font-size:11px;color:var(--text-3)">'+escapeHtml(t('trip_weatherNote'))+'</div>';
-  box.innerHTML = '<div class="tt" style="font-size:12px;font-weight:600;color:var(--text-2);margin-top:4px">'+escapeHtml(t('trip_hourlyChart'))+'</div>'
+  // 多模型交叉校验徽标：模型间温差越小越可信
+  const v = d.verification;
+  let vBadge = '';
+  if(v && v.consistency){
+    vBadge = '<span class="pi-meta" title="'+escapeHtml(t('trip_modelTip', {
+      models: (v.models||[]).join(' / '), avg: v.avgTempSpread, max: v.maxTempSpread,
+    }))+'" style="margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid var(--border-subtle);font-size:10.5px;font-weight:600">'
+      + escapeHtml(t('trip_modelBadge', { n: (v.models||[]).length + 1, avg: v.avgTempSpread })) + '</span>';
+  }
+  box.innerHTML = '<div class="tt" style="font-size:12px;font-weight:600;color:var(--text-2);margin-top:4px;display:flex;align-items:center;flex-wrap:wrap">'+escapeHtml(t('trip_hourlyChart')) + vBadge + '</div>'
     + daybar + '<div class="trip-hourly" id="tripHourlyChart"></div>'
     + '<div class="tt" style="font-size:11px;color:var(--text-3);margin:2px 0 4px">'+escapeHtml(t('trip_hourlyNote'))+'</div>' + table;
   tripRenderHourlyChart();
