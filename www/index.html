@@ -1188,7 +1188,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
     <div class="view" id="tab-trip">
       <div class="panel">
         <h2><svg class="ic" aria-hidden="true"><use href="#i-mountain"/></svg><span data-i18n="trip_title">户外出行计划</span></h2>
-        <p class="hint" style="margin:-4px 0 12px" data-i18n="trip_hint">骑行 / 徒步 / 越野跑出行方案：查目的地周末天气、高铁余票与装备清单。数据来自 Open-Meteo 与 12306。</p>
+        <p class="hint" style="margin:-4px 0 12px" data-i18n="trip_hint">骑行 / 徒步 / 越野跑出行方案：查目的地周末天气、高铁余票与装备清单。天气由 ECMWF / GFS / ICON 等多套数值模型交叉校验，余票来自 12306。</p>
         <div class="trip-grid">
           <div class="trip-card">
             <h3><svg class="ic" aria-hidden="true"><use href="#i-calendar"/></svg><span data-i18n="trip_dateCard">出行日期</span></h3>
@@ -1381,7 +1381,7 @@ const I18N = {
     fit_cropDraftBack:'已恢复 {n} 个待应用的裁剪草稿',
     fit_needMulti:'合并至少需要 2 个文件',
     coach_sports:'运动方式', coach_sportsSave:'保存', coach_sportsSaved:'运动方式已保存，教练将只在该范围内推荐训练', coach_sportsSaveFail:'保存失败: ', coach_sportsNeedOne:'至少选择一种运动',
-    nav_trip:'出行计划', trip_title:'户外出行计划', trip_hint:'骑行 / 徒步 / 越野跑出行方案：查目的地周末天气、高铁余票与装备清单。数据来自 Open-Meteo 与 12306。',
+    nav_trip:'出行计划', trip_title:'户外出行计划', trip_hint:'骑行 / 徒步 / 越野跑出行方案：查目的地周末天气、高铁余票与装备清单。天气由 ECMWF / GFS / ICON 等多套数值模型交叉校验，余票来自 12306。',
     trip_dateCard:'出行日期', trip_date:'日期', trip_nextWeekend:'下周末', trip_weatherCard:'目的地天气', trip_dest:'目的地', trip_queryWeather:'查天气', trip_alt:'海拔',
     trip_trainCard:'高铁余票', trip_from:'出发站', trip_to:'到达站', trip_type:'车型', trip_typeAll:'全部', trip_queryTrains:'查余票', trip_swap:'⇄ 互换（查返程）',
     trip_gearTitle:'出发前提醒与装备清单', trip_gearBody:'🎒 <b>通用装备</b>：薄外套/风壳（高原温差大）、防晒霜+墨镜、多带水（补给点少）、充电宝<br>🚴 <b>骑行额外</b>：备胎+气筒+骑行裤<br>🥾 <b>徒步额外</b>：登山杖+徒步鞋+头灯<br>🌡 <b>穿衣</b>：早上到站~12°C 运动服+薄外套；中午可脱；傍晚返程穿回；高海拔放坡体感更低，务必备风壳<br>⚠️ 高海拔（松潘 2800m+）注意高反；高原天气预报不准，出发前再看一次；返程票容易售罄，查到位子就要买',
@@ -1401,7 +1401,7 @@ const I18N = {
     trip_eleFail:'海拔校准失败：', trip_gcjNone:'坐标无偏移（非 GCJ-02），无需转换',
     trip_gcjDone:'已转为 WGS-84（再次点击可还原）', trip_gcjRestored:'已还原原始坐标',
     trip_tlDist:'里程', trip_tlEta:'预计时刻', trip_wind:'风', trip_gust:'阵风',
-    trip_routeWxNote:'按匀速 {v} km/h 从 {t} 出发推算各采样点到达时刻；天气取自 Open-Meteo 逐时预报（最近 {d} 天）。',
+    trip_routeWxNote:'按匀速 {v} km/h 从 {t} 出发推算各采样点到达时刻；天气取多套数值模型逐时预报（最近 {d} 天）。',
     trip_outOfRange:'出行日期超出逐时预报范围，时间线按最近两天预报推算，仅供参考。',
     trip_timeRange:'出发时间范围', trip_arrive:'到达',
     trip_hourlyChart:'逐时天气', trip_hourlyNote:'温度折线 + 降雨概率柱；竖线间为运动窗口（开始时间起按匀速推算用时；未加载 GPX 时为 6~18 点）。悬停查看该小时详情。',
@@ -1535,7 +1535,7 @@ const I18N = {
     fit_cropDraftBack:'Restored {n} pending crop draft(s)',
     fit_needMulti:'Combining needs at least 2 files',
     coach_sports:'Sports', coach_sportsSave:'Save', coach_sportsSaved:'Sports saved — the coach will now only recommend within these', coach_sportsSaveFail:'Save failed: ', coach_sportsNeedOne:'Pick at least one sport',
-    nav_trip:'Trip Planner', trip_title:'Outdoor Trip Planner', trip_hint:'Cycling / hiking / trail-run trip plans: weekend weather at the destination, 12306 train seats and a gear checklist. Data from Open-Meteo and 12306.',
+    nav_trip:'Trip Planner', trip_title:'Outdoor Trip Planner', trip_hint:'Cycling / hiking / trail-run trip plans: weekend weather at the destination, 12306 train seats and a gear checklist. Weather is cross-checked across multiple models (ECMWF / GFS / ICON); train data from 12306.',
     trip_dateCard:'Trip date', trip_date:'Date', trip_nextWeekend:'Next weekend', trip_weatherCard:'Destination weather', trip_dest:'Destination', trip_queryWeather:'Check weather', trip_alt:'Alt',
     trip_trainCard:'Train seats', trip_from:'From', trip_to:'To', trip_type:'Type', trip_typeAll:'All', trip_queryTrains:'Check seats', trip_swap:'⇄ Swap (return leg)',
     trip_gearTitle:'Pre-trip reminders & gear list', trip_gearBody:'🎒 <b>General</b>: wind shell (big altitude temp swing), sunscreen + sunglasses, extra water (few resupply points), power bank<br>🚴 <b>Cycling extra</b>: spare tube + pump + bib shorts<br>🥾 <b>Hiking extra</b>: trekking poles + boots + headlamp<br>🌡 <b>Layers</b>: ~12°C at the morning arrival → kit + shell; peel off by midday; put the shell back for the evening return; descents at altitude feel far colder — always carry the wind shell<br>⚠️ Watch for altitude sickness above 2800m; mountain weather forecasts are unreliable, re-check before leaving; return tickets sell out fast — book when you see seats',
@@ -1555,7 +1555,7 @@ const I18N = {
     trip_eleFail:'Elevation calibration failed: ', trip_gcjNone:'No offset detected (not GCJ-02)',
     trip_gcjDone:'Converted to WGS-84 (click again to restore)', trip_gcjRestored:'Restored original coordinates',
     trip_tlDist:'Dist.', trip_tlEta:'ETA', trip_wind:'Wind', trip_gust:'Gust',
-    trip_routeWxNote:'Sampling times estimated at {v} km/h from {t}; weather from Open-Meteo hourly forecast (next {d} days).',
+    trip_routeWxNote:'Sampling times estimated at {v} km/h from {t}; weather from multiple numerical models hourly forecast (next {d} days).',
     trip_outOfRange:'The trip date is beyond the hourly forecast window; the timeline uses the next two days and is indicative only.',
     trip_timeRange:'Departure window', trip_arrive:'Arrive',
     trip_hourlyChart:'Hourly weather', trip_hourlyNote:'Temperature line + rain-probability bars; the vertical band is the workout window (from the start time, using the constant-speed duration; 6-18 without a GPX). Hover for hourly detail.',
