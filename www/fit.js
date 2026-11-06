@@ -300,6 +300,14 @@ const FIT = (() => {
     const body = [];
     const byKey = new Map();      // defKey → { local, def }
     let nextLocal = 0;
+    // stripDev：产物构造（合并/拆分/裁剪/清洗/校正）置 true——剥离 developer 字段。
+    // def 带 0x20 dev flag 时，dev 字段必须由 field_description(206) 消息注册才能被
+    // 严格解析器（Strava 后端）解释；产物只保留 file_id/device_info/record 等数据，
+    // 不复制 206 → dev 字段成了「未注册引用」，Strava 整条 record 解析失败 →
+    // 海拔链路断掉 → 退回地形模型按 GPS 查表（川西山区实测 25856m 假爬升）。
+    // dev 字段是原文件的无名残余（enum 4 字节，无海拔语义），剥离零功能损失。
+    // 往返保真路径（parse→serialize 字节一致自测）不置此位，dev 原样往返。
+    const stripDev = !!opts.stripDev;
 
     // 第一遍：收集所有用到的定义并编号
     for (const m of messages) {
@@ -307,18 +315,19 @@ const FIT = (() => {
       const k = m.__defKey;
       if (k === undefined) continue;
       if (byKey.has(k)) continue;
+      const dev = (stripDev || !m.dev || !m.dev.length) ? null : m.dev;
       const local = nextLocal++;
-      byKey.set(k, { local, global: m.global, fields: m.fields, dev: m.dev });
+      byKey.set(k, { local, global: m.global, fields: m.fields, dev });
       let h = local & 0x0F;
-      if (m.dev && m.dev.length) h |= 0x20;
+      if (dev && dev.length) h |= 0x20;
       h |= 0x40;
       body.push(h, 0, 0);
       body.push(m.global & 0xFF, (m.global >> 8) & 0xFF);
       body.push(m.fields.length);
       for (const f of m.fields) body.push(f.num, f.size, f.base);
-      if (m.dev && m.dev.length) {
-        body.push(m.dev.length);
-        for (const f of m.dev) body.push(f.num, f.size, f.base);
+      if (dev && dev.length) {
+        body.push(dev.length);
+        for (const f of dev) body.push(f.num, f.size, f.base);
       }
     }
 
@@ -334,8 +343,8 @@ const FIT = (() => {
         const out = val === undefined ? 0 : (val === null ? (INVALID_Z.has(f.base) ? 0 : invMask(f.base, f.size)) : val);
         writeSized(body, out, f.base, f.size);
       }
-      if (m.dev && m.dev.length) {
-        for (const f of m.dev) {
+      if (slot.dev && slot.dev.length) {
+        for (const f of slot.dev) {
           const dv0 = m.devData ? m.devData[f.num] : undefined;
           const out = dv0 === undefined ? 0 : (dv0 === null ? (INVALID_Z.has(f.base) ? 0 : invMask(f.base, f.size)) : dv0);
           writeSized(body, out, f.base, f.size);
@@ -451,7 +460,7 @@ const FIT = (() => {
     }
     addEnhancedAltitude(out);   // 平台优先读 enhanced_altitude(78) 算爬升
     addLegacyAltitude(out);     // 只认 field 2 的解析层也要拿到真实海拔（双写防天文爬升）
-    return { bytes: serialize(out, { protocolVer: p.protocolVer }), removed, count: out.filter(m => m.global === MSG.record).length };
+    return { bytes: serialize(out, { protocolVer: p.protocolVer, stripDev: true }), removed, count: out.filter(m => m.global === MSG.record).length };
   }
 
   // ======================= 工具 2：拆分 =======================
@@ -506,7 +515,7 @@ const FIT = (() => {
       msgs.push(makeEvent(MSG.event, first.data, baseTs));
       msgs.push(makeLap(first.data, baseTs, dur, dist, moveSec, gain, loss));
       msgs.push(makeSession(first.data, baseTs, dur, dist, moveSec, gain, loss));
-      files.push(serialize(msgs, { protocolVer: p.protocolVer }));
+      files.push(serialize(msgs, { protocolVer: p.protocolVer, stripDev: true }));
     }
     return files;
   }
@@ -537,7 +546,7 @@ const FIT = (() => {
     msgs.push(makeEvent(MSG.event, first.data, baseTs));
     msgs.push(makeLap(first.data, baseTs, dur, dist, moveSec, gain, loss));
     msgs.push(makeSession(first.data, baseTs, dur, dist, moveSec, gain, loss));
-    return serialize(msgs, { protocolVer: p.protocolVer });
+    return serialize(msgs, { protocolVer: p.protocolVer, stripDev: true });
   }
 
   // 时间断点下标：相邻记录间隔 ≥ gapSeconds 秒处的「后一条」下标。
@@ -924,7 +933,7 @@ const FIT = (() => {
     msgs.push(makeSession(all[0].data, firstTs, dur, dist, moveSec, gain, loss));
 
     return {
-      bytes: serialize(msgs, { protocolVer: parsed[0].protocolVer }),
+      bytes: serialize(msgs, { protocolVer: parsed[0].protocolVer, stripDev: true }),
       count: all.length, files: offset,
       skippedDup,            // 整份跳过的镜像文件数
       deduped: skippedRecs,   // 被精确去重掉的采样点数
@@ -1146,7 +1155,7 @@ ${trkpts}
     if (!count) return { bytes: null, count: 0 };
     addEnhancedAltitude(p.messages);   // 平台优先读 enhanced_altitude(78) 算爬升
     addLegacyAltitude(p.messages);     // 双写 field 2（只认老字段的解析层防地形模型兜底）
-    return { bytes: serialize(p.messages, { protocolVer: p.protocolVer }), count };
+    return { bytes: serialize(p.messages, { protocolVer: p.protocolVer, stripDev: true }), count };
   }
 
   // ======================= 工具 6：海拔校准（DEM 补全）=======================
@@ -1205,7 +1214,7 @@ ${trkpts}
     if (!count) return { bytes: null, count: 0 };
     addEnhancedAltitude(p.messages);   // 平台优先读 enhanced_altitude(78) 算爬升
     addLegacyAltitude(p.messages);     // 双写 field 2（只认老字段的解析层防地形模型兜底）
-    return { bytes: serialize(p.messages, { protocolVer: p.protocolVer }), count };
+    return { bytes: serialize(p.messages, { protocolVer: p.protocolVer, stripDev: true }), count };
   }
 
   // ======================= 文件概览（供 UI 展示）=======================
