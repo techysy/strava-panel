@@ -683,10 +683,13 @@ const FIT = (() => {
   //   21=total_ascent (uint16, scale 1, m，最大 65535 米)
   //   22=total_descent (uint16, scale 1, m，最大 65535 米)
   function makeLap(sample, ts, dur, dist, moveTime, asc, desc) {
+    // total_ascent/descent(21/22) 故意省略：实测 Strava 对我们产物的这两个字段
+    // 读出 256 倍值（98m → 25088m，两份不同文件复现），写侧经 oracle 字节级核对
+    // 无误——只能绕开。total_ascent 是可选字段；Strava/Garmin 的活动爬升本就
+    // 以 record 海拔重算为准（78/2 双写后真实海拔任它取）。
     const fields = [
       { num: 253, size: 4, base: 4 }, { num: 2, size: 4, base: 4 }, { num: 7, size: 4, base: 4 },
       { num: 8, size: 4, base: 4 }, { num: 9, size: 4, base: 4 }, { num: 15, size: 2, base: 4 },
-      { num: 21, size: 2, base: 4 }, { num: 22, size: 2, base: 4 },
       { num: 24, size: 1, base: 0 },
     ];
     const timer = (moveTime != null && moveTime > 0) ? moveTime : dur;
@@ -695,8 +698,6 @@ const FIT = (() => {
       __defKey: defKey(MSG.lap, fields, null),
       data: {
         253: ts + dur, 2: ts, 7: dur * 1000, 8: timer * 1000, 9: dist, 15: 0,
-        21: asc != null && Number.isFinite(asc) && asc > 0 ? Math.min(65535, Math.round(asc)) : 0,
-        22: desc != null && Number.isFinite(desc) && desc > 0 ? Math.min(65535, Math.round(desc)) : 0,
         24: 9,
       },
     };
@@ -706,11 +707,12 @@ const FIT = (() => {
   //   22=total_ascent (uint16, scale 1, m，最大 65535 米)
   //   23=total_descent (uint16, scale 1, m，最大 65535 米)
   function makeSession(sample, ts, dur, dist, moveTime, asc, desc) {
+    // total_ascent/descent(22/23) 省略，理由同 makeLap——Strava 读出 256 倍值，
+    // 与其让平台显示天文爬升，不如省略该可选字段让它从 record 海拔重算。
     const fields = [
       { num: 253, size: 4, base: 4 }, { num: 2, size: 4, base: 4 }, { num: 5, size: 1, base: 0 },
       { num: 7, size: 4, base: 4 }, { num: 8, size: 4, base: 4 }, { num: 9, size: 4, base: 4 },
-      { num: 14, size: 2, base: 4 }, { num: 22, size: 2, base: 4 }, { num: 23, size: 2, base: 4 },
-      { num: 26, size: 2, base: 4 },
+      { num: 14, size: 2, base: 4 }, { num: 26, size: 2, base: 4 },
     ];
     const timer = (moveTime != null && moveTime > 0) ? moveTime : dur;
     return {
@@ -718,8 +720,6 @@ const FIT = (() => {
       __defKey: defKey(MSG.session, fields, null),
       data: {
         253: ts + dur, 2: ts, 5: 2, 7: dur * 1000, 8: timer * 1000, 9: dist, 14: 0,
-        22: asc != null && Number.isFinite(asc) && asc > 0 ? Math.min(65535, Math.round(asc)) : 0,
-        23: desc != null && Number.isFinite(desc) && desc > 0 ? Math.min(65535, Math.round(desc)) : 0,
         26: 0,
       },
     };
