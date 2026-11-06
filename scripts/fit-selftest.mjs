@@ -284,6 +284,49 @@ ok(cTs[5] === 1000000100, '真实间隔保留：第二段起点=其原始开始�
   ok(recs.every(m => m.data[2] === m.data[78]), '2 与 78 的值一致（同 scale/offset）');
 }
 
+// 停表再开的海拔台阶不计入爬升：>60s 无采样后气压计漂移/基准重置产生的
+// 跳变是仪器伪差，不是真实爬升（用户实测：停表再开后爬升虚高数倍）
+{
+  // 5 点 @t0 海拔 100m（raw 1000），停表 300s，5 点 @t0+305 海拔 140m（raw 1200）
+  // 若台阶计入：gain=40m；修复后跨 gap 不计 → gain=0
+  const hdr = 12, body = [];
+  const w = (v, n) => { for (let i = 0; i < n; i++) body.push(Math.floor(v / Math.pow(2, i * 8)) & 0xFF); };
+  const S32 = v => { const b = Buffer.alloc(4); b.writeInt32LE(v, 0); body.push(...b); };
+  body.push(0x40, 0, 0, 20, 0, 3, 253, 4, 4, 2, 2, 4, 0, 4, 133);
+  body.push(0x00); w(1000000000, 4); w(1000, 2); S32(400000000);
+  for (let i = 0; i < 5; i++) { body.push(0x00); w(1000000000 + i, 4); w(1000, 2); S32(400000000 + i * 1000); }
+  for (let i = 0; i < 5; i++) { body.push(0x00); w(1000000305 + i, 4); w(1200, 2); S32(400000000 + 5000 + i * 1000); }
+  const total = hdr + body.length + 2, out = new Uint8Array(total);
+  out[0] = hdr; out[1] = 0x20;
+  const dv = new DataView(out.buffer);
+  dv.setUint16(2, 2140, true); dv.setUint32(4, body.length, true);
+  out[8] = 0x2E; out[9] = 0x46; out[10] = 0x49; out[11] = 0x54;
+  for (let i = 0; i < body.length; i++) out[hdr + i] = body[i];
+  dv.setUint16(hdr + body.length, FIT.crc16(out, 0, hdr + body.length), true);
+  const s = FIT.summarize(out);
+  ok(s.elevGain === 0, '停表 300s 再开：40m 海拔台阶不计入爬升', s.elevGain);
+  // 合并两段（真实间隔）同样不应把段间海拔差算进爬升
+  const a1 = buildFit({ points: 5, time: 1000000000 });
+  const a2 = buildFit({ points: 5, time: 1000000100 });
+  const cm = FIT.combine([a1, a2]);
+  ok(cm.ascent === 0, '合并段间海拔差不计入爬升', cm.ascent);
+}
+
+// 「按 DEM 重校」：allPositionTargets 收集全部坐标点、rewriteElevation 整条重写双字段
+{
+  const f = buildFit({ points: 6, time: 1000000000 });
+  const t0 = FIT.allPositionTargets(f);
+  ok(t0.count === 6, 'allPositionTargets 收集全部 6 点', t0.count);
+  const eles = t0.pts.map((_, i) => 500 + i * 3);   // 500/503/.../515 m
+  const r = FIT.rewriteElevation(f, eles);
+  ok(r.bytes && r.count === 6, 'rewriteElevation 重写 6 点', r && r.count);
+  const s = FIT.summarize(r.bytes);
+  ok(Math.abs(s.elevGain - 15) < 1, '重校后爬升=15m（3m 递增）', s.elevGain);
+  const p = FIT.parse(r.bytes);
+  const recs = p.messages.filter(x => x.type === 'data' && x.global === 20);
+  ok(recs.every(x => x.data[2] != null && x.data[78] != null && x.data[2] === x.data[78]), '重校产物 2/78 双写一致');
+}
+
 console.log('\n[7] 工具：转换 GPX/TCX');
 const gpx = FIT.toGpx(fSplit, '测试骑行');
 ok(gpx.includes('<gpx'), 'GPX 根元素正确');

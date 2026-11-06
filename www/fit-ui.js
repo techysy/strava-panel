@@ -274,6 +274,51 @@ const FitUI = (() => {
       if (btn) { btn.disabled = false; btn.textContent = btnTxt; }
     }
   }
+  // 「按 DEM 重校海拔」：整条用地形模型高程重写（Strava 校准海拔同思路）。
+  // 修两类病：停表气压漂移的台阶、海拔基准整体偏移。与补缺式 runEleCalib
+  // 的区别：那个只填 0/缺失点，这个全量重写 + 窗口平滑。
+  function smoothSeries(arr, win) {
+    const half = win >> 1, out = new Array(arr.length).fill(null);
+    for (let i = 0; i < arr.length; i++) {
+      let s = 0, n = 0;
+      for (let j = Math.max(0, i - half); j <= Math.min(arr.length - 1, i + half); j++) {
+        if (arr[j] != null && Number.isFinite(arr[j])) { s += arr[j]; n++; }
+      }
+      if (n) out[i] = s / n;
+    }
+    return out;
+  }
+  async function runEleRecalib(mode) {
+    const f = getSelectedFile();
+    if (!f || _eleBusy) return;
+    _eleBusy = true;
+    const btn = $('fitEleBtn');
+    const btnTxt = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = t('fit_eleQuerying'); }
+    try {
+      const t0 = FIT.allPositionTargets(f.bytes);
+      if (!t0.count) { toast(t('fit_eleNone'), true); return; }
+      const eles = await fetchDem(t0.pts);
+      // DEM 是 ~11m 网格量化值，逐点直写会有台阶、1m 阈值会放大——窗口 5 平滑
+      const r = FIT.rewriteElevation(f.bytes, smoothSeries(eles, 5));
+      if (!r.bytes) { toast(t('fit_eleNone'), true); return; }
+      if (mode === 'list') {
+        const a = pushDerived(baseName(f.name) + '-dem.fit', r.bytes);
+        if (!a) { toast(t('fit_parseFail'), false); return; }
+        selectedFid = a.id;
+        renderList(); renderPanel();
+      } else {
+        download(new Blob([r.bytes], { type: 'application/octet-stream' }), baseName(f.name) + '-dem.fit');
+        renderMap([r.bytes]);
+      }
+      toast(t('fit_recalibDone', { n: r.count }), true);
+    } catch (e) {
+      toast(t('fit_eleFail') + (e.message || e), false);
+    } finally {
+      _eleBusy = false;
+      if (btn) { btn.disabled = false; btn.textContent = btnTxt; }
+    }
+  }
   function runGcjFix(mode) {
     const f = getSelectedFile();
     if (!f) return;
@@ -650,14 +695,20 @@ const FitUI = (() => {
   // 剖面头部的动作菜单：「校准海拔」「转 WGS-84」各带「执行并下载 / 应用到列表」
   // 按钮带 ▾ 下拉菜单，点击对应按钮展开各自的菜单项。
   const FIT_ACTIONS = {
-    ele: { run: () => runEleCalib(''), list: () => runEleCalib('list') },
+    ele: { run: () => runEleCalib(''), list: () => runEleCalib('list'),
+           recalib: () => runEleRecalib(''), recalibList: () => runEleRecalib('list') },
     gcj: { run: () => runGcjFix(''), list: () => runGcjFix('list') },
   };
   function actionMenuHtml(kind) {
     const a = FIT_ACTIONS[kind];
     if (!a) return '';
-    return '<div class="pl-menu-item" data-act="run">' + escapeHtml(t('fit_actionRun')) + '</div>'
+    let html = '<div class="pl-menu-item" data-act="run">' + escapeHtml(t('fit_actionRun')) + '</div>'
       + '<div class="pl-menu-item" data-act="list">' + escapeHtml(t('fit_toList')) + '</div>';
+    if (kind === 'ele') {
+      html += '<div class="pl-menu-item" data-act="recalib">' + escapeHtml(t('fit_eleRecalib')) + '</div>'
+        + '<div class="pl-menu-item" data-act="recalibList">' + escapeHtml(t('fit_eleRecalib') + ' · ' + t('fit_toList')) + '</div>';
+    }
+    return html;
   }
   function toggleActionMenu(ev, kind) {
     if (ev) ev.stopPropagation();
@@ -681,7 +732,10 @@ const FitUI = (() => {
     const a = FIT_ACTIONS[kind];
     closeProfileMenu();
     if (!a) return;
-    if (item.dataset.act === 'list') a.list(); else a.run();
+    const act = item.dataset.act;
+    if (typeof a[act] === 'function') a[act]();
+    else if (act === 'list') a.list();
+    else a.run();
   }
 
   // ---- 剖面曲线选择菜单（参照 gpx.studio 的「海拔剖面图设置」）----

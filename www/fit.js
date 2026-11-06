@@ -727,16 +727,26 @@ const FIT = (() => {
   // 从 record 实算累计爬升/下降（米）：连续微增量累积阈值法（与 gpx.js 对齐，threshold 默认 1m）
   // 连续小增量累加到 pending，越过 1m 阈值才计入 —— 平缓起伏不被大死区吞噬，GPS 微小抖动不虚增。
   function elevationGainLoss(records, threshold = 1) {
-    let gain = 0, loss = 0, pending = 0, prev = null;
+    let gain = 0, loss = 0, pending = 0, prev = null, prevTs = null;
     for (const r of records) {
       const e = eleOf(r.data);
       if (e == null || !Number.isFinite(e)) continue;
+      const ts = r.data[REC.timestamp];
+      // 停表再开/合并段间（>60s 无采样）：气压计在停表期间漂移或重开时基准
+      // 重置，gap 两侧海拔出现几十米台阶——这是仪器漂移不是真实爬升，
+      // 跨 gap 的差值不计入，海拔基准以新段为准重新起算。
+      if (prev != null && ts != null && prevTs != null && ts - prevTs > 60) {
+        pending = 0;
+        prev = e; prevTs = ts;
+        continue;
+      }
       if (prev != null) {
         pending += e - prev;
         if (pending >= threshold) { gain += pending; pending = 0; }
         else if (pending <= -threshold) { loss += -pending; pending = 0; }
       }
       prev = e;
+      if (ts != null) prevTs = ts;
     }
     return { gain: Math.round(gain), loss: Math.round(loss) };
   }
@@ -1192,9 +1202,51 @@ ${trkpts}
     }
     return { pts, msgs };
   }
+  // 「按 DEM 重校」目标：全部有效坐标点（不筛缺失）——整条重写修停表漂移/基准偏移
+  function collectAllPosition(p) {
+    const pts = [], msgs = [];
+    for (const m of p.messages) {
+      if (m.type !== 'data' || m.global !== MSG.record) continue;
+      const la = m.data[REC.position_lat], lo = m.data[REC.position_long];
+      if (la == null || lo == null) continue;
+      const lat = la / SEMI, lon = lo / SEMI;
+      if (!validLatLon(lat, lon)) continue;
+      pts.push({ lat, lon }); msgs.push(m);
+    }
+    return { pts, msgs };
+  }
   function elevationTargets(u8) {
     const { pts } = collectEleTargets(tagDefs(parse(u8)));
     return { count: pts.length, pts };
+  }
+  // 「按 DEM 重校」目标：全部有效坐标点（无论海拔是否缺失）
+  function allPositionTargets(u8) {
+    const { pts } = collectAllPosition(tagDefs(parse(u8)));
+    return { count: pts.length, pts };
+  }
+  // 把 eles（与 allPositionTargets 的 pts 一一对应）整条重写进 78/2——
+  // 修停表气压漂移与基准偏移（Strava「校准海拔」同思路）。缺失海拔字段的
+  // record 现场补上双字段。由 UI 层先做窗口平滑（DEM 是 ~11m 网格量化值）。
+  function rewriteElevation(u8, eles) {
+    const p = tagDefs(parse(u8));
+    const { msgs } = collectAllPosition(p);
+    if (!msgs.length || !Array.isArray(eles) || eles.length < msgs.length) return { bytes: null, count: 0 };
+    let count = 0;
+    msgs.forEach((m, i) => {
+      const ele = eles[i];
+      if (ele == null || !Number.isFinite(ele)) return;
+      const raw = Math.max(0, Math.min(65535, Math.round(ele * 5 + 500)));
+      for (const num of ELE_FIELDS) {
+        if (!m.fields.find(x => x.num === num)) {
+          m.fields = m.fields.concat([{ num, size: num === 78 ? 4 : 2, base: 4 }]);
+          m.__defKey = defKey(m.global, m.fields, m.dev);
+        }
+        m.data[num] = raw;
+      }
+      count++;
+    });
+    if (!count) return { bytes: null, count: 0 };
+    return { bytes: serialize(p.messages, { protocolVer: p.protocolVer, stripDev: true }), count };
   }
   function applyElevation(u8, eles) {
     const p = tagDefs(parse(u8));
@@ -1295,7 +1347,7 @@ ${trkpts}
     crc16, parse, serialize, tagDefs, BASE, MSG, REC,
     fitToUnix, unixToFit, FIT_EPOCH,
     stripFields, split, splitAt, gapIndices, combine, toGpx, toTcx, summarize, trackPoints, cropRange, trackPointsIndexed,
-    fixGcj02, elevationTargets, applyElevation,
+    fixGcj02, elevationTargets, applyElevation, allPositionTargets, rewriteElevation,
   };
 })();
 
