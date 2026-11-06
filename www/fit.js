@@ -450,6 +450,7 @@ const FIT = (() => {
       out.push(nm);
     }
     addEnhancedAltitude(out);   // 平台优先读 enhanced_altitude(78) 算爬升
+    addLegacyAltitude(out);     // 只认 field 2 的解析层也要拿到真实海拔（双写防天文爬升）
     return { bytes: serialize(out, { protocolVer: p.protocolVer }), removed, count: out.filter(m => m.global === MSG.record).length };
   }
 
@@ -501,6 +502,7 @@ const FIT = (() => {
       const moveSec = calcMoveTime(slice);
       const { gain, loss } = elevationGainLoss(slice);
       addEnhancedAltitude(msgs);   // 平台优先读 enhanced_altitude(78) 算爬升
+      addLegacyAltitude(msgs);     // 双写 field 2（只认老字段的平台防地形模型兜底）
       msgs.push(makeEvent(MSG.event, first.data, baseTs));
       msgs.push(makeLap(first.data, baseTs, dur, dist, moveSec, gain, loss));
       msgs.push(makeSession(first.data, baseTs, dur, dist, moveSec, gain, loss));
@@ -531,6 +533,7 @@ const FIT = (() => {
     const moveSec = calcMoveTime(slice);
     const { gain, loss } = elevationGainLoss(slice);
     addEnhancedAltitude(msgs);   // 平台优先读 enhanced_altitude(78) 算爬升
+    addLegacyAltitude(msgs);     // 双写 field 2（只认老字段的平台防地形模型兜底）
     msgs.push(makeEvent(MSG.event, first.data, baseTs));
     msgs.push(makeLap(first.data, baseTs, dur, dist, moveSec, gain, loss));
     msgs.push(makeSession(first.data, baseTs, dur, dist, moveSec, gain, loss));
@@ -748,6 +751,28 @@ const FIT = (() => {
     }
     return added;
   }
+  // 反向补齐：只写 78 的码表（部分国产导出）产物缺 field 2 (altitude)——
+  // 只认老字段的解析层（Strava 部分代码路径 / Garmin 老固件 / 第三方工具）读不到
+  // 海拔时会退回自己的地形模型按 GPS 查表，川西山区能算出 2 万多米爬升
+  // （实测 combined.fit 25856m）。这里按 78 的值补一份 field 2（同编码 uint16），
+  // 让任何解析路径都拿到真实海拔。uint16 上限 65535：scale 5 offset 500 下
+  // 可表示 -100~13007m，超出 13007m 的（不存在）会被钳制——呼吸管掉海沟才用得到。
+  function addLegacyAltitude(messages) {
+    let added = 0;
+    for (const m of messages) {
+      if (m.type !== 'data' || m.global !== MSG.record) continue;
+      if (m.fields.find(f => f.num === REC.altitude)) continue;  // 已有 2
+      const e78 = m.data[78];
+      if (e78 == null || !Number.isFinite(e78)) continue;
+      // uint16 编码：raw = ele*5 + 500 ∈ [0, 65535]
+      const raw = Math.max(0, Math.min(65535, Math.round(e78)));
+      m.fields = m.fields.concat([{ num: REC.altitude, size: 2, base: 4 }]);
+      m.data[REC.altitude] = raw;
+      m.__defKey = defKey(m.global, m.fields, m.dev);
+      added++;
+    }
+    return added;
+  }
 
   // 把多段 record 的 distance 字段改写为连续累计值（单位 cm）。
   // 段内按逐点差值累加（码表中途重启导致 distance 归零时跳过负跳变），
@@ -886,6 +911,7 @@ const FIT = (() => {
 
     // 补 enhanced_altitude(78)：平台优先读它算爬升，缺失会退用自己的模型
     const addedEle = addEnhancedAltitude(msgs);
+    const addedLegacy = addLegacyAltitude(msgs);   // 双写 field 2：Strava 部分代码路径只认 altitude(2)，缺了会退回地形模型按 GPS 查表（实测 25856m 假爬升）
 
     const firstTs = all[0].data[REC.timestamp];
     const lastTs = all[all.length - 1].data[REC.timestamp];
@@ -904,6 +930,7 @@ const FIT = (() => {
       deduped: skippedRecs,   // 被精确去重掉的采样点数
       ascent: gain, descent: loss,
       addedEle,               // 补齐 enhanced_altitude 的 record 数
+      addedLegacy,            // 补齐 altitude(2) 的 record 数（78-only 源文件）
     };
   }
 
@@ -1118,6 +1145,7 @@ ${trkpts}
     }
     if (!count) return { bytes: null, count: 0 };
     addEnhancedAltitude(p.messages);   // 平台优先读 enhanced_altitude(78) 算爬升
+    addLegacyAltitude(p.messages);     // 双写 field 2（只认老字段的解析层防地形模型兜底）
     return { bytes: serialize(p.messages, { protocolVer: p.protocolVer }), count };
   }
 
@@ -1176,6 +1204,7 @@ ${trkpts}
     });
     if (!count) return { bytes: null, count: 0 };
     addEnhancedAltitude(p.messages);   // 平台优先读 enhanced_altitude(78) 算爬升
+    addLegacyAltitude(p.messages);     // 双写 field 2（只认老字段的解析层防地形模型兜底）
     return { bytes: serialize(p.messages, { protocolVer: p.protocolVer }), count };
   }
 

@@ -273,6 +273,17 @@ ok(cTs[5] === 1000000100, '真实间隔保留：第二段起点=其原始开始�
   ok(recs[0].data[13] === undefined || typeof recs[0].data[13] !== 'number' || recs[0].data[13] < 100, 'field 13 仍是温度量级，未被当作海拔写入');
 }
 
+// 合并产物必须同时含 altitude(2) 与 enhanced_altitude(78)：只认 field 2 的
+// 解析层（Strava 部分代码路径）读到 78-only 文件会退回地形模型按 GPS 查表，
+// 川西山区实测 25856m 假爬升（真实 ~100m）
+{
+  const c = FIT.combine([buildFit({ points: 5, time: 1000000000 }), buildFit({ points: 5, time: 1000000100 })]);
+  const recs = FIT.parse(c.bytes).messages.filter(m => m.type === 'data' && m.global === 20);
+  ok(recs.every(m => m.data[2] != null), '合并产物每条 record 都有 altitude(2)', recs.filter(m => m.data[2] == null).length);
+  ok(recs.every(m => m.data[78] != null), '合并产物每条 record 都有 enhanced_altitude(78)');
+  ok(recs.every(m => m.data[2] === m.data[78]), '2 与 78 的值一致（同 scale/offset）');
+}
+
 console.log('\n[7] 工具：转换 GPX/TCX');
 const gpx = FIT.toGpx(fSplit, '测试骑行');
 ok(gpx.includes('<gpx'), 'GPX 根元素正确');
