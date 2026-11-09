@@ -1197,7 +1197,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
           <div class="trip-card">
             <h3><svg class="ic" aria-hidden="true"><use href="#i-calendar"/></svg><span data-i18n="trip_dateCard">出行日期</span></h3>
             <div class="row">
-              <label><span data-i18n="trip_date">日期</span><input type="date" id="tripDate" onchange="tripUpdateDateInfo();if(tripWeatherData)tripRenderWeather()"></label>
+              <label><span data-i18n="trip_date">日期</span><input type="date" id="tripDate" onchange="tripUpdateDateInfo();if(tripWeatherData)tripRenderWeather();tripRenderGear()"></label>
               <button class="btn" onclick="tripPickWeekend()" data-i18n="trip_nextWeekend">下周末</button>
               <span class="tt" id="tripDateInfo" style="font-size:12px;color:var(--text-3)"></span>
             </div>
@@ -1392,7 +1392,16 @@ const I18N = {
     nav_trip:'出行计划', trip_title:'户外出行计划', trip_hint:'骑行 / 徒步 / 越野跑出行方案：查目的地周末天气、高铁余票与装备清单。天气由 ECMWF / GFS / ICON 等多套数值模型交叉校验，余票来自 12306。',
     trip_dateCard:'出行日期', trip_date:'日期', trip_nextWeekend:'下周末', trip_weatherCard:'目的地天气', trip_dest:'目的地', trip_queryWeather:'查天气', trip_alt:'海拔',
     trip_trainCard:'高铁余票', trip_from:'出发站', trip_to:'到达站', trip_type:'车型', trip_typeAll:'全部', trip_queryTrains:'查余票', trip_swap:'⇄ 互换（查返程）',
-    trip_gearTitle:'出发前提醒与装备清单', trip_gearBody:'🎒 <b>通用装备</b>：薄外套/风壳（高原温差大）、防晒霜+墨镜、多带水（补给点少）、充电宝<br>🚴 <b>骑行额外</b>：备胎+气筒+骑行裤<br>🥾 <b>徒步额外</b>：登山杖+徒步鞋+头灯<br>🌡 <b>穿衣</b>：早上到站~12°C 运动服+薄外套；中午可脱；傍晚返程穿回；高海拔放坡体感更低，务必备风壳<br>⚠️ 高海拔（松潘 2800m+）注意高反；高原天气预报不准，出发前再看一次；返程票容易售罄，查到位子就要买',
+    trip_gearTitle:'出发前提醒与装备清单', trip_gearBody:'🎒 <b>通用装备</b>：薄外套/风壳、防晒霜+墨镜、充电宝、少量补给<br>🚴 <b>骑行额外</b>：备胎+气筒+骑行裤<br>🥾 <b>徒步额外</b>：登山杖+徒步鞋+头灯',
+    trip_gearBase:'🎒 <b>通用装备</b>：薄外套/风壳、防晒霜+墨镜、充电宝、少量补给',
+    trip_gearCycling:'🚴 <b>骑行额外</b>：备胎+气筒+骑行裤',
+    trip_gearHiking:'🥾 <b>徒步额外</b>：登山杖+徒步鞋+头灯',
+    trip_gearCold:'🧥 <b>低温提醒</b>：早上到站 ~{t}°C，运动服+保暖外套；傍晚返程穿回',
+    trip_gearHot:'☀️ <b>高温提醒</b>：白天最高 ~{t}°C，多带水、防晒，避开正午暴晒段',
+    trip_gearAlt:'⛰️ <b>高海拔（{alt}m+）</b>：注意高反、紫外线强必带墨镜防晒；天气预报不准，出发前再看一次；放坡体感更低，务必备风壳',
+    trip_gearRain:'🌧️ <b>降雨风险</b>：最高 {p}%——雨具必带，湿滑路段减速，碎石路雨天更松软',
+    trip_gearWater:'💧 <b>补给</b>：沿途补给点少，多带水（≥1L）与能量食品',
+    trip_gearCalm:'✅ <b>天气窗口</b>：预报平稳（降雨峰值 {p}%），常规装备即可，出发前再刷一次预报',
     trip_loading:'查询中…（首次查询需拉取车站数据，约 5~10 秒）', trip_fail:'查询失败: ', trip_badCoord:'请填写有效的经纬度', trip_fillTrain:'请填写出发/到达站与日期',
     trip_weather:'天气', trip_temp:'温度', trip_rain:'降雨概率', trip_weatherNote:'仅显示 6~18 点运动窗口聚合；选中的出行日期高亮。',
     trip_noTrains:'未查到符合条件的车次', trip_canBuy:'可购', trip_soldOut:'售罄', trip_trainsUnit:' 趟',
@@ -1550,7 +1559,16 @@ const I18N = {
     nav_trip:'Trip Planner', trip_title:'Outdoor Trip Planner', trip_hint:'Cycling / hiking / trail-run trip plans: weekend weather at the destination, 12306 train seats and a gear checklist. Weather is cross-checked across multiple models (ECMWF / GFS / ICON); train data from 12306.',
     trip_dateCard:'Trip date', trip_date:'Date', trip_nextWeekend:'Next weekend', trip_weatherCard:'Destination weather', trip_dest:'Destination', trip_queryWeather:'Check weather', trip_alt:'Alt',
     trip_trainCard:'Train seats', trip_from:'From', trip_to:'To', trip_type:'Type', trip_typeAll:'All', trip_queryTrains:'Check seats', trip_swap:'⇄ Swap (return leg)',
-    trip_gearTitle:'Pre-trip reminders & gear list', trip_gearBody:'🎒 <b>General</b>: wind shell (big altitude temp swing), sunscreen + sunglasses, extra water (few resupply points), power bank<br>🚴 <b>Cycling extra</b>: spare tube + pump + bib shorts<br>🥾 <b>Hiking extra</b>: trekking poles + boots + headlamp<br>🌡 <b>Layers</b>: ~12°C at the morning arrival → kit + shell; peel off by midday; put the shell back for the evening return; descents at altitude feel far colder — always carry the wind shell<br>⚠️ Watch for altitude sickness above 2800m; mountain weather forecasts are unreliable, re-check before leaving; return tickets sell out fast — book when you see seats',
+    trip_gearTitle:'Pre-trip reminders & gear list', trip_gearBody:'🎒 <b>General</b>: wind shell, sunscreen + sunglasses, power bank, snacks<br>🚴 <b>Cycling extra</b>: spare tube + pump + bib shorts<br>🥾 <b>Hiking extra</b>: trekking poles + boots + headlamp',
+    trip_gearBase:'🎒 <b>General</b>: wind shell, sunscreen + sunglasses, power bank, snacks',
+    trip_gearCycling:'🚴 <b>Cycling extra</b>: spare tube + pump + bib shorts',
+    trip_gearHiking:'🥾 <b>Hiking extra</b>: trekking poles + boots + headlamp',
+    trip_gearCold:'🧥 <b>Chilly morning</b>: ~{t}°C on arrival — kit + warm shell; back on for the evening return',
+    trip_gearHot:'☀️ <b>Hot day</b>: up to ~{t}°C — extra water, sun protection, avoid the midday stretch',
+    trip_gearAlt:'⛰️ <b>High altitude ({alt}m+)</b>: altitude sickness risk, strong UV — sunglasses & sunscreen; forecasts unreliable, re-check before leaving; descents feel far colder — carry the shell',
+    trip_gearRain:'🌧️ <b>Rain risk</b>: up to {p}% — bring rain gear, slow on wet descents, loose gravel when wet',
+    trip_gearWater:'💧 <b>Resupply</b>: few points along the way — carry ≥1L water and energy food',
+    trip_gearCalm:'✅ <b>Weather window</b>: stable forecast (rain peak {p}%) — regular kit is fine, re-check before leaving',
     trip_loading:'Querying… (first run downloads the station list, ~5-10s)', trip_fail:'Query failed: ', trip_badCoord:'Enter valid lat/lon', trip_fillTrain:'Fill in from/to stations and date',
     trip_weather:'Weather', trip_temp:'Temp', trip_rain:'Rain prob.', trip_weatherNote:'Aggregated over the 6-18 workout window; the selected trip date is highlighted.',
     trip_noTrains:'No trains match the filters', trip_canBuy:'Bookable', trip_soldOut:'Sold out', trip_trainsUnit:' trains',
@@ -4417,6 +4435,7 @@ function tripDestChanged(){
     document.getElementById('tripTo').value = x.rail.split('→')[1]?.split(' ')[0] || x.name;
     if(meta) meta.innerHTML = '<div>📍 '+escapeHtml(x.rail)+' · '+t('trip_alt')+' ~'+x.alt+'m</div>'+
       '<div>🚴 '+escapeHtml(x.ride)+'</div><div>🥾 '+escapeHtml(x.hike)+'</div>';
+    tripRenderGear();   // 目的地海拔变了，装备清单跟着变
   } else {
     document.getElementById('tripTo').value = x.name;
     if(meta) meta.innerHTML = '<div>📍 '+escapeHtml([x.admin1, x.country].filter(Boolean).join(' · '))
@@ -4456,6 +4475,50 @@ function tripGeoPick(i){
   tripRenderDestSel();
   const sel = document.getElementById('tripDestSel');
   if(sel) sel.value = 'r0';
+  tripRenderGear();   // 新目的地海拔可能不同
+}
+// ---- 装备清单：按目的地海拔 + 实际天气动态生成（不再写死松潘文案）----
+// 数据源：tripDestMeta 里已选目的地的海拔 + tripWeatherData 的每日聚合。
+// 没查过天气时退回基础三件套（通用/骑行/徒步），查过按温度/降雨/海拔追加提醒。
+function tripRenderGear(){
+  const box = document.getElementById('tripGear');
+  if(!box) return;
+  const parts = [t('trip_gearBase'), t('trip_gearCycling'), t('trip_gearHiking')];
+  const d = tripWeatherData;
+  const days = (d && d.days) || [];
+  if(days.length){
+    // 目的地海拔：预设来自表，搜索来自 elevation；优先取行程当天的预报
+    const selV = String(document.getElementById('tripDestSel')?.value || '');
+    let alt = null;
+    if(selV[0] === 'p'){ const x = tripDests[Number(selV.slice(1))]; if(x) alt = x.alt; }
+    else {
+      const el = days[0];
+      alt = null;   // 搜索目的地海拔在 meta 里，不在天气里——从 meta 文本兜底
+      const metaEl = document.getElementById('tripDestMeta');
+      const m = metaEl ? (metaEl.textContent.match(/~(\d{3,5})m/) || metaEl.textContent.match(/(\d{3,5})m\+/)) : null;
+      if(m) alt = Number(m[1]);
+    }
+    // 行程当天的温度/降雨（无出行日数据则取全程极值）
+    const selDate = document.getElementById('tripDate')?.value;
+    let day = days.find(x => x.day === selDate) || days[0];
+    let tMin = day.tMin, tMax = day.tMax, rainMax = day.rainMax;
+    for(const x of days){ if(x.tMin < tMin) tMin = x.tMin; if(x.tMax > tMax) tMax = x.tMax; if(x.rainMax > rainMax) rainMax = x.rainMax; }
+    if(tMin != null && Number.isFinite(tMin) && tMin <= 12) parts.push(t('trip_gearCold', { t: Math.round(tMin) }));
+    if(tMax != null && Number.isFinite(tMax) && tMax >= 28) parts.push(t('trip_gearHot', { t: Math.round(tMax) }));
+    if(rainMax != null && Number.isFinite(rainMax)){
+      if(rainMax >= 50) parts.push(t('trip_gearRain', { p: Math.round(rainMax) }));
+      else parts.push(t('trip_gearCalm', { p: Math.round(rainMax) }));
+    }
+    if(alt != null && alt >= 2000) parts.push(t('trip_gearAlt', { alt: Math.round(alt) }));
+  } else {
+    // 没查天气：若目的地海拔已选（预设表），仅追加高海拔提醒
+    const selV = String(document.getElementById('tripDestSel')?.value || '');
+    if(selV[0] === 'p'){
+      const x = tripDests[Number(selV.slice(1))];
+      if(x && x.alt >= 2000) parts.push(t('trip_gearAlt', { alt: x.alt }));
+    }
+  }
+  box.innerHTML = parts.map(s => '<div style="margin:2px 0">'+s+'</div>').join('');
 }
 function tripPickWeekend(){
   const d = new Date();
@@ -5008,6 +5071,7 @@ async function tripLoadWeather(){
     const days = [...new Set((d.hourly||[]).map(h=>h.time.slice(0,10)))];
     tripHourlyDay = days.includes(sel) ? sel : (days[0] || null);
     tripRenderWeather();
+    tripRenderGear();   // 装备清单随实际天气刷新
   }catch(e){ box.innerHTML = '<div class="tt" style="color:var(--err)">'+escapeHtml(t('trip_fail')+shortErr(e.message))+'</div>'; }
 }
 function tripRenderWeather(){
