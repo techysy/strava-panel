@@ -151,6 +151,10 @@ html[data-theme="dark"] .fit-file.fit-add{background:transparent}
 .trip-gpxfile .btn{padding:4px 10px;font-size:12px}
 .trip-gpxfile .gf-del{width:24px;height:24px;border-radius:6px;border:0;background:transparent;color:var(--text-3);cursor:pointer;font-size:16px;line-height:1;flex:none}
 .trip-gpxfile .gf-del:hover{color:var(--err);background:var(--hover)}
+/* 最近活动表的删除按钮（清 Strava 端已删活动的本地缓存残留） */
+.act-del{width:22px;height:22px;border-radius:6px;border:0;background:transparent;color:var(--text-3);cursor:pointer;font-size:14px;line-height:1;flex:none;opacity:.55;transition:all .12s}
+.act-del:hover{color:var(--err);background:var(--hover);opacity:1}
+.act-del:disabled{opacity:.3;cursor:not-allowed}
 /* 已导入后拖放区收缩为「替换」形态 */
 .fit-drop.has-file{padding:10px 12px}
 .fit-drop.has-file .ic{width:18px;height:18px;margin-bottom:2px}
@@ -1315,7 +1319,10 @@ const I18N = {
     app_title:'Strava Panel', nav_dash:'仪表板', nav_data:'运动数据', nav_rides:'最近活动', nav_settings:'设置',
     dash_title:'服务状态', console_title:'日志控制台', refresh:'刷新', download:'下载', current:'当前', log_src_system:'系统日志', log_src_strava:'Strava API', log_src_agent:'Agent 调用',
     console_hint:'日志按日期归档，可查看历史日期。当前日志仅保留当天，历史自动归档到 data/logs/ 目录。',
-    sync_btn:'立即同步', sync_full:'全量重同步', sync_full_confirm:'全量重同步会重新拉取全部历史活动(较慢,用于回填心率/功率等字段),确定继续?', token_btn:'创建 token',
+    sync_btn:'立即同步', sync_full:'全量重同步', sync_full_confirm:'全量重同步会重新拉取全部历史活动(较慢,用于回填心率/功率等字段),并清理 Strava 端已删除的活动,确定继续?', token_btn:'创建 token',
+    act_delTip:'删除本地缓存（Strava 端已删的活动残留）', act_delTitle:'删除本地活动缓存',
+    act_delBody:'「{name}」将从本地数据库删除（不影响 Strava 端）。全量重同步可拉回。确定删除？',
+    act_delDone:'已删除本地缓存：{name}',
     stat_group_strava:'Strava API', stat_group_db:'本地数据库', stat_group_agent:'Agent 外部调用',
     stat_configured:'凭据', stat_token:'授权', stat_activities:'缓存活动', stat_sync:'最后同步', stat_port:'端口', stat_version:'版本', stat_connected:'已连接', stat_not_configured:'未配置', stat_error:'异常',
     stat_athlete:'Athlete ID', stat_dbsize:'DB 大小', stat_dbpath:'DB 路径', stat_apitoken:'API token', stat_calls:'调用次数', stat_lastcall:'最后调用',
@@ -1470,7 +1477,10 @@ const I18N = {
     app_title:'Strava Panel', nav_dash:'Dashboard', nav_data:'Sports', nav_rides:'Recent', nav_settings:'Settings',
     dash_title:'Service Status', console_title:'Log Console', refresh:'Refresh', download:'Download', current:'Current', log_src_system:'System', log_src_strava:'Strava API', log_src_agent:'Agent Calls',
     console_hint:'Logs archived by date. Current file keeps today only; history moves to data/logs/.',
-    sync_btn:'Sync Now', sync_full:'Full Resync', sync_full_confirm:'Full resync re-fetches all history (slower; backfills heart-rate/power fields). Continue?', token_btn:'Create Token',
+    sync_btn:'Sync Now', sync_full:'Full Resync', sync_full_confirm:'Full resync re-fetches all history (slower; backfills heart-rate/power fields) and prunes activities deleted on Strava. Continue?', token_btn:'Create Token',
+    act_delTip:'Delete local cache (activity already removed on Strava)', act_delTitle:'Delete local activity cache',
+    act_delBody:'"{name}" will be removed from the local database (Strava is not affected). A full resync can bring it back. Delete?',
+    act_delDone:'Local cache deleted: {name}',
     stat_group_strava:'Strava API', stat_group_db:'Local Database', stat_group_agent:'Agent Calls',
     stat_configured:'Credentials', stat_token:'Auth', stat_activities:'Cached Acts', stat_sync:'Last Sync', stat_port:'Port', stat_version:'Version', stat_connected:'Connected', stat_not_configured:'Not Configured', stat_error:'Error',
     stat_athlete:'Athlete ID', stat_dbsize:'DB Size', stat_dbpath:'DB Path', stat_apitoken:'API token', stat_calls:'Call Count', stat_lastcall:'Last Call',
@@ -2811,6 +2821,25 @@ async function loadActivities(){
     }
   }catch(e){ console.error('loadActivities failed', e); }
 }
+// 删除本地缓存活动（Strava 端已删后清残留；只删本地，不动 Strava）
+async function deleteActivity(id, btn){
+  const nm = (allActivities.find(a => a.id === id) || {}).name || ('#' + id);
+  const okGo = await appConfirm(t('act_delTitle'), t('act_delBody', { name: nm }), true);
+  if(!okGo) return;
+  if(btn){ btn.disabled = true; }
+  try{
+    const r = await apiPost('/api/activities/delete', { id });
+    if(r.error){ toast(t('trip_fail') + shortErr(r.error), false); return; }
+    allActivities = allActivities.filter(a => a.id !== id);
+    renderActivities();
+    toast(t('act_delDone', { name: nm }), true);
+    if(currentNav === 'data') loadData();
+  }catch(e){
+    toast(t('trip_fail') + shortErr(e.message || e), false);
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
 function renderActivities(){
   const tbody = document.getElementById('recentTable').querySelector('tbody');
   const col = RIDE_COLS.find(c => c.k === sortKey) || RIDE_COLS[0];
@@ -2862,7 +2891,11 @@ function renderActivities(){
     const nmHtml = a.id
       ? '<a href="https://www.strava.com/activities/'+a.id+'" target="_blank" rel="noopener" title="'+escapeHtml(nm)+'" style="color:inherit;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:280px">'+escapeHtml(nm)+'</a>'
       : '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:280px">'+escapeHtml(nm)+'</span>';
-    return `<tr><td>${date}</td><td>${nmHtml}</td>`
+    // 删除按钮：清掉 Strava 端已删活动的本地残留（只删缓存，不动 Strava）
+    const delBtn = a.id
+      ? '<button class="act-del" title="'+escapeHtml(t('act_delTip'))+'" onclick="deleteActivity('+a.id+', this)">&times;</button>'
+      : '';
+    return `<tr><td>${date}</td><td style="display:flex;align-items:center;gap:6px"><span style="flex:1;min-width:0">${nmHtml}</span>${delBtn}</td>`
       + cell(dist, dist != null ? (dist/1000).toFixed(1)+' km' : '—', 'dist')
       + cell(dur, dur != null ? (dur/3600).toFixed(1)+' h' : '—', 'dur')
       + cell(spd, fmtSpd(spd), 'spd')

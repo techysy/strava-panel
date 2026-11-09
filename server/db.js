@@ -314,6 +314,32 @@ export class StravaDB {
     return added;
   }
 
+  deleteActivity(id) {
+    /** 删除单条本地活动缓存（Strava 端删除后本地清残留，或手动清理）。 */
+    return Number(this.db.prepare('DELETE FROM activities WHERE id=?').run(Number(id)).changes);
+  }
+
+  pruneNotIn(remoteIds) {
+    /** 删除本地存在但远端已不存在的活动（Strava 网页上删除后，本地缓存跟着清）。
+     *  remoteIds: 本次同步看到的全部活动 id 集合。仅当本次拉取是全量覆盖
+     *  （未提前停止翻页）时调用方才应调用，避免增量窗口漏拉误删。
+     *  返回删除数。 */
+    if (!remoteIds || !remoteIds.size) return 0;
+    const all = this.db.prepare('SELECT id FROM activities').all();
+    const gone = all.map(r => r.id).filter(id => !remoteIds.has(id));
+    if (!gone.length) return 0;
+    const del = this.db.prepare('DELETE FROM activities WHERE id=?');
+    this.db.exec('BEGIN');
+    try {
+      for (const id of gone) del.run(id);
+      this.db.exec('COMMIT');
+    } catch (err) {
+      try { this.db.exec('ROLLBACK'); } catch { /* 保留原错误 */ }
+      throw err;
+    }
+    return gone.length;
+  }
+
   setMeta(key, value) {
     this.db.prepare('INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)')
       .run(key, String(value));

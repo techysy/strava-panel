@@ -625,10 +625,18 @@ async function syncFromStrava(token, limitPages = 20, mode = 'incremental') {
     }
     SYNC_PROGRESS.message = '写入本地数据库';
     const added = db.upsertActivities(allActs);
+    // 远端对账删除：仅全量同步且自然翻完（未因触及水位提前停页）时，
+    // 拉到的 id 集合即远端全集——本地多出来的（Strava 网页已删除的）跟着删。
+    // 增量窗口只看到新活动，绝不能拿它当全集（会把老活动误删光）。
+    let pruned = 0;
+    if (mode === 'full' && !skipped) {
+      pruned = db.pruneNotIn(new Set(allActs.map(a => a.id)));
+      if (pruned) log('system', `远端对账: 清理本地已删除于 Strava 的活动 ${pruned} 条`);
+    }
     SYNC_PROGRESS.done = true;
-    SYNC_PROGRESS.message = `完成 · 拉取 ${allActs.length} 条, 新增 ${added} 条`;
-    log('system', `同步完成(${mode}): 拉取 ${allActs.length} 条, 新增 ${added} 条`);
-    return { activities: allActs.length, new: added, page: page - 1, mode };
+    SYNC_PROGRESS.message = `完成 · 拉取 ${allActs.length} 条, 新增 ${added} 条${pruned ? `, 清理已删 ${pruned} 条` : ''}`;
+    log('system', `同步完成(${mode}): 拉取 ${allActs.length} 条, 新增 ${added} 条${pruned ? `, 清理已删 ${pruned} 条` : ''}`);
+    return { activities: allActs.length, new: added, pruned, page: page - 1, mode };
   } catch (e) {
     SYNC_PROGRESS.error = String(e.message || e);
     SYNC_PROGRESS.message = `失败: ${e.message || e}`;
@@ -1864,6 +1872,22 @@ async function handlePost(req, res, rawPath, qs) {
       const mode = qs.mode === 'full' ? 'full' : 'incremental';
       const result = await syncSerial(() => syncFromStrava(tok, 20, mode));
       sendJson(res, { ok: true, ...result });
+    } catch (e) {
+      sendJson(res, { error: String(e.message || e) }, 500);
+    }
+    return;
+  }
+  if (rawPath === '/api/activities/delete') {
+    // 删除本地缓存活动:{id}。只删本地缓存，不动 Strava 端（Strava 删除走官网）。
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    try {
+      const data = JSON.parse(await readBody(req));
+      const id = Number(data.id);
+      if (!id || !Number.isFinite(id)) { sendJson(res, { error: '缺少活动 id' }, 400); return; }
+      const deleted = db.deleteActivity(id);
+      if (!deleted) { sendJson(res, { error: '活动不存在（可能已删除）' }, 404); return; }
+      log('system', `删除本地活动缓存 #${id}`);
+      sendJson(res, { ok: true, id, deleted });
     } catch (e) {
       sendJson(res, { error: String(e.message || e) }, 500);
     }
