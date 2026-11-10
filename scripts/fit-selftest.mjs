@@ -237,7 +237,7 @@ ok(cTs[5] === 1000000100, '真实间隔保留：第二段起点=其原始开始�
   const w=(v,n)=>{for(let i=0;i<n;i++)body.push(Math.floor(v/Math.pow(2,i*8))&0xFF);};
   const S32=v=>{const b=Buffer.alloc(4);b.writeInt32LE(v,0);body.push(...b);};
   body.push(0x00|0x40,0,0); body.push(20,0); body.push(4);
-  body.push(253,4,4); body.push(0,4,5); body.push(1,4,5); body.push(5,4,4);
+  body.push(253,4,0x84); body.push(0,4,0x85); body.push(1,4,0x85); body.push(5,4,0x86);
   const base=1000000000;
   // distance: 0→3000000（30km）→ 重置为 0 → 0→2000000（20km），真实总里程 50km
   const dists=[0,1000000,2000000,3000000, 0,1000000,2000000];
@@ -646,7 +646,7 @@ function buildSentinel() {
   const w=(v,n)=>{for(let i=0;i<n;i++)body.push(Math.floor(v/Math.pow(2,i*8))&0xFF);};
   const S32=v=>{const b=Buffer.alloc(4);b.writeInt32LE(v,0);body.push(...b);};
   body.push(0x00|0x40,0,0); body.push(20,0); body.push(4);
-  body.push(253,4,4); body.push(0,4,5); body.push(1,4,5); body.push(5,4,4);
+  body.push(253,4,0x84); body.push(0,4,0x85); body.push(1,4,0x85); body.push(5,4,0x86);
   const base=1000000000;
   // 3 点沿经线间隔 0.001°（≈111.2m/段）；末点 distance 写无效哨兵
   const dists=[0,11120,0xFFFFFFFF];
@@ -676,7 +676,20 @@ ok(ssum.distanceKm!=null&&ssum.distanceKm>0.2&&ssum.distanceKm<0.25,"distance �
 ok(!(ssum.distanceKm>1000),"不再出现天文数字距离",ssum.distanceKm);
 FIT.tagDefs(sp);
 const srt=FIT.serialize(sp.messages);
-ok(Buffer.from(srt).equals(Buffer.from(sf)),"parse→serialize 字节级一致（哨兵往返）");
+// base 字节规范化后（size4+base4 → base6），产物与源字节不同但数据等价——
+// 往返断言改为「数据级一致」：逐消息逐字段值全等（含哨兵 null）
+let rtSame = srt && sp.messages.filter(m=>m.type==='data').length === FIT.parse(srt).messages.filter(m=>m.type==='data').length;
+if (rtSame) {
+  const a = sp.messages.filter(m=>m.type==='data');
+  const b = FIT.parse(srt).messages.filter(m=>m.type==='data');
+  for (let i = 0; i < a.length && rtSame; i++) {
+    if (a[i].global !== b[i].global) rtSame = false;
+    else for (const k of Object.keys(a[i].data)) {
+      if (String(a[i].data[k]) !== String(b[i].data[k])) { rtSame = false; break; }
+    }
+  }
+}
+ok(rtSame,"parse→serialize 数据级往返一致（base 规范化后字节不同语义等价）");
 
 // ---- [12] TCX DistanceMeters 为累计值（修复单步增量误当累计）----
 const tf2=buildFit({points:5});

@@ -47,24 +47,32 @@ const FIT = (() => {
   // ---- 基类型读写 ----
   // baseType 枚举见 FIT 规范 Profile；size 为该字段在记录中的字节宽度
   const BASE = {
-    0:  { name: 'enum',   size: 1, read: v => v },
-    1:  { name: 'sint8',  size: 1, read: v => (v << 24) >> 24 },
-    2:  { name: 'uint8',  size: 1, read: v => v & 0xFF },
-    3:  { name: 'sint16', size: 2, read: v => (v << 16) >> 16 },
-    4:  { name: 'uint16', size: 2, read: v => v & 0xFFFF },
-    5:  { name: 'sint32', size: 4, read: v => v | 0 },
-    6:  { name: 'uint32', size: 4, read: v => v >>> 0 },
-    7:  { name: 'string', size: 1, read: null },  // 按 NUL 截断
-    8:  { name: 'float32', size: 4, read: v => v },
-    9:  { name: 'float64', size: 8, read: v => v },
-    10: { name: 'uint8z',  size: 1, read: v => v & 0xFF },
-    11: { name: 'uint16z', size: 2, read: v => v & 0xFFFF },
-    12: { name: 'uint32z', size: 4, read: v => v >>> 0 },
-    13: { name: 'byte',   size: 1, read: v => v & 0xFF },
-    14: { name: 'sint64', size: 8, read: v => v },
-    15: { name: 'uint64', size: 8, read: v => v },
-    16: { name: 'uint64z', size: 8, read: v => v },
+    0:  { name: 'enum',   size: 1, fit: 0x00, read: v => v },
+    1:  { name: 'sint8',  size: 1, fit: 0x01, read: v => (v << 24) >> 24 },
+    2:  { name: 'uint8',  size: 1, fit: 0x02, read: v => v & 0xFF },
+    3:  { name: 'sint16', size: 2, fit: 0x83, read: v => (v << 16) >> 16 },
+    4:  { name: 'uint16', size: 2, fit: 0x84, read: v => v & 0xFFFF },
+    5:  { name: 'sint32', size: 4, fit: 0x85, read: v => v | 0 },
+    6:  { name: 'uint32', size: 4, fit: 0x86, read: v => v >>> 0 },
+    7:  { name: 'string', size: 1, fit: 0x07, read: null },  // 按 NUL 截断
+    8:  { name: 'float32', size: 4, fit: 0x88, read: v => v },
+    9:  { name: 'float64', size: 8, fit: 0x89, read: v => v },
+    10: { name: 'uint8z',  size: 1, fit: 0x0A, read: v => v & 0xFF },
+    11: { name: 'uint16z', size: 2, fit: 0x8B, read: v => v & 0xFFFF },
+    12: { name: 'uint32z', size: 4, fit: 0x8C, read: v => v >>> 0 },
+    13: { name: 'byte',   size: 1, fit: 0x0D, read: v => v & 0xFF },
+    14: { name: 'sint64', size: 8, fit: 0x8D, read: v => v },
+    15: { name: 'uint64', size: 8, fit: 0x8E, read: v => v },
+    16: { name: 'uint64z', size: 8, fit: 0x8F, read: v => v },
   };
+  // 规范的 base type 磁盘字节（profile 的 fit_base_type 枚举值）。0x80 高位不是
+  // 可剥的标志位，而是这些枚举值本身的一部分（sint16=0x83…uint32z=0x8C 带、
+  // enum=0x00/uint8=0x02/string=0x07/byte=0x0D 裸）。parse 时 &0x7F 归一化供
+  // 查表，写出必须按 fit: 映射还原——瞎还原（统一 |0x80 或统一裸值）会让
+  // 严格解析器（fitparse/Strava 后端）查表落空 fallback 到 byte：
+  // 数值字段全读成字节数组 → time_created 变 tuple → 文件被拒
+  // （实测 Strava "Error Processing Data"，用户手动网页上传同报错）。
+  const BASE_FIT_BYTE = k => (BASE[k] ? BASE[k].fit : 0x00);
 
   // ---- FIT 无效值哨兵（Profile 规范）----
   // 全 1 位模式表示「字段存在但无值」：uint8=0xFF, uint16=0xFFFF, uint32=0xFFFFFFFF,
@@ -227,10 +235,27 @@ const FIT = (() => {
         const nFields = u8[p++];
         const fields = [];
         for (let i = 0; i < nFields; i++) {
-          // base type 字节高位 0x80 是「无效值掩码标志」（FIT profile 定义 0x80=invalid
-          // 位），真实设备文件实测出现 0x86/0x84——剥离标志位归一化为基类型编号，
-          // 否则 BASE/INVALID_Z/SIGNED 查表全落空，哨兵识别与有符号解释都失效。
-          fields.push({ num: u8[p], size: u8[p + 1], base: u8[p + 2] & 0x7F });
+          // base type 字节高位 0x80 不是标志位，而是规范枚举值自身的一部分
+          // （uint16=0x84、uint32=0x86…enum=0x00/uint8=0x02 裸）。&0x7F 归一化
+          // 成基类型编号供查表；写出时按 BASE.fit 映射还原。
+          const baseNum = u8[p + 2] & 0x7F;
+          const sz = u8[p + 1];
+          // 部分设备文件 size 与 base 宽度矛盾（timestamp 写 base 4(uint16) size 4
+          // —— 宽松解析器按 size 蒙对，严格解析器 fitparse/Strava 按定义读
+          // 2×2 字节 → time 字段变 tuple → 文件被拒 "Error Processing Data"）。
+          // 语义修正：size 与 base 宽度矛盾时按 size 升级 base
+          // （4B→uint32(6)、2B→uint16(4)、8B→uint64(15)），数据按新宽度读不受影响
+          // （readValue 本来就按 size 读）。字段表升到规范语义，产物即合法。
+          const w = BASE[baseNum] ? BASE[baseNum].size : 0;
+          let fixed = baseNum;
+          if (w && sz > w) {
+            if (sz === 4 && (baseNum === 4 || baseNum === 3)) fixed = 6;
+            else if (sz === 2 && baseNum === 1) fixed = 4;
+            else if (sz === 2 && baseNum === 0) fixed = 4;
+            else if (sz === 8 && (baseNum === 6 || baseNum === 5)) fixed = 15;
+            else if (sz === 8 && baseNum === 12) fixed = 16;
+          }
+          fields.push({ num: u8[p], size: sz, base: fixed });
           p += 3;
         }
         let dev = [];
@@ -338,10 +363,11 @@ const FIT = (() => {
       body.push(h, 0, 0);
       body.push(m.global & 0xFF, (m.global >> 8) & 0xFF);
       body.push(m.fields.length);
-      for (const f of m.fields) body.push(f.num, f.size, f.base);
+      // base type 字节按规范映射还原（见 BASE_FIT_BYTE 注释）：
+      for (const f of m.fields) body.push(f.num, f.size, BASE_FIT_BYTE(f.base));
       if (dev && dev.length) {
         body.push(dev.length);
-        for (const f of dev) body.push(f.num, f.size, f.base);
+        for (const f of dev) body.push(f.num, f.size, BASE_FIT_BYTE(f.base));
       }
     };
     // stripDev：产物构造（合并/拆分/裁剪/清洗/校正）置 true——剥离 developer 字段。
@@ -719,11 +745,13 @@ const FIT = (() => {
   }
 
   function makeEvent(global, sample, ts) {
+    // 字段 base 按规范：253 timestamp=uint32(6)，0 event=enum(0, 1 字节)。
+    // 旧代码误写 base 4(uint16)——宽松解析器按 size 蒙对，规范写出后错位。
     return {
       type: 'data', global, __defKey: defKey(global,
-        [{ num: 253, size: 4, base: 4 }, { num: 0, size: 4, base: 4 }],
+        [{ num: 253, size: 4, base: 6 }, { num: 0, size: 1, base: 0 }],
         null),
-      fields: [{ num: 253, size: 4, base: 4 }, { num: 0, size: 4, base: 4 }],
+      fields: [{ num: 253, size: 4, base: 6 }, { num: 0, size: 1, base: 0 }],
       dev: null, devData: null,
       data: { 253: ts, 0: 0 },   // timer start
     };
@@ -738,8 +766,8 @@ const FIT = (() => {
     // 无误——只能绕开。total_ascent 是可选字段；Strava/Garmin 的活动爬升本就
     // 以 record 海拔重算为准（78/2 双写后真实海拔任它取）。
     const fields = [
-      { num: 253, size: 4, base: 4 }, { num: 2, size: 4, base: 4 }, { num: 7, size: 4, base: 4 },
-      { num: 8, size: 4, base: 4 }, { num: 9, size: 4, base: 4 }, { num: 15, size: 2, base: 4 },
+      { num: 253, size: 4, base: 6 }, { num: 2, size: 4, base: 6 }, { num: 7, size: 4, base: 6 },
+      { num: 8, size: 4, base: 6 }, { num: 9, size: 4, base: 6 }, { num: 15, size: 2, base: 4 },
       { num: 24, size: 1, base: 0 },
     ];
     const timer = (moveTime != null && moveTime > 0) ? moveTime : dur;
@@ -760,8 +788,8 @@ const FIT = (() => {
     // total_ascent/descent(22/23) 省略，理由同 makeLap——Strava 读出 256 倍值，
     // 与其让平台显示天文爬升，不如省略该可选字段让它从 record 海拔重算。
     const fields = [
-      { num: 253, size: 4, base: 4 }, { num: 2, size: 4, base: 4 }, { num: 5, size: 1, base: 0 },
-      { num: 7, size: 4, base: 4 }, { num: 8, size: 4, base: 4 }, { num: 9, size: 4, base: 4 },
+      { num: 253, size: 4, base: 6 }, { num: 2, size: 4, base: 6 }, { num: 5, size: 1, base: 0 },
+      { num: 7, size: 4, base: 6 }, { num: 8, size: 4, base: 6 }, { num: 9, size: 4, base: 6 },
       { num: 14, size: 2, base: 4 }, { num: 26, size: 2, base: 4 },
     ];
     const timer = (moveTime != null && moveTime > 0) ? moveTime : dur;
