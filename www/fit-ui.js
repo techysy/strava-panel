@@ -204,10 +204,19 @@ const FitUI = (() => {
   // ---- 海拔校准（Open-Meteo DEM）与 GCJ-02 坐标校正 ----
   let _eleBusy = false;
   const DEM_URL = 'https://api.open-meteo.com/v1/elevation';
-  async function fetchDem(pts) {
+  const sleepMs = ms => new Promise(r => setTimeout(r, ms));
+  // 把 HTTP 状态翻成可操作的中文：429 是免费接口限流（等一下就好），别让用户以为坏了
+  const demHttpError = (status, retryAfter) => {
+    if (status === 429) return 'DEM 查询被限流（HTTP 429）——免费接口每分钟有请求上限，已自动等待重试仍失败。请等 1 分钟后再试，或缩小文件点数';
+    if (status >= 500) return 'DEM 服务暂时不可用（HTTP ' + status + '），稍后重试';
+    return 'HTTP ' + status + (retryAfter ? '（需等待 ' + retryAfter + 's）' : '');
+  };
+  async function fetchDem(pts, onProgress) {
     const cache = new Map();
     const out = new Array(pts.length).fill(null);
     const BATCH = 100;   // Open-Meteo elevation 单次上限 100 坐标
+    // 真实批数（去掉网格去重命中的）用于进度显示
+    const batches = [];
     for (let i = 0; i < pts.length; i += BATCH) {
       const idxs = [], lats = [], lons = [];
       for (let j = i; j < Math.min(i + BATCH, pts.length); j++) {
@@ -215,16 +224,50 @@ const FitUI = (() => {
         if (cache.has(k)) { out[j] = cache.get(k); continue; }
         idxs.push(j); lats.push(pts[j].lat.toFixed(5)); lons.push(pts[j].lon.toFixed(5));
       }
-      if (!idxs.length) continue;
-      // 超时保护：网络挂起时不能无限等（按钮会永远停在「查询中…」）
-      const ac = new AbortController();
-      const timer = setTimeout(() => ac.abort(), 20000);
+      if (idxs.length) batches.push({ idxs, lats, lons });
+    }
+    const done = batches.length;
+    let bi = 0;
+    for (const { idxs, lats, lons } of batches) {
+      bi++;
+      if (onProgress) onProgress(bi, done);
       let d;
-      try {
-        const resp = await fetch(DEM_URL + '?latitude=' + lats.join(',') + '&longitude=' + lons.join(','), { signal: ac.signal });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        d = await resp.json();
-      } finally { clearTimeout(timer); }
+      {
+        // 429/5xx 自动退避重试：免费接口限流是常态（连续校准多个文件极易触发），
+        // 直接报错等于把「等 30 秒再点一次」这种本可自愈的问题甩给用户。
+        // 最多 4 次尝试；429 优先尊重 Retry-After 响应头，否则指数退避 2/5/12s。
+        // 超时保护按「每次尝试」独立计时（20 秒）——若覆盖整个重试序列，
+        // 退避等待本身就会把定时器耗尽，误报「查询超时」。
+        let lastErr = null;
+        for (let attempt = 0; attempt < 4; attempt++) {
+          if (attempt) {
+            const wait = lastErr && lastErr.retryAfter
+              ? Math.min(60, lastErr.retryAfter) * 1000
+              : [0, 2000, 5000, 12000][attempt];
+            if (wait) await sleepMs(wait);
+            if (onProgress) onProgress(bi, done, attempt);
+          }
+          const ac = new AbortController();
+          const timer = setTimeout(() => ac.abort(), 20000);
+          try {
+            const resp = await fetch(DEM_URL + '?latitude=' + lats.join(',') + '&longitude=' + lons.join(','), { signal: ac.signal });
+            if (resp.status === 429 || resp.status >= 500) {
+              const ra = parseInt(resp.headers.get('Retry-After') || '', 10);
+              lastErr = { status: resp.status, retryAfter: Number.isFinite(ra) ? ra : 0 };
+              continue;   // 退避后重试
+            }
+            if (!resp.ok) throw new Error(demHttpError(resp.status));
+            d = await resp.json();
+            lastErr = null;
+            break;
+          } catch (e) {
+            if (e.name === 'AbortError') throw new Error('DEM 查询超时（20 秒无响应）');
+            if (lastErr) continue;   // 刚才是 429/5xx 记下的待重试，继续退避
+            throw e;                  // 网络错误等硬失败：直接抛
+          } finally { clearTimeout(timer); }
+        }
+        if (lastErr) throw new Error(demHttpError(lastErr.status, lastErr.retryAfter));
+      }
       // Open-Meteo 对越界坐标返回 HTTP 200 + {error:true}（无 elevation 字段），
       // 此时该批全部失败，必须报错而不是静默留 0（否则用户以为已补全）
       if (d && d.error) throw new Error(String(d.reason || 'DEM 查询失败'));
@@ -239,6 +282,9 @@ const FitUI = (() => {
         out[idxs[k]] = ele;
         cache.set(pts[idxs[k]].lat.toFixed(4) + ',' + pts[idxs[k]].lon.toFixed(4), ele);
       });
+      // 批间限速：连发几十批会撞每分钟请求上限，留出安全间隔（每批 ~150ms +
+      // 请求本身耗时，600 次/分钟的上限远碰不到）
+      if (bi < done) await sleepMs(150);
     }
     return out;
   }
@@ -254,7 +300,11 @@ const FitUI = (() => {
       // 变成无人处理的 Promise rejection（用户看不到任何反馈）
       const t0 = FIT.elevationTargets(f.bytes);
       if (!t0.count) { toast(t('fit_eleNone'), true); return; }
-      const eles = await fetchDem(t0.pts);
+      const eles = await fetchDem(t0.pts, (i, n, retrying) => {
+        if (btn) btn.textContent = retrying
+          ? t('fit_eleRetry', { i, n })
+          : t('fit_eleProgress', { i, n });
+      });
       const r = FIT.applyElevation(f.bytes, eles);
       if (!r.bytes) { toast(t('fit_eleNone'), true); return; }
       if (mode === 'list') {
@@ -298,7 +348,11 @@ const FitUI = (() => {
     try {
       const t0 = FIT.allPositionTargets(f.bytes);
       if (!t0.count) { toast(t('fit_eleNone'), true); return; }
-      const eles = await fetchDem(t0.pts);
+      const eles = await fetchDem(t0.pts, (i, n, retrying) => {
+        if (btn) btn.textContent = retrying
+          ? t('fit_eleRetry', { i, n })
+          : t('fit_eleProgress', { i, n });
+      });
       // DEM 是 ~11m 网格量化值，逐点直写会有台阶、1m 阈值会放大——窗口 5 平滑
       const r = FIT.rewriteElevation(f.bytes, smoothSeries(eles, 5));
       if (!r.bytes) { toast(t('fit_eleNone'), true); return; }
