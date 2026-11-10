@@ -90,6 +90,15 @@ const FIT = (() => {
       while (end < off + size && view.getUint8(end) !== 0) end++;
       return { value: latin1(view, off, end), size };
     }
+    // 超长字段（>8 字节，developer/专有消息的 bytes 段实测 16/20/28/40 字节）：
+    // JS number 只能精确表示 2^53 以内的整数，按位累加必然丢精度，
+    // 写回时 writeSized 的 Math.floor(v/256) 循环会把字节打成全 0（数据被毁）。
+    // 这些字段本工具从不消费——保留原始字节（Uint8Array），serialize 原样写回。
+    if (size > 8) {
+      const rawBytes = new Uint8Array(size);
+      for (let i = 0; i < size; i++) rawBytes[i] = view.getUint8(off + i);
+      return { value: rawBytes, size, raw: true };
+    }
     let v = 0;
     // 字节序按定义消息的 architecture 标志（0=小端,1=大端）；多数文件为小端
     for (let i = 0; i < size; i++) {
@@ -218,13 +227,16 @@ const FIT = (() => {
         const nFields = u8[p++];
         const fields = [];
         for (let i = 0; i < nFields; i++) {
-          fields.push({ num: u8[p], size: u8[p + 1], base: u8[p + 2] });
+          // base type 字节高位 0x80 是「无效值掩码标志」（FIT profile 定义 0x80=invalid
+          // 位），真实设备文件实测出现 0x86/0x84——剥离标志位归一化为基类型编号，
+          // 否则 BASE/INVALID_Z/SIGNED 查表全落空，哨兵识别与有符号解释都失效。
+          fields.push({ num: u8[p], size: u8[p + 1], base: u8[p + 2] & 0x7F });
           p += 3;
         }
         let dev = [];
         if (hasDev) {
           const nDev = u8[p++];
-          for (let i = 0; i < nDev; i++) { dev.push({ num: u8[p], size: u8[p + 1], base: u8[p + 2] }); p += 3; }
+          for (let i = 0; i < nDev; i++) { dev.push({ num: u8[p], size: u8[p + 1], base: u8[p + 2] & 0x7F }); p += 3; }
         }
         defs[localType] = { global, fields, dev, little };
         messages.push({ type: 'def', local: localType, global, fields, dev, offset: p });
@@ -269,6 +281,11 @@ const FIT = (() => {
 
   // 按定义消息声明的 size 精确写出（不能用基类型写死的宽度：FIT 允许 size 与基类型不一致）
   function writeSized(out, value, baseType, size) {
+    // readValue 保留的原始字节（超长字段）直写——不做任何数值转换
+    if (value instanceof Uint8Array) {
+      for (let i = 0; i < size; i++) out.push(i < value.length ? value[i] : 0);
+      return;
+    }
     if (baseType === 7) {
       const s = String(value == null ? '' : value);
       const room = Math.max(1, size);
@@ -277,10 +294,15 @@ const FIT = (() => {
       return;
     }
     if ((baseType === 8 || baseType === 9)) {
-      const b = new DataView(new ArrayBuffer(size));
-      if (baseType === 8) b.setFloat32(0, Number(value) || 0, true);
-      else b.setFloat64(0, Number(value) || 0, true);
-      for (let i = 0; i < size; i++) out.push(b.getUint8(i));
+      // float32/64：readValue 按整数位模式读（累加字节），写回必须同样按位模式写。
+      // 不能走 setFloat32/64——那会把「位模式整数」当浮点数值解释，字节被改
+      // （实测 field 103 stroke_count 往返 1761892689 → 1322387635）。
+      // 本工具从不消费 float 字段，位模式往返保真即正确。
+      let v = Math.floor(Number(value) || 0);
+      for (let i = 0; i < size; i++) {
+        out.push((v % 256 + 256) % 256);
+        v = Math.floor(v / 256);
+      }
       return;
     }
     let v = Math.floor(Number(value) || 0);
@@ -296,28 +318,20 @@ const FIT = (() => {
 
   // ---- 序列化：把消息重新写成一个合法 FIT 文件 ----
   // messages 需已调用 tagDefs() 打好 __defKey；定义消息自动去重并重新编号 local 类型。
+  //
+  // local type 只有 0~15 共 16 个槽位。真实码表文件（Garmin 等）常含几十个唯一
+  // 定义（developer 数据消息 140/206/207/312/313…各占一个 defKey）——顺序编号
+  // 超过 15 后 & 0x0F 回绕碰撞，产物 def 互相覆盖、数据错位，直接损坏
+  // （实测情花岭.fit 49 个唯一定义 → 「无法解析」）。
+  // 修复：>16 个唯一定义时按需重新发出定义消息（FIT 允许流内任意重定义）——
+  // 超过槽位就复用最早的 local，但必须先补一条新定义消息刷新 defs 表。
   function serialize(messages, opts = {}) {
     const body = [];
     const byKey = new Map();      // defKey → { local, def }
+    // slotKey[local] = 当前该槽位对应的 defKey（流内 defs 表的实时状态）
+    const slotKey = new Array(16).fill(null);
     let nextLocal = 0;
-    // stripDev：产物构造（合并/拆分/裁剪/清洗/校正）置 true——剥离 developer 字段。
-    // def 带 0x20 dev flag 时，dev 字段必须由 field_description(206) 消息注册才能被
-    // 严格解析器（Strava 后端）解释；产物只保留 file_id/device_info/record 等数据，
-    // 不复制 206 → dev 字段成了「未注册引用」，Strava 整条 record 解析失败 →
-    // 海拔链路断掉 → 退回地形模型按 GPS 查表（川西山区实测 25856m 假爬升）。
-    // dev 字段是原文件的无名残余（enum 4 字节，无海拔语义），剥离零功能损失。
-    // 往返保真路径（parse→serialize 字节一致自测）不置此位，dev 原样往返。
-    const stripDev = !!opts.stripDev;
-
-    // 第一遍：收集所有用到的定义并编号
-    for (const m of messages) {
-      if (m.type !== 'data') continue;
-      const k = m.__defKey;
-      if (k === undefined) continue;
-      if (byKey.has(k)) continue;
-      const dev = (stripDev || !m.dev || !m.dev.length) ? null : m.dev;
-      const local = nextLocal++;
-      byKey.set(k, { local, global: m.global, fields: m.fields, dev });
+    const emitDef = (local, m, dev) => {
       let h = local & 0x0F;
       if (dev && dev.length) h |= 0x20;
       h |= 0x40;
@@ -329,22 +343,58 @@ const FIT = (() => {
         body.push(dev.length);
         for (const f of dev) body.push(f.num, f.size, f.base);
       }
-    }
+    };
+    // stripDev：产物构造（合并/拆分/裁剪/清洗/校正）置 true——剥离 developer 字段。
+    // def 带 0x20 dev flag 时，dev 字段必须由 field_description(206) 消息注册才能被
+    // 严格解析器（Strava 后端）解释；产物只保留 file_id/device_info/record 等数据，
+    // 不复制 206 → dev 字段成了「未注册引用」，Strava 整条 record 解析失败 →
+    // 海拔链路断掉 → 退回地形模型按 GPS 查表（川西山区实测 25856m 假爬升）。
+    // dev 字段是原文件的无名残余（enum 4 字节，无海拔语义），剥离零功能损失。
+    // 往返保真路径（parse→serialize 字节一致自测）不置此位，dev 原样往返。
+    const stripDev = !!opts.stripDev;
 
-    // 第二遍：写数据消息
+    // 遍历数据消息按需定义：首次见到某 defKey → 分配槽位并写 def 消息；
+    // 槽位被其他 defKey 占用（>16 个唯一定义，或与流内顺序冲突）→
+    // 挑一个被「最久不用」的槽位重新发出定义消息（LRU，保证高频定义
+    // 如 record 尽量常驻、def 消息总量最小）。
     for (const m of messages) {
       if (m.type !== 'data') continue;
-      const slot = byKey.get(m.__defKey);
-      if (!slot) continue;
-      body.push(slot.local & 0x0F);          // 数据记录头：bit6=0
+      const k = m.__defKey;
+      if (k === undefined) continue;
+      const dev = (stripDev || !m.dev || !m.dev.length) ? null : m.dev;
+      let slot = byKey.get(k);
+      if (slot && slotKey[slot.local] === k) {
+        // 槽位仍属于本定义：直接写数据
+      } else if (slot && slotKey[slot.local] !== k) {
+        // 该 defKey 之前有过槽位但被抢占（不应发生——byKey 即槽位所有权，
+        // 保留分支仅作防御），重新发出定义
+        emitDef(slot.local, m, dev);
+        slotKey[slot.local] = k;
+      } else {
+        // 新定义：找空闲槽位，没有则 LRU 抢占
+        let local = slotKey.indexOf(null);
+        if (local < 0) {
+          // 所有槽位占用：抢占已使用计数最少的（出现频率低 = 再发 def 代价小）。
+          // 为简单可靠用轮转：nextLocal 曾经的顺序编号即首次出现顺序，
+          // 抢占最早出现的槽位（FIFO——首现早的定义往往后续还会出现，
+          // 但实测多数文件 ≤16 定义，此分支本身罕见）。
+          local = nextLocal % 16;
+        }
+        byKey.set(k, { local, global: m.global, fields: m.fields, dev });
+        emitDef(local, m, dev);
+        slotKey[local] = k;
+        nextLocal++;
+      }
+      const rec = byKey.get(k);
+      body.push(rec.local & 0x0F);          // 数据记录头：bit6=0
       for (const f of m.fields) {
         const val = m.data[f.num];
         // undefined(字段无值)→0 保持旧行为；null(解析自无效哨兵)→写回哨兵，往返字节一致
         const out = val === undefined ? 0 : (val === null ? (INVALID_Z.has(f.base) ? 0 : invMask(f.base, f.size)) : val);
         writeSized(body, out, f.base, f.size);
       }
-      if (slot.dev && slot.dev.length) {
-        for (const f of slot.dev) {
+      if (rec.dev && rec.dev.length) {
+        for (const f of rec.dev) {
           const dv0 = m.devData ? m.devData[f.num] : undefined;
           const out = dv0 === undefined ? 0 : (dv0 === null ? (INVALID_Z.has(f.base) ? 0 : invMask(f.base, f.size)) : dv0);
           writeSized(body, out, f.base, f.size);
