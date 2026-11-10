@@ -559,12 +559,33 @@ async function uploadToStrava(token, buf, dataType, fields, fname) {
       log('strava', `upload 完成 id=${up.id} → activity=${st.activity_id}`);
       return st;
     }
-    if (st && st.errored === true) {
-      const msg = String(st.error || 'Strava 处理该文件失败');
+    // UploadStatus 官方字段（https://strava.github.io/api/v3/uploads/）：
+    //   status: 'Your activity is still being processed.' → 处理中
+    //           'There was an error processing your activity.' → 失败
+    //           'Your activity is ready.' / 'The created activity has been deleted.' → 终态
+    //   error:  string may be null —— 失败时带人类可读错误
+    // 没有布尔 "errored" 字段（旧代码判 st.errored===true 永远为 false →
+    // 失败上传被当「处理中」死轮询到 60s 超时，前端只见「处理超时」）。
+    // 判定顺序：activity_id → 成功；error 非空或 status 含 error/deleted → 失败。
+    const stStatus = st && typeof st.status === 'string' ? st.status : '';
+    const processing = stStatus.includes('still being processed');
+    const failed = !processing && (
+      (st && st.error != null && String(st.error).trim() !== '') ||
+      stStatus.includes('error processing') ||
+      stStatus.includes('has been deleted')
+    );
+    if (failed) {
+      const msg = String((st && st.error) || stStatus || 'Strava 处理该文件失败');
       const dup = /duplicate/i.test(msg);
       setUpUpload({ running: false, state: dup ? 'duplicate' : 'failed', error: msg, upload_id: up.id, message: dup ? '重复数据' : '处理失败' });
       log('strava', `upload ${dup ? '重复' : '失败'} id=${up.id}: ${msg}`);
       return { ...st, _dup: dup };
+    }
+    if (!processing && stStatus.includes('ready')) {
+      // status=ready 但无 activity_id（罕见）；视为完成但无活动链接
+      log('strava', `upload ready 无 activity_id id=${up.id}: ${JSON.stringify(st).slice(0, 200)}`);
+      setUpUpload({ running: false, done: true, state: 'complete', upload_id: up.id, message: '已完成' });
+      return { ...st, _readyNoId: true };
     }
     setUpUpload({ state: st && st.status ? String(st.status) : 'processing', message: `处理中：${(st && st.status) || '…'}` });
   }

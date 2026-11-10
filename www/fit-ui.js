@@ -62,6 +62,9 @@ const FitUI = (() => {
           <div class="ff-tags">${cropTag}${tags.join('')}${s.crcOk ? '' : '<b class="t-bad">' + escapeHtml(t('fit_tagCrcBad')) + '</b>'}</div>
         </div>
         <div class="ff-time">${fmtTime(s.startUnix)}</div>
+        <button class="ff-dl" onclick="FitUI.downloadFile(${i}); event.stopPropagation();" title="${escapeHtml(t('fit_download'))}">
+          <svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>
+        </button>
         <button class="ff-del" onclick="FitUI.remove(${i}); event.stopPropagation();" title="${escapeHtml(t('fit_remove'))}">×</button>
       </div>`;
     }).join('');
@@ -101,6 +104,13 @@ const FitUI = (() => {
     renderPanel();
   }
 
+  // 下载列表中的任意文件（「应用到列表」的产物由此取回本地）
+  function downloadFile(i) {
+    const f = fitFiles[i];
+    if (!f) return;
+    download(new Blob([f.bytes], { type: 'application/octet-stream' }), f.name);
+    toast(t('fit_downloadStarted', { name: f.name }), true);
+  }
   function remove(i) {
     const [gone] = fitFiles.splice(i, 1);
     if (gone) {
@@ -1737,5 +1747,5 @@ const FitUI = (() => {
     _authPillTimer = setInterval(refreshAuthPill, 60000);   // 授权状态低频轮询（用户可能在别处完成授权）
   }
 
-  return { init, relang, addFiles, remove, clearAll, pickFiles, runStrip, runConvert, runEleCalib, runGcjFix, runSensorImport, runSplit, runCombine, toggleCrop, toggleSplit, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, splitSuggest, splitClearCuts, splitGo, runUpload, reauthForUpload, ensureFs, toggleProfileMenu, closeProfileMenu, toggleActionMenu };
+  return { init, relang, addFiles, remove, clearAll, pickFiles, downloadFile, runStrip, runConvert, runEleCalib, runGcjFix, runSensorImport, runSplit, runCombine, toggleCrop, toggleSplit, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, splitSuggest, splitClearCuts, splitGo, runUpload, reauthForUpload, ensureFs, toggleProfileMenu, closeProfileMenu, toggleActionMenu };
 })();
