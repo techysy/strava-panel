@@ -1183,6 +1183,18 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
               <button class="btn btn-sm" onclick="FitUI.runConvert('gpx')">GPX</button>
               <button class="btn btn-sm" onclick="FitUI.runConvert('tcx')">TCX</button>
             </div>
+            <div class="fo-line fo-line-sep" id="fitOpImport">
+              <span class="fo-t"><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg><span data-i18n="fit_import">导入传感器数据</span></span>
+              <span class="tt" data-i18n="fit_impFrom">数据源：</span>
+              <select id="fitImportSrc" class="fo-sel" aria-label="sensor source"></select>
+              <label class="fo-lb"><input type="checkbox" id="fitImpHr" checked><span data-i18n="fit_impHr">心率</span></label>
+              <label class="fo-lb"><input type="checkbox" id="fitImpPw" checked><span data-i18n="fit_impPw">功率</span></label>
+              <label class="fo-lb"><input type="checkbox" id="fitImpCad" checked><span data-i18n="fit_impCad">踏频</span></label>
+              <span class="tt fo-tgt"><span data-i18n="fit_target">目标：</span><span id="fitImportTarget">-</span></span>
+              <button class="btn btn-sm" onclick="FitUI.runSensorImport()" data-i18n="fit_actionImport">执行并下载</button>
+              <button class="btn btn-sm" onclick="FitUI.runSensorImport('list')" data-i18n="fit_toList">应用到列表</button>
+              <span class="tt fo-status" id="fitImportHint" data-i18n="fit_impHint">按 GPS 位置最近邻估计两设备时钟偏移后对齐导入；无 GPS 自动退时间对齐。目标文件已有值不覆盖。</span>
+            </div>
           </div>
         </div>
       </div>
@@ -1388,6 +1400,11 @@ const I18N = {
     fit_cropExitOk:'全部应用并退出', fit_cropExitKeep:'保留草稿', fit_cropExitDiscard:'丢弃草稿并退出',
     fit_cropDraftBack:'已恢复 {n} 个待应用的裁剪草稿',
     fit_needMulti:'合并至少需要 2 个文件',
+    fit_import:'导入传感器数据', fit_impFrom:'数据源：', fit_impHr:'心率', fit_impPw:'功率', fit_impCad:'踏频',
+    fit_actionImport:'执行并下载', fit_impHint:'按 GPS 位置最近邻估计两设备时钟偏移后对齐导入；无 GPS 自动退时间对齐。目标文件已有值不覆盖。',
+    fit_impPickSrc:'请先选择一个数据源文件（与目标不同的另一个 FIT）', fit_impPickSensor:'请至少勾选一个要导入的传感器', fit_impNone:'没有可导入的点（源数据与目标轨迹不重叠）',
+    fit_impMethodGps:'GPS 对齐 {n} 对（均差 {m}m，钟差 {s}s）', fit_impMethodTime:'时间对齐（钟差 {s}s）',
+    fit_impDone:'已为 {n} 个采样点写入传感器数据',
     coach_sports:'运动方式', coach_sportsSave:'保存', coach_sportsSaved:'运动方式已保存，教练将只在该范围内推荐训练', coach_sportsSaveFail:'保存失败: ', coach_sportsNeedOne:'至少选择一种运动',
     nav_trip:'出行计划', trip_title:'户外出行计划', trip_hint:'骑行 / 徒步 / 越野跑出行方案：查目的地周末天气、高铁余票与装备清单。天气由 ECMWF / GFS / ICON 等多套数值模型交叉校验，余票来自 12306。',
     trip_dateCard:'出行日期', trip_date:'日期', trip_nextWeekend:'下周末', trip_weatherCard:'目的地天气', trip_dest:'目的地', trip_queryWeather:'查天气', trip_alt:'海拔',
@@ -1555,6 +1572,11 @@ const I18N = {
     fit_cropExitOk:'Apply all & exit', fit_cropExitKeep:'Keep drafts', fit_cropExitDiscard:'Discard & exit',
     fit_cropDraftBack:'Restored {n} pending crop draft(s)',
     fit_needMulti:'Combining needs at least 2 files',
+    fit_import:'Import sensor data', fit_impFrom:'Source: ', fit_impHr:'Heart rate', fit_impPw:'Power', fit_impCad:'Cadence',
+    fit_actionImport:'Run & download', fit_impHint:'Estimates the clock offset between devices via GPS nearest-neighbor matching, then imports; falls back to time alignment without GPS. Existing values are never overwritten.',
+    fit_impPickSrc:'Pick a source file first (a different FIT from the target)', fit_impPickSensor:'Check at least one sensor to import', fit_impNone:'Nothing to import (source data does not overlap the target track)',
+    fit_impMethodGps:'GPS-aligned {n} pairs (avg {m}m, clock skew {s}s)', fit_impMethodTime:'Time-aligned (clock skew {s}s)',
+    fit_impDone:'Wrote sensor data into {n} samples',
     coach_sports:'Sports', coach_sportsSave:'Save', coach_sportsSaved:'Sports saved — the coach will now only recommend within these', coach_sportsSaveFail:'Save failed: ', coach_sportsNeedOne:'Pick at least one sport',
     nav_trip:'Trip Planner', trip_title:'Outdoor Trip Planner', trip_hint:'Cycling / hiking / trail-run trip plans: weekend weather at the destination, 12306 train seats and a gear checklist. Weather is cross-checked across multiple models (ECMWF / GFS / ICON); train data from 12306.',
     trip_dateCard:'Trip date', trip_date:'Date', trip_nextWeekend:'Next weekend', trip_weatherCard:'Destination weather', trip_dest:'Destination', trip_queryWeather:'Check weather', trip_alt:'Alt',

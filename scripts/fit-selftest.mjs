@@ -327,6 +327,63 @@ ok(cTs[5] === 1000000100, '真实间隔保留：第二段起点=其原始开始�
   ok(recs.every(x => x.data[2] != null && x.data[78] != null && x.data[2] === x.data[78]), '重校产物 2/78 双写一致');
 }
 
+// ================= 传感器导入（GPS 对齐 + 时间对齐） =================
+// 合成「主文件无心率/功率」+「源文件有时心率/功率」的双文件场景：
+// 源文件时间戳整体偏移 300 秒（模拟两设备时钟不同步），坐标完全一致 →
+// 期望 GPS 对齐路徑估出钟差 +300s，并逐点借到心率/功率。
+function buildSensorFixture(opts = {}) {
+  // 复用 buildFit：主文件 withHr=false withPw=false；源文件全通道 + 时间偏移
+  const dst = buildFit({ points: opts.points ?? 8, time: 1000000000, withHr: false, withPw: false });
+  const src = buildFit({ points: opts.points ?? 8, time: 1000000000 + (opts.shift ?? 300), step: (opts.step ?? 1) });
+  return { dst, src };
+}
+{
+  console.log('\n[6.5] 传感器导入（GPS 位置对齐）');
+  const { dst, src } = buildSensorFixture({ points: 8, shift: 300 });
+  const before = FIT.summarize(dst);
+  ok(!before.has.hr && before.has.cadence, '主文件原始无心率（有踏频）', before.has);
+  const r = FIT.importSensors(dst, src, { sensors: ['hr', 'pw'] });
+  ok(r.bytes && r.count === 8, '8 个采样点全部写入', r && r.count);
+  ok(r.method === 'gps' && r.matched >= 5, '走 GPS 对齐路径（匹配 ≥5 对）', r.method + '/' + r.matched);
+  ok(r.offset === 300, 'GPS 最近邻估出钟差 +300s', r.offset);
+  const p = FIT.parse(r.bytes);
+  const recs = p.messages.filter(x => x.type === 'data' && x.global === 20);
+  ok(recs.length === 8 && recs.every(x => x.data[3] != null && x.data[3] > 0), '心率字段写入且非零');
+  ok(recs.every(x => x.data[7] != null && x.data[7] > 0), '功率字段写入且非零');
+  // 值正确性：目标 t=1000000000 的点 ↔ 源 t=1000000300 的点（坐标相同），
+  // 源该点心率 = 120 + i（fixture 规律），目标点 0 → 源点 0 → hr 120
+  ok(recs[0].data[3] === 120, '导入的心率值与源逐点对应（120）', recs[0].data[3]);
+  ok(recs[3].data[3] === 123, '第 4 点心率 123', recs[3].data[3]);
+  // 已有通道不覆盖：目标原有踏频 85 应保持
+  ok(recs.every(x => x.data[4] === 85), '目标已有踏频不被覆盖（85）', recs[0].data[4]);
+  // oracle 能读回
+  const r3 = readByOracle(r.bytes);
+  const rr = fieldsOf(r3, 20);
+  ok(rr.length === 8 && val(rr[0], 3) === 120, 'oracle 读回心率=120', val(rr[0], 3));
+  ok(val(rr[0], 7) === 200, 'oracle 读回功率=200', val(rr[0], 7));
+}
+{
+  console.log('\n[6.6] 传感器导入（时间对齐 + 通道裁剪 + 无重叠保护）');
+  // 无 GPS 场景：坐标缺失 → 自动退时间对齐。源 shift=0（钟差 0）。
+  const dst = buildFit({ points: 6, time: 1000000000, withHr: false, withPw: false });
+  const src = buildFit({ points: 6, time: 1000000000 });
+  const r = FIT.importSensors(dst, src, { sensors: ['hr'], mode: 'time' });
+  ok(r.bytes && r.method === 'time', '无强制 mode 时可显式 time', r.method);
+  const p = FIT.parse(r.bytes);
+  const recs = p.messages.filter(x => x.type === 'data' && x.global === 20);
+  ok(recs.every(x => x.data[3] != null), '时间对齐写入心率');
+  // 完全错开的记录区间：导入应报「没有可导入的点」
+  const dst2 = buildFit({ points: 4, time: 2000000000, withHr: false, withPw: false });
+  const src2 = buildFit({ points: 4, time: 1000000000 });
+  const r2 = FIT.importSensors(dst2, src2, { sensors: ['hr'], mode: 'time' });
+  ok(r2.bytes == null && r2.count === 0, '记录区间不重叠 → 不产出文件', r2.bytes);
+  // 源文件没有任何传感器数据 → 明确报错
+  const empty = buildFit({ points: 4, time: 1000000000, withHr: false, withPw: false });
+  let threw = false;
+  try { FIT.importSensors(dst2, empty, { sensors: ['hr'] }); } catch (e) { threw = true; }
+  ok(threw, '源无传感器数据 → 抛错');
+}
+
 console.log('\n[7] 工具：转换 GPX/TCX');
 const gpx = FIT.toGpx(fSplit, '测试骑行');
 ok(gpx.includes('<gpx'), 'GPX 根元素正确');

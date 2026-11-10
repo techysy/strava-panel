@@ -1269,6 +1269,220 @@ ${trkpts}
     return { bytes: serialize(p.messages, { protocolVer: p.protocolVer, stripDev: true }), count };
   }
 
+  // ======================= 工具 7：传感器导入（从另一个 FIT 借数据） =======================
+  // 场景：主文件（码表）没有心率/功率/踏频（忘连心率带、码表不支持），
+  // 但同一活动的另一个 FIT（手机 App、骑行台、另一块表）记录了这些传感器。
+  // 本函数把源文件的心率/功率/踏频按位置信息对齐后写进主文件。
+  //
+  // 匹配策略（两级）：
+  //   1) GPS 位置最近邻（两侧都有轨迹时）：在源文件里为主文件每个坐标点找
+  //      欧氏距离最近的源点 → 用「坐标匹配对」的时间差中位数估计两设备的
+  //      时钟偏移（两只表时间不同步是常态，中位数抗个别误匹配）；
+  //      匹配不上（室内/无 GPS）自动退到 2)。
+  //   2) 纯时间对齐（任一侧无 GPS）：按目标点 timestamp+offset 在源序列上
+  //      线性插值取值（传感器是慢变量，线性插值误差远小于 1s 采样间隔的影响）。
+  //
+  // 只写目标文件缺失的字段，不覆盖已有值（主文件已有的通道保持原样）；
+  // 写回走 addLegacy 一样的「改字段表 + __defKey」路径，serialize 正确重排定义。
+  const SENSOR_FIELDS = { hr: 3, pw: 7, cad: 4 };
+  // 从源文件抽取 { ts, lat?, lon?, v } 采样序列（有效值才有意义）
+  function sensorSeries(u8, num) {
+    const p = parseReadonly(u8);
+    const out = [];
+    for (const m of p.messages) {
+      if (m.type !== 'data' || m.global !== MSG.record) continue;
+      const v = m.data[num];
+      if (v == null || !Number.isFinite(v) || v <= 0) continue;   // 哨兵/缺失/0 视为无数据
+      const la = m.data[REC.position_lat], lo = m.data[REC.position_long];
+      const pt = {
+        ts: m.data[REC.timestamp],
+        lat: (la != null && lo != null) ? la / SEMI : null,
+        lon: (la != null && lo != null) ? lo / SEMI : null,
+        v,
+      };
+      if (pt.ts == null) continue;
+      if (pt.lat != null && !validLatLon(pt.lat, pt.lon)) { pt.lat = null; pt.lon = null; }
+      out.push(pt);
+    }
+    out.sort((a, b) => a.ts - b.ts);
+    return out;
+  }
+  // 中位数（时钟偏移估计：个别坐标误匹配会把均值带偏，中位数稳）
+  function median(arr) {
+    if (!arr.length) return null;
+    const s = [...arr].sort((a, b) => a - b);
+    const mid = s.length >> 1;
+    return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+  }
+  // 估计源→目标时钟偏移：对每个目标 GPS 点在源文件找最近点，
+  // 距离 ≤30m 才算可信匹配（路两侧对穿、回头路重叠会撞出假近邻），
+  // 偏移取这些匹配对 (src.ts - dst.ts) 的中位数。
+  function estimateClockOffset(dstPts, srcPts) {
+    let off = null, matched = 0, totalM = 0;
+    const STEP = Math.max(1, Math.floor(dstPts.length / 400));   // 抽样 ≤400 对，几千点也秒算
+    const offs = [];
+    for (let i = 0; i < dstPts.length; i += STEP) {
+      const d = dstPts[i];
+      if (d.lat == null || d.lon == null) continue;
+      let best = null, bd = Infinity;
+      for (const s of srcPts) {
+        if (s.lat == null) continue;
+        const dd = (s.lat - d.lat) * (s.lat - d.lat) + (s.lon - d.lon) * (s.lon - d.lon);
+        if (dd < bd) { bd = dd; best = s; }
+      }
+      if (!best) continue;
+      const meters = haversineM(d.lat, d.lon, best.lat, best.lon);
+      if (meters > 30) continue;                     // 最近点都差 30m+ → 不可信
+      offs.push(best.ts - d.ts);
+      matched++; totalM += meters;
+    }
+    if (matched >= 5) off = median(offs);
+    return { offset: off, matched, avgM: matched ? totalM / matched : null };
+  }
+  // 在源序列上按时间取值：ts 恰中取值，否则线性插值（传感器慢变量足够）。
+  // 序列范围外（留 60s 容差）返回 null——两设备记录区间不重叠时是「借不到数据」
+  // 而非「取最近端点的值」（后者会把别的时段的传感器值安在目标点上）。
+  function sampleAtTime(series, ts) {
+    if (!series.length) return null;
+    const TOL = 60;
+    if (ts < series[0].ts - TOL || ts > series[series.length - 1].ts + TOL) return null;
+    if (ts <= series[0].ts) return series[0].v;
+    const hi0 = series.length - 1;
+    if (ts >= series[hi0].ts) return series[hi0].v;
+    let lo = 0, hi = hi0;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (series[mid].ts <= ts) lo = mid; else hi = mid;
+    }
+    const a = series[lo], b = series[hi];
+    if (b.ts === a.ts) return a.v;
+    const f = (ts - a.ts) / (b.ts - a.ts);
+    return a.v + (b.v - a.v) * f;
+  }
+  // 在源序列上按位置取值：最近邻（距离 ≤ maxMeters 才可信），并列时取时间更近的
+  function sampleAtPosition(series, lat, lon, maxMeters = 40) {
+    let best = null, bd = Infinity;
+    for (const s of series) {
+      if (s.lat == null) continue;
+      const dd = (s.lat - lat) * (s.lat - lat) + (s.lon - lon) * (s.lon - lon);
+      if (dd < bd) { bd = dd; best = s; }
+    }
+    if (!best || haversineM(lat, lon, best.lat, best.lon) > maxMeters) return null;
+    return best.v;
+  }
+  /**
+   * 把源文件 srcU8 的传感器数据导入目标文件 dstU8。
+   * @param {Uint8Array} dstU8 目标文件（码表主记录）
+   * @param {Uint8Array} srcU8 源文件（心率带/手机/骑行台）
+   * @param {Object} opts { sensors:['hr','pw','cad'], mode:'auto'|'gps'|'time' }
+   *   auto：能按 GPS 对齐就按 GPS（时钟偏移中位数），否则纯时间对齐
+   *   gps ：强制位置匹配（每点在源文件找最近 GPS 点，≤40m）
+   *   time：强制时间对齐（offset 只做整体平移，不逐点找位置）
+   * @returns {bytes, count, fields:{hr,pw,cad}, method, offset, matched, avgM}
+   */
+  function importSensors(dstU8, srcU8, opts = {}) {
+    const want = (opts.sensors && opts.sensors.length) ? opts.sensors.slice() : ['hr', 'pw', 'cad'];
+    const mode = opts.mode || 'auto';
+    const p = tagDefs(parse(dstU8));
+
+    // 源序列与目标轨迹
+    const dstRecs = [];
+    for (const m of p.messages) {
+      if (m.type !== 'data' || m.global !== MSG.record) continue;
+      const la = m.data[REC.position_lat], lo = m.data[REC.position_long];
+      dstRecs.push({
+        m,
+        ts: m.data[REC.timestamp],
+        lat: (la != null && lo != null) ? la / SEMI : null,
+        lon: (la != null && lo != null) ? lo / SEMI : null,
+      });
+    }
+    if (!dstRecs.length) throw new Error('目标文件没有采样数据');
+    const dstHasGps = dstRecs.some(r => r.lat != null);
+
+    // 源文件：逐通道序列 + 全量 GPS 点（对齐用）
+    const series = {}, srcGps = [];
+    for (const key of want) {
+      const num = SENSOR_FIELDS[key];
+      if (num == null) continue;
+      const s = sensorSeries(srcU8, num);
+      if (s.length) series[key] = s;
+    }
+    const srcKeys = Object.keys(series);
+    if (!srcKeys.length) throw new Error('源文件中没有可导入的传感器数据');
+    const anySrc = series[srcKeys[0]];
+    {
+      // GPS 对齐需要源文件的坐标流：用任意一个通道的序列即可（点集一样）
+      const pSrc = parseReadonly(srcU8);
+      for (const m of pSrc.messages) {
+        if (m.type !== 'data' || m.global !== MSG.record) continue;
+        const la = m.data[REC.position_lat], lo = m.data[REC.position_long];
+        if (la == null || lo == null) continue;
+        const lat = la / SEMI, lon = lo / SEMI;
+        if (!validLatLon(lat, lon)) continue;
+        srcGps.push({ ts: m.data[REC.timestamp], lat, lon });
+      }
+      srcGps.sort((a, b) => a.ts - b.ts);
+    }
+    const srcHasGps = srcGps.length >= 5;
+
+    // 对齐方式决策
+    let offset = 0, matched = 0, avgM = null;
+    let method = 'time';
+    if (mode !== 'time' && dstHasGps && srcHasGps) {
+      const est = estimateClockOffset(dstRecs, srcGps);
+      if (est.offset != null) {
+        offset = Math.round(est.offset); matched = est.matched; avgM = est.avgM;
+        method = (mode === 'gps') ? 'gps' : 'gps';
+      }
+      // 估计失败（匹配对太少）→ 退回纯时间
+    }
+
+    // 写入：目标缺失的字段补上源值
+    let count = 0;
+    const fields = { hr: 0, pw: 0, cad: 0 };
+    for (const r of dstRecs) {
+      let touched = false;
+      for (const key of srcKeys) {
+        const num = SENSOR_FIELDS[key];
+        const fld = r.m.fields.find(f => f.num === num);
+        const cur = r.m.data[num];
+        // 目标已有真实值（非哨兵）→ 不覆盖：主文件自己的传感器优先
+        if (cur != null && Number.isFinite(cur) && cur > 0) continue;
+        let v = null;
+        if (method === 'gps' && r.lat != null) {
+          // 位置直接匹配（忽略时钟偏移——位置本身含时间语义）
+          v = sampleAtPosition(series[key], r.lat, r.lon);
+          if (v == null && mode === 'auto') v = sampleAtTime(series[key], r.ts + offset);
+        } else {
+          v = sampleAtTime(series[key], r.ts + offset);
+          // 时间对齐落在源序列之外（两设备记录区间不重叠）→ 用位置兜底
+          if (v == null && r.lat != null && mode === 'auto') v = sampleAtPosition(series[key], r.lat, r.lon);
+        }
+        if (v == null || !Number.isFinite(v) || v <= 0) continue;
+        const out = Math.round(v);
+        // FIT 字段上限保护：心率/踏频 uint8 ≤255，功率 uint16 ≤65535
+        if (num !== REC.power) { if (out < 1 || out > 255) continue; }
+        else if (out < 0 || out > 65535) continue;
+        if (!fld) {
+          r.m.fields = r.m.fields.concat([{ num, size: num === REC.power ? 2 : 1, base: num === REC.power ? 4 : 2 }]);
+          r.m.__defKey = defKey(r.m.global, r.m.fields, r.m.dev);
+        }
+        r.m.data[num] = out;
+        fields[key]++;
+        touched = true;
+      }
+      if (touched) count++;
+    }
+    if (!count) return { bytes: null, count: 0, fields, method, offset, matched, avgM };
+    addEnhancedAltitude(p.messages);
+    addLegacyAltitude(p.messages);
+    return {
+      bytes: serialize(p.messages, { protocolVer: p.protocolVer, stripDev: true }),
+      count, fields, method, offset, matched, avgM,
+    };
+  }
+
   // ======================= 文件概览（供 UI 展示）=======================
   function summarize(u8) {
     const p = parseReadonly(u8);
@@ -1348,6 +1562,7 @@ ${trkpts}
     fitToUnix, unixToFit, FIT_EPOCH,
     stripFields, split, splitAt, gapIndices, combine, toGpx, toTcx, summarize, trackPoints, cropRange, trackPointsIndexed,
     fixGcj02, elevationTargets, applyElevation, allPositionTargets, rewriteElevation,
+    importSensors,
   };
 })();
 

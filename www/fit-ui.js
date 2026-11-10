@@ -338,6 +338,60 @@ const FitUI = (() => {
     } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); }
   }
 
+  // ---- 传感器导入：从另一个 FIT（心率带/手机/骑行台）按 GPS 位置或时间对齐
+  //      借心率/功率/踏频。目标文件已有值的点不覆盖。
+  function runSensorImport(mode) {
+    const f = getSelectedFile();
+    if (!f) return;
+    const srcSel = $('fitImportSrc');
+    if (!srcSel || !srcSel.value) { toast(t('fit_impPickSrc'), false); return; }
+    const src = fitFiles.find(x => x.id === Number(srcSel.value));
+    if (!src || src.id === f.id) { toast(t('fit_impPickSrc'), false); return; }
+    const sensors = [];
+    if ($('fitImpHr').checked) sensors.push('hr');
+    if ($('fitImpPw').checked) sensors.push('pw');
+    if ($('fitImpCad').checked) sensors.push('cad');
+    if (!sensors.length) { toast(t('fit_impPickSensor'), false); return; }
+    try {
+      const r = FIT.importSensors(f.bytes, src.bytes, { sensors });
+      if (!r.bytes) { toast(t('fit_impNone'), true); return; }
+      const methodTxt = r.method === 'gps'
+        ? t('fit_impMethodGps', { n: r.matched, m: Math.round(r.avgM || 0), s: Math.abs(r.offset) })
+        : t('fit_impMethodTime', { s: Math.abs(r.offset) });
+      const detail = [t('fit_impHr') + ' ' + r.fields.hr, t('fit_impPw') + ' ' + r.fields.pw, t('fit_impCad') + ' ' + r.fields.cad].filter(x => !x.endsWith(' 0')).join(' · ');
+      const applyIt = (bytes, name) => {
+        const a = pushDerived(name, bytes);
+        if (!a) { toast(t('fit_parseFail'), false); return; }
+        selectedFid = a.id;
+        renderList(); renderPanel();
+      };
+      if (mode === 'list') applyIt(r.bytes, baseName(f.name) + '-sens.fit');
+      else download(new Blob([r.bytes], { type: 'application/octet-stream' }), baseName(f.name) + '-sens.fit');
+      toast(t('fit_impDone', { n: r.count }) + ' — ' + methodTxt + (detail ? ' · ' + detail : ''), true);
+    } catch (e) { toast(t('fit_fail') + ' ' + e.message, false); }
+  }
+  // 源文件下拉：排除当前选中目标。目标切换/文件增删后刷新。
+  function refreshImportSrc() {
+    const sel = $('fitImportSrc');
+    if (!sel) return;
+    const sf = getSelectedFile();
+    const prev = Number(sel.value) || 0;
+    const cands = fitFiles.filter(x => !sf || x.id !== sf.id);
+    sel.innerHTML = cands.length
+      ? cands.map(x => `<option value="${x.id}"${x.id === prev ? ' selected' : ''}>${escapeHtml(x.name)}</option>`).join('')
+      : '';
+    // 通道可用性按当前源文件实际数据勾选/禁用（没有的通道勾了也导不进来）
+    const cur = cands.find(x => x.id === (Number(sel.value) || 0));
+    const has = cur && cur.sum ? cur.sum.has : null;
+    const map = { fitImpHr: 'hr', fitImpPw: 'pw', fitImpCad: 'cadence' };
+    for (const [id, k] of Object.entries(map)) {
+      const cb = $(id);
+      if (!cb) continue;
+      if (has) cb.disabled = !has[k];
+      else cb.disabled = false;
+    }
+  }
+
   function runSplit(mode) {
     const f = getSelectedFile();
     if (!f) return;
@@ -1434,6 +1488,8 @@ const FitUI = (() => {
     $('fitSplitTarget').textContent = sfName;
     $('fitStripTarget').textContent = sfName;
     $('fitConvertTarget').textContent = sfName;
+    const impTgt = $('fitImportTarget'); if (impTgt) impTgt.textContent = sfName;
+    refreshImportSrc();
     refreshUploadTarget();
     renderMap();
     renderProfile();
@@ -1627,5 +1683,5 @@ const FitUI = (() => {
     _authPillTimer = setInterval(refreshAuthPill, 60000);   // 授权状态低频轮询（用户可能在别处完成授权）
   }
 
-  return { init, relang, addFiles, remove, clearAll, pickFiles, runStrip, runConvert, runEleCalib, runGcjFix, runSplit, runCombine, toggleCrop, toggleSplit, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, splitSuggest, splitClearCuts, splitGo, runUpload, reauthForUpload, ensureFs, toggleProfileMenu, closeProfileMenu, toggleActionMenu };
+  return { init, relang, addFiles, remove, clearAll, pickFiles, runStrip, runConvert, runEleCalib, runGcjFix, runSensorImport, runSplit, runCombine, toggleCrop, toggleSplit, cropApply, cropApplyAll, cropDownload, cropReset, cropSelectFile, selectFile, splitSuggest, splitClearCuts, splitGo, runUpload, reauthForUpload, ensureFs, toggleProfileMenu, closeProfileMenu, toggleActionMenu };
 })();
