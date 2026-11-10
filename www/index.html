@@ -1701,6 +1701,7 @@ function setLang(lang){
   if(lang === currentLang) return;
   currentLang = lang;
   localStorage.setItem('sv_lang', lang);
+  if (window.stravaUpdater && window.stravaUpdater.setLang) { try { window.stravaUpdater.setLang(lang); } catch {} }
   applyI18n();
   refreshStatus();
   reRenderChart();
@@ -1732,6 +1733,7 @@ function renderThemeSeg(){
 }
 function applyTheme(mode){
   document.documentElement.setAttribute('data-theme', resolvedTheme(mode || currentThemeMode()));
+  if (window.stravaUpdater && window.stravaUpdater.setTheme) { try { window.stravaUpdater.setTheme(resolvedTheme(mode || currentThemeMode())); } catch {} }
   renderThemeSeg();
   updateThemeBtn();
   reRenderChart();
@@ -3326,6 +3328,11 @@ function verIsNewer(remote, cur){
 }
 function updPlatform(){ return /win/i.test(navigator.userAgent) ? 'win' : (/mac/i.test(navigator.userAgent) ? 'mac' : 'other'); }
 async function openUpdateModal(){
+  // 桌面版：开独立更新窗（主进程状态机 + 无边框窗，对齐 CreditDaddy），
+  // 不再用面板内 modal / 原生 dialog。Web/fnOS 版继续走下面的 GitHub API modal。
+  if (window.stravaUpdater && window.stravaUpdater.openWindow) {
+    try { await window.stravaUpdater.openWindow(); return; } catch { /* fallback */ }
+  }
   const mask = document.getElementById('updMask');
   const body = document.getElementById('updBody');
   const actions = document.getElementById('updActions');
@@ -5284,6 +5291,11 @@ function reRenderTrip(){
 // ===== Init =====
 initTheme();
 applyI18n();
+// 桌面版：启动即同步语言/主题给主进程（独立更新窗跟随面板）
+if (window.stravaUpdater) {
+  try { window.stravaUpdater.setLang(currentLang); } catch {}
+  try { window.stravaUpdater.setTheme(resolvedTheme(currentThemeMode())); } catch {}
+}
 FitUI.init();
 renderCompareUI();
 renderAtypeSeg();

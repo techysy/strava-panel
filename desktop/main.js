@@ -13,7 +13,7 @@
  *  - 开发版: 系统 node(需 >=22.13,缺失时在托盘对话框提示安装)
  *  - 数据目录注入 SP_DATA_DIR = app.getPath('userData')
  */
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell, dialog, ipcMain, Notification, nativeTheme } = require('electron');
 const { spawn, spawnSync } = require('child_process');
 const http = require('http');
 const fs = require('fs');
@@ -45,6 +45,9 @@ let state = 'stopped';          // stopped | starting | running | external
 let quitting = false;
 let tray = null;
 let win = null;
+let updateWin = null;           // 独立更新窗（主窗卡死/隐藏时仍可用）
+let panelLang = 'zh';           // 面板语言（setLang 同步），更新窗文案跟随
+let panelTheme = null;          // 面板主题（light/dark/null=跟随系统），更新窗跟随
 let serverLogFd = null;
 
 function log(msg) {
@@ -222,7 +225,7 @@ async function restartServer() {
 // ──────────────────────── 自动更新 ────────────────────────
 // electron-updater + GitHub Releases(latest*.yml 由 electron-builder publish 配置生成)。
 // 打包版且非 portable 才启用;开发模式/依赖缺失静默跳过。
-const updateState = { checking: false, available: null };
+const updateState = { checking: false, available: null, downloaded: null };
 
 function updateSupported() {
     return IS_PACKAGED && !process.env.PORTABLE_EXECUTABLE_DIR && !!autoUpdater;
@@ -242,12 +245,27 @@ function setupAutoUpdate() {
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;    // 「稍后」= 退出时自动安装
     autoUpdater.on('update-available', (info) => {
+        if (!isNewerVersion(info.version, app.getVersion())) return;
         updateState.available = info.version;
         log(`update available: v${info.version},开始后台下载`);
-        notify('发现新版本', `Strava Panel v${info.version} 已发布,正在后台下载`);
+        pushUpdateUi({ phase: 'available', version: info.version });
     });
     autoUpdater.on('update-not-available', () => { updateState.available = null; });
-    autoUpdater.on('update-downloaded', (info) => promptInstallUpdate(info));
+    autoUpdater.on('update-downloaded', (info) => {
+        updateState.downloaded = info.version;
+        pushUpdateUi({ phase: 'downloaded', version: info.version });
+        // 系统通知（silent）：点击直接开独立更新窗——不依赖主窗口，
+        // 主窗卡死/最小化到托盘时这条通道仍可用（对齐 CreditDaddy）
+        try {
+            const n = new Notification({
+                title: updT('更新已就绪'),
+                body: updT('v{v} 已在后台下载完成，退出应用时自动安装（也可点击立即重启更新）。', { v: info.version }),
+                silent: true,
+            });
+            n.on('click', () => openUpdateUi());
+            n.show();
+        } catch { /* 部分环境不支持 Notification */ }
+    });
     autoUpdater.on('error', (err) => {
         updateState.checking = false;
         log(`update error: ${(err && err.message) || err}`);
@@ -267,59 +285,201 @@ function checkForUpdatesSilent() {
         .finally(() => { updateState.checking = false; });
 }
 
-// 托盘「检查更新」:气泡即时反馈,发现新版后台下载,无新版/出错则告知
+// 托盘「检查更新」:开独立更新窗并立即跑一次检查（无原生对话框，对齐 CreditDaddy）
 async function checkForUpdatesInteractive() {
-    if (!updateSupported()) {
-        notify('无法检查更新', IS_PACKAGED ? '便携版不支持自动更新,请前往 GitHub Releases 手动下载' : '开发模式不提供自动更新');
-        return;
-    }
-    if (updateState.checking) { notify('检查更新', '正在检查中,请稍候…'); return; }
+    openUpdateUi();
+    if (!updateSupported()) { pushUpdateUi({ phase: 'unsupported' }); return; }
+    if (updateState.downloaded) { pushUpdateUi({ phase: 'downloaded', version: updateState.downloaded }); return; }
+    if (updateState.checking) return;
     updateState.checking = true;
     pushUpdateUi({ phase: 'checking' });
-    notify('检查更新', '正在检查新版本…');
     try {
         const r = await autoUpdater.checkForUpdates();
         const v = r && r.updateInfo && r.updateInfo.version;
-        if (!v || !isNewerVersion(v, app.getVersion())) {
-            pushUpdateUi({ phase: 'latest', version: app.getVersion() });
-            notify('已是最新版本', `当前版本 v${app.getVersion()}`);
-        } else {
-            // autoDownload=true, 检查完成后下载已自动开始, 直接推送 downloading 状态
-            pushUpdateUi({ phase: 'downloading', version: v, pct: 0 });
-            notify('发现新版本', `v${v} 正在后台下载…`);
-        }
+        if (updateState.downloaded) pushUpdateUi({ phase: 'downloaded', version: updateState.downloaded });
+        else if (v && isNewerVersion(v, app.getVersion())) pushUpdateUi({ phase: 'available', version: v });
+        else pushUpdateUi({ phase: 'latest', version: app.getVersion() });
     } catch (err) {
         pushUpdateUi({ phase: 'error', error: String((err && err.message) || err) });
-        notify('检查更新失败', String((err && err.message) || err));
     } finally {
         updateState.checking = false;
     }
 }
 
-// ── 面板内更新弹窗状态机 ──
-// 面板 preload.js 暴露 window.stravaUpdater, 通过 IPC 与主进程通信
-let updateUi = { phase: 'idle' };   // idle | checking | latest | available | downloading | downloaded | error
+// ── 更新状态机 + 独立更新窗（对齐 CreditDaddy，无原生对话框）──
+// 面板 preload.js 暴露 window.stravaUpdater；独立更新窗 preload-update.js 暴露 updateApi。
+// 状态双通道推送：update:win-state（更新窗）+ update:state（面板，若开着）。
+let updateUi = { phase: 'idle' };   // idle | checking | latest | available | downloading | downloaded | unsupported | error
 function pushUpdateUi(patch) {
     updateUi = { ...updateUi, ...patch };
-    try { if (win && !win.isDestroyed()) win.webContents.send('update:state', updateUi); } catch {}
+    const view = updateUiState();
+    try { if (updateWin && !updateWin.isDestroyed()) updateWin.webContents.send('update:win-state', view); } catch {}
+    try { if (win && !win.isDestroyed()) win.webContents.send('update:state', view); } catch {}
     return updateUi;
 }
 function updateUiState() {
-    return { ...updateUi, current: app.getVersion(), supported: updateSupported() };
+    return {
+        ...updateUi,
+        current: app.getVersion(),
+        supported: updateSupported(),
+        theme: panelTheme || (nativeTheme.shouldUseDarkColors ? 'dark' : 'light'),
+    };
 }
 
-// IPC handlers(面板内更新弹窗调用)
+// 更新窗文案（zh/en 双语，跟随面板语言；带参数的正文在页面上做占位符替换）
+function updT(zh, params) {
+    let s = zh;
+    if (panelLang === 'en') {
+        const EN = {
+            '更新已就绪': 'Update ready',
+            'v{v} 已在后台下载完成，退出应用时自动安装（也可点击立即重启更新）。': 'v{v} downloaded in background. It installs on quit (or click to restart now).',
+        };
+        s = EN[zh] || zh;
+    }
+    if (params) for (const [k, v] of Object.entries(params)) s = s.split('{' + k + '}').join(String(v));
+    return s;
+}
+function updateWindowStrings() {
+    const en = panelLang === 'en';
+    return en ? {
+        windowTitle: 'Strava Panel Update',
+        checkingTitle: 'Checking for updates',
+        checkingBody: 'Querying GitHub Releases for the latest version…',
+        latestTitle: 'You are up to date',
+        latestBody: 'v{current} is the latest version.',
+        availableTitle: 'New version available',
+        availableBody: 'v{version} (current v{current}) is downloading in the background.',
+        downloadingTitle: 'Downloading update',
+        downloadingBody: 'The app will restart to install once the download completes.',
+        downloadedTitle: 'Update ready',
+        downloadedBody: 'The installer is downloaded. Click "Install now" to restart and update.',
+        unsupportedTitle: 'In-app update unavailable',
+        unsupportedBody: 'Dev mode / portable / this platform does not support in-app updates. Download manually from Releases.',
+        errorTitle: 'Update check failed',
+        openReleases: 'Open Releases',
+        installNow: 'Install now',
+        later: 'Later',
+        ok: 'OK',
+        close: 'Close',
+    } : {
+        windowTitle: 'Strava Panel 更新',
+        checkingTitle: '正在检查更新',
+        checkingBody: '正在向 GitHub Releases 查询最新版本…',
+        latestTitle: '已是最新版本',
+        latestBody: '当前 v{current} 已是最新版本。',
+        availableTitle: '发现新版本',
+        availableBody: '新版本 v{version}（当前 v{current}）正在后台下载。',
+        downloadingTitle: '正在下载更新',
+        downloadingBody: '下载完成后重启应用即可安装，安装时服务会先停止。',
+        downloadedTitle: '更新已就绪',
+        downloadedBody: '安装包已下载完成，点「立即安装」重启并完成更新。',
+        unsupportedTitle: '当前版本不支持应用内更新',
+        unsupportedBody: '开发模式 / 便携版不支持应用内更新，请到 Releases 页面手动下载。',
+        errorTitle: '检查更新失败',
+        openReleases: '打开 Releases',
+        installNow: '立即安装',
+        later: '稍后',
+        ok: '好的',
+        close: '关闭',
+    };
+}
+
+const UPDATE_HTML = path.join(__dirname, 'update-window.html');
+const UPDATE_PRELOAD = path.join(__dirname, 'preload-update.js');
+
+/** 打开（或聚焦）独立更新窗。刻意不唤醒主窗口——主窗卡死时正是要避开它。 */
+function openUpdateWindow() {
+    if (updateWin && !updateWin.isDestroyed()) {
+        try { updateWin.show(); updateWin.focus(); } catch {}
+        return;
+    }
+    updateWin = new BrowserWindow({
+        width: 420,
+        height: 320,
+        useContentSize: true,
+        resizable: false,
+        minimizable: false,
+        maximizable: false,
+        fullscreenable: false,
+        frame: false,                      // 页面内自定义标题栏（拖拽区 + 关闭按钮）
+        title: 'Strava Panel',
+        autoHideMenuBar: true,
+        show: false,
+        icon: path.join(__dirname, 'icon.ico'),
+        backgroundColor: (panelTheme === 'dark' || (!panelTheme && nativeTheme.shouldUseDarkColors)) ? '#0a0a0d' : '#f6f7f9',
+        // 不设 parent：主窗卡死/最小化到托盘时它仍可独立显示并操作
+        webPreferences: {
+            preload: UPDATE_PRELOAD,
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+        },
+    });
+    updateWin.once('ready-to-show', () => { try { if (updateWin && !updateWin.isDestroyed()) updateWin.show(); } catch {} });
+    // 本地 file 页面：外链/导航一律拦死（「打开 Releases」走主进程 shell.openExternal）
+    updateWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    updateWin.webContents.on('will-navigate', (e, url) => {
+        if (!String(url).startsWith('file://')) e.preventDefault();
+    });
+    updateWin.on('closed', () => { updateWin = null; });
+    updateWin.loadFile(UPDATE_HTML).catch((e) => {
+        log(`update window load failed: ${e && e.message}`);
+        try { if (updateWin && !updateWin.isDestroyed()) updateWin.close(); } catch {}
+    });
+}
+
+/** 托盘 / 通知 / 面板入口：只开独立更新窗，不唤醒主窗口。 */
+function openUpdateUi() {
+    openUpdateWindow();
+    pushUpdateUi({});   // 同步一次当前状态（页面 bootstrap 也会补发，双保险）
+}
+
+// 更新窗 IPC（sender 校验：只接受更新窗自己的消息）
+ipcMain.handle('update:win-bootstrap', (e) => {
+    if (!updateWin || updateWin.isDestroyed() || e.sender !== updateWin.webContents) return null;
+    return { strings: updateWindowStrings(), view: updateUiState() };
+});
+ipcMain.on('update:win-fit', (e, height) => {
+    if (!updateWin || updateWin.isDestroyed() || e.sender !== updateWin.webContents) return;
+    const h = Math.max(220, Math.min(640, Math.ceil(Number(height) || 0)));
+    try { updateWin.setContentSize(420, h); } catch {}
+});
+ipcMain.on('update:win-action', (e, action) => {
+    if (!updateWin || updateWin.isDestroyed() || e.sender !== updateWin.webContents) return;
+    if (action === 'close') { try { updateWin.close(); } catch {} return; }
+    if (action === 'open-releases') {
+        try { shell.openExternal('https://github.com/techysy/strava-panel/releases'); } catch {}
+        return;
+    }
+    if (action === 'primary') {
+        if (updateUi.phase === 'downloaded' && autoUpdater) {
+            quitting = true;
+            autoUpdater.quitAndInstall(false, true);
+        }
+        return;
+    }
+});
+
+// 面板 IPC（preload.js 的 stravaUpdater 桥）
 ipcMain.handle('update-state', () => updateUiState());
 ipcMain.handle('update-check', async () => { await checkForUpdatesInteractive(); return updateUiState(); });
 ipcMain.handle('update-install', async () => {
     if (updateUi.phase === 'downloaded' && autoUpdater) {
         quitting = true;
-        autoUpdater.quitAndInstall();
+        autoUpdater.quitAndInstall(false, true);
     }
     return updateUiState();
 });
 ipcMain.handle('update-open-releases', () => {
     try { shell.openExternal('https://github.com/techysy/strava-panel/releases'); } catch {}
+});
+// 面板「检查更新」入口：桌面版直接开独立更新窗（不再用面板内 modal）
+ipcMain.handle('update-open-window', () => { openUpdateUi(); checkForUpdatesInteractive().catch(() => {}); });
+// 面板语言/主题同步（更新窗跟随）
+ipcMain.on('panel-lang', (_e, lang) => { if (lang === 'zh' || lang === 'en') panelLang = lang; });
+ipcMain.on('panel-theme', (_e, theme) => {
+    panelTheme = (theme === 'light' || theme === 'dark') ? theme : null;
+    pushUpdateUi({});   // 主题变化即时推给开着的更新窗
 });
 
 // 下载进度推送
@@ -328,31 +488,6 @@ function setupUpdateProgressPush() {
     autoUpdater.on('download-progress', (p) => {
         pushUpdateUi({ phase: 'downloading', pct: p.percent || 0, bytesPerSecond: p.bytesPerSecond, total: p.total, transferred: p.transferred });
     });
-    autoUpdater.on('update-downloaded', (info) => {
-        pushUpdateUi({ phase: 'downloaded', version: info.version });
-        promptInstallUpdate(info);
-    });
-}
-
-async function promptInstallUpdate(info) {
-    const opts = {
-        type: 'info',
-        title: '更新就绪',
-        message: `Strava Panel v${info.version} 已下载完成`,
-        detail: '立即重启可完成安装(服务会先停止);选择「稍后」则在本应用退出时自动安装。',
-        buttons: ['立即重启并安装', '稍后'],
-        defaultId: 0,
-        cancelId: 1,
-    };
-    const { response } = win && !win.isDestroyed()
-        ? await dialog.showMessageBox(win, opts)
-        : await dialog.showMessageBox(opts);
-    if (response === 0) {
-        quitting = true;
-        autoUpdater.quitAndInstall();
-    } else {
-        notify('更新已就绪', `v${info.version} 将在退出应用时自动安装,也可从托盘「检查更新」重新查看`);
-    }
 }
 
 

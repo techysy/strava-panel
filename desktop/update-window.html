@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<!-- 本地 file 页面：不加载任何外部资源，脚本全部内联 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Strava Panel</title>
+<style>
+/* 设计 token 与面板（www/index.html 的 :root / dark）同一套视觉语言：
+   Strava 橙 #fc4c02 品牌色 + 黑底白字主按钮。 */
+:root {
+  color-scheme: light;
+  --bg: #f6f7f9; --surface: #ffffff; --surface-2: #fafbfc; --tertiary: #f1f2f4;
+  --border-subtle: #eef0f3; --border: #e4e6ea;
+  --text: #16161a; --text-2: #55585f; --text-3: #8b8f98;
+  --btn-bg: #16161a; --btn-fg: #ffffff;
+  --accent: #fc4c02; --accent-rgb: 252,76,2; --accent-soft: rgba(252,76,2,.12); --accent-ink: #c93a00;
+  --ok: #16a34a; --err: #dc2626;
+  --shadow: 0 1px 2px rgba(16,24,40,.05), 0 12px 32px -8px rgba(16,24,40,.16);
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0a0d; --surface: #151519; --surface-2: #1a1a20; --tertiary: #202027;
+  --border-subtle: #22232a; --border: rgba(255,255,255,.1);
+  --text: #f0f0f3; --text-2: rgba(240,240,243,.7); --text-3: rgba(240,240,243,.45);
+  --btn-bg: rgba(255,255,255,.92); --btn-fg: #0a0a0d;
+  --accent: #ff5a1a; --accent-rgb: 255,90,26; --accent-soft: rgba(255,90,26,.16); --accent-ink: #ff8a5c;
+  --ok: #34d399; --err: #f87171;
+  --shadow: 0 1px 2px rgba(0,0,0,.35), 0 16px 40px -8px rgba(0,0,0,.55);
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0a0d; --surface: #151519; --surface-2: #1a1a20; --tertiary: #202027;
+    --border-subtle: #22232a; --border: rgba(255,255,255,.1);
+    --text: #f0f0f3; --text-2: rgba(240,240,243,.7); --text-3: rgba(240,240,243,.45);
+    --btn-bg: rgba(255,255,255,.92); --btn-fg: #0a0a0d;
+    --accent: #ff5a1a; --accent-rgb: 255,90,26; --accent-soft: rgba(255,90,26,.16); --accent-ink: #ff8a5c;
+    --ok: #34d399; --err: #f87171;
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 16px 40px -8px rgba(0,0,0,.55);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; overflow: hidden; }
+body {
+  font: 13px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg); color: var(--text);
+  user-select: none; -webkit-user-select: none;
+}
+svg.ic { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.titlebar {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 38px; padding: 0 6px 0 14px;
+  -webkit-app-region: drag;
+}
+.titlebar .brand { font-size: 12px; font-weight: 600; color: var(--text-3); letter-spacing: .02em; }
+#closeBtn {
+  -webkit-app-region: no-drag;
+  width: 30px; height: 30px; border: 0; border-radius: 10px;
+  background: transparent; color: var(--text-3);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background .15s ease-out, color .15s ease-out;
+}
+#closeBtn:hover { background: var(--tertiary); color: var(--text); }
+#closeBtn svg { width: 16px; height: 16px; }
+.card {
+  margin: 4px 12px 12px;
+  padding: 18px 18px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.iconRow { display: flex; align-items: center; gap: 12px; }
+.tile {
+  width: 40px; height: 40px; flex: none; border-radius: 10px;
+  display: none; align-items: center; justify-content: center;
+}
+.tile svg { width: 20px; height: 20px; }
+.tile.brand { background: var(--accent-soft); color: var(--accent-ink); }
+.tile.ok { background: rgba(22,163,74,.14); color: var(--ok); }
+.tile.err { background: rgba(220,38,38,.12); color: var(--err); }
+.spinWrap { width: 40px; height: 40px; flex: none; display: none; align-items: center; justify-content: center; color: var(--accent); }
+.spinWrap svg { width: 22px; height: 22px; animation: dashSpin .9s linear infinite; }
+@keyframes dashSpin { to { transform: rotate(360deg); } }
+#title { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.35; color: var(--text); }
+#version {
+  display: none; align-self: flex-start;
+  padding: 2px 10px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent-ink);
+  font-size: 12px; font-weight: 600;
+}
+#body { margin: 0; font-size: 13px; color: var(--text-2); white-space: pre-line; }
+#progress { display: none; flex-direction: column; gap: 6px; }
+.bar { height: 8px; border-radius: 999px; background: var(--tertiary); overflow: hidden; }
+#barFill {
+  height: 100%; width: 0; border-radius: 999px;
+  background: var(--accent);
+  transition: width .18s ease-out;
+}
+#progressText { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+#buttons { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+#buttons:empty { display: none; }
+#buttons button {
+  height: 36px; padding: 0 16px; font-size: 14px; font-weight: 600; border-radius: 10px;
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 0; background: transparent; color: var(--text-2); cursor: pointer;
+  transition: all .15s ease-out; font-family: inherit;
+}
+#buttons button:hover { background: var(--tertiary); color: var(--text); }
+#buttons button:active { transform: scale(.97); }
+#buttons button.primary { background: var(--btn-bg); color: var(--btn-fg); }
+#buttons button.primary:hover { opacity: .88; color: var(--btn-fg); }
+#buttons button svg { width: 16px; height: 16px; }
+</style>
+</head>
+<body>
+<!-- 图标内联 sprite（Lucide 风格，与面板同款），无字体无外链 -->
+<svg class="sprite" aria-hidden="true">
+  <symbol id="i-check-circle" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+  <symbol id="i-error" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></symbol>
+  <symbol id="i-progress" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+  <symbol id="i-open-in-new" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+</svg>
+<div class="titlebar">
+  <span class="brand" id="brand">Strava Panel</span>
+  <button id="closeBtn" aria-label="close"><svg class="ic"><use href="#i-close"/></svg></button>
+</div>
+<div class="card">
+  <div class="iconRow">
+    <div class="spinWrap" id="spinWrap"><svg class="ic"><use href="#i-progress"/></svg></div>
+    <div class="tile" id="tile"><svg class="ic"><use id="stateUse" href="#i-download"/></svg></div>
+    <h1 id="title"></h1>
+  </div>
+  <span id="version"></span>
+  <p id="body"></p>
+  <div id="progress">
+    <div class="bar"><div id="barFill"></div></div>
+    <div id="progressText"></div>
+  </div>
+  <div id="buttons"></div>
+</div>
+<script>
+(function () {
+  'use strict';
+  var api = window.updateApi;
+  var $ = function (id) { return document.getElementById(id); };
+  var strings = {};
+
+  var STATE_ICON = {
+    available: { icon: 'i-download', tone: 'brand' },
+    downloading: { icon: 'i-download', tone: 'brand' },
+    downloaded: { icon: 'i-check-circle', tone: 'ok' },
+    latest: { icon: 'i-check-circle', tone: 'ok' },
+    unsupported: { icon: 'i-error', tone: 'err' },
+    error: { icon: 'i-error', tone: 'err' },
+  };
+  var SVGNS = 'http://www.w3.org/2000/svg';
+
+  function fit() {
+    requestAnimationFrame(function () {
+      api.fitHeight(Math.ceil(document.body.getBoundingClientRect().height));
+    });
+  }
+  function addBtn(label, action, opts) {
+    opts = opts || {};
+    var b = document.createElement('button');
+    if (opts.primary) b.className = 'primary';
+    if (opts.icon) {
+      var svg = document.createElementNS(SVGNS, 'svg');
+      svg.setAttribute('class', 'ic');
+      var use = document.createElementNS(SVGNS, 'use');
+      use.setAttribute('href', '#' + opts.icon);
+      svg.appendChild(use);
+      b.appendChild(svg);
+    }
+    b.appendChild(document.createTextNode(label));
+    b.addEventListener('click', function () { api.action(action); });
+    $('buttons').appendChild(b);
+  }
+
+  function render(view) {
+    if (!view || !view.phase) return;
+    var st = view.phase;
+    var meta = STATE_ICON[st] || null;
+    $('spinWrap').style.display = st === 'checking' ? 'flex' : 'none';
+    var tile = $('tile');
+    if (meta) {
+      $('stateUse').setAttribute('href', '#' + meta.icon);
+      tile.setAttribute('class', 'tile ' + meta.tone);
+      tile.style.display = 'flex';
+    } else {
+      tile.style.display = 'none';
+    }
+
+    var TITLES = {
+      checking: strings.checkingTitle,
+      latest: strings.latestTitle,
+      available: strings.availableTitle,
+      downloading: strings.downloadingTitle,
+      downloaded: strings.downloadedTitle,
+      unsupported: strings.unsupportedTitle,
+      error: strings.errorTitle,
+    };
+    $('title').textContent = TITLES[st] || '';
+
+    var ver = $('version');
+    if ((st === 'available' || st === 'downloaded' || st === 'downloading') && view.version) {
+      ver.textContent = 'v' + view.version;
+      ver.style.display = 'inline-block';
+    } else {
+      ver.style.display = 'none';
+    }
+
+    var body = '';
+    if (st === 'checking') body = strings.checkingBody;
+    else if (st === 'latest') body = strings.latestBody.replace('{current}', view.current || '');
+    else if (st === 'available') body = strings.availableBody.replace('{version}', view.version || '').replace('{current}', view.current || '');
+    else if (st === 'downloading') body = strings.downloadingBody;
+    else if (st === 'downloaded') body = strings.downloadedBody;
+    else if (st === 'unsupported') body = strings.unsupportedBody;
+    else if (st === 'error') body = view.error || '';
+    var bodyEl = $('body');
+    bodyEl.textContent = body;
+    bodyEl.style.display = body ? 'block' : 'none';
+
+    var prog = $('progress');
+    if (st === 'downloading') {
+      prog.style.display = 'flex';
+      var pct = Math.max(0, Math.min(100, view.pct || 0));
+      $('barFill').style.width = pct.toFixed(0) + '%';
+      var mb = view.total ? (view.transferred / 1048576).toFixed(1) + ' / ' + (view.total / 1048576).toFixed(1) + ' MB' : '';
+      var speed = view.bytesPerSecond ? ' · ' + (view.bytesPerSecond / 1048576).toFixed(1) + ' MB/s' : '';
+      $('progressText').textContent = pct.toFixed(0) + '%' + (mb ? ' · ' + mb : '') + speed;
+    } else {
+      prog.style.display = 'none';
+    }
+
+    var btns = $('buttons');
+    btns.textContent = '';
+    if (st === 'latest') {
+      addBtn(strings.ok, 'close', { primary: true });
+    } else if (st === 'available' || st === 'downloading') {
+      // electron-updater autoDownload：后台自动下载，不给死按钮
+      addBtn(strings.openReleases, 'open-releases', { icon: 'i-open-in-new' });
+      addBtn(strings.later, 'close');
+    } else if (st === 'downloaded') {
+      addBtn(strings.installNow, 'primary', { primary: true, icon: 'i-refresh' });
+      addBtn(strings.later, 'close');
+    } else if (st === 'unsupported' || st === 'error') {
+      addBtn(strings.openReleases, 'open-releases', { primary: true, icon: 'i-open-in-new' });
+      addBtn(strings.close, 'close');
+    }
+    fit();
+  }
+
+  $('closeBtn').addEventListener('click', function () { api.action('close'); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') api.action('close'); });
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(document.body);
+  api.onState(function (view) {
+    if (view && view.theme) document.documentElement.setAttribute('data-theme', view.theme);
+    render(view); fit();
+  });
+  api.bootstrap().then(function (boot) {
+    if (!boot) return;
+    strings = boot.strings || {};
+    document.title = strings.windowTitle || 'Strava Panel';
+    $('brand').textContent = strings.windowTitle || 'Strava Panel';
+    if (boot.view && boot.view.theme) document.documentElement.setAttribute('data-theme', boot.view.theme);
+    render(boot.view);
+    fit();
+  });
+})();
+</script>
+</body>
+</html>

@@ -29,6 +29,9 @@
     },
     "files": [
       "main.js",
+      "preload.js",
+      "preload-update.js",
+      "update-window.html",
       "package.json",
       "icon.ico",
       "icon.png"
