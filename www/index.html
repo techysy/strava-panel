@@ -625,15 +625,23 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 .mcard-model{position:relative;display:flex;align-items:center;gap:9px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;text-align:left;font-family:inherit;transition:all .15s;min-width:0}
 .mcard-model:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
 .mcard-model.on{border-color:var(--viz);background:var(--ok-soft)}
-.mcard-model .mc-ic{width:30px;height:30px;border-radius:9px;background:var(--tertiary);color:var(--text-3);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mcard-model .mc-ic{width:30px;height:30px;border-radius:9px;background:var(--tertiary);color:var(--text-3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
 .mcard-model.on .mc-ic{background:var(--viz);color:#fff}
 .mcard-model .mc-body{flex:1;min-width:0}
 .mcard-model .mc-name{font-size:12.5px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mcard-model .mc-sub{font-size:10.5px;color:var(--text-3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mcard-model .mc-sub{display:block;font-size:10.5px;color:var(--text-3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mcard-model .mc-x{position:absolute;top:5px;right:5px;width:20px;height:20px;border:0;border-radius:6px;background:transparent;color:var(--text-3);cursor:pointer;display:none;align-items:center;justify-content:center;padding:0}
 .mcard-model:hover .mc-x{display:flex}
 .mcard-model .mc-x:hover{background:var(--err-soft);color:var(--err)}
 .mcard-model .mc-x .ic{width:12px;height:12px}
+/* 厂商 logo 瓦片：模型库卡片 / 网关拉取弹层 / 训练建议弹层共用（口径见 model-catalog.js）。
+   带 logo 的瓦片不跟随选中态变绿——彩色 logo 压在主色上会糊，选中已由边框+徽标表达。 */
+.mc-ic.is-logo,.pi-ic.is-logo{background:var(--tertiary)}
+.mcard-model.on .mc-ic.is-logo{background:var(--tertiary)}
+.mc-ic.is-ink,.pi-ic.is-ink,.mcard-model.on .mc-ic.is-ink{background:#1b1c22}
+.vl-img{width:100%;height:100%;object-fit:contain;padding:2px}
+.pi-ic{width:22px;height:22px;border-radius:7px;background:var(--tertiary);color:var(--text-3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
+.pi-ic .ic{width:12px;height:12px}
 .mcard-add{border-style:dashed;justify-content:center;color:var(--text-3);font-size:12.5px;font-weight:600;gap:6px}
 .mcard-add:hover{color:var(--viz);border-color:var(--viz)}
 .mcard-add .ic{width:14px;height:14px}
@@ -1327,6 +1335,7 @@ html[data-theme="dark"] .subtab.active{box-shadow:none;outline:1px solid var(--b
 <script src="/static/fit.js?v=__APP_VERSION__"></script>
 <script src="/static/fit-ui.js?v=__APP_VERSION__"></script>
 <script src="/static/gpx.js?v=__APP_VERSION__"></script>
+<script src="/static/model-catalog.js?v=__APP_VERSION__"></script>
 <script>
 // ===== i18n =====
 const I18N = {
@@ -3013,7 +3022,7 @@ async function loadSessList(){
       const cnt = s.msg_count || 0;
       const curModel = s.model || '';
       const opts = ['<option value="">'+escapeHtml(t('coach_model_default'))+'</option>']
-        .concat(lib.map(m => '<option value="'+escapeHtml(m.id)+'"'+(m.id===curModel?' selected':'')+'>'+escapeHtml(m.short || modelShort(m.id))+'</option>')).join('');
+        .concat(lib.map(m => '<option value="'+escapeHtml(m.id)+'"'+(m.id===curModel?' selected':'')+'>'+escapeHtml(ModelCatalog.displayName(m.id, m.short))+'</option>')).join('');
       return '<div class="sess-row" data-sid="'+s.id+'">'+
         '<span class="sr-id">#'+s.id+'</span>'+
         '<span class="sr-title" title="'+escapeHtml(s.title||'')+'">'+escapeHtml(sessLabel(s))+'<span class="sr-count">'+cnt+'</span></span>'+
@@ -3787,7 +3796,7 @@ function renderSessions(){
     '<div class="pop-item sess-item'+(s.id===coachSessionId?' on':'')+'">'
     +'<button class="sess-main" onclick="switchSession('+s.id+')">'
     +'<span class="pi-title">'+escapeHtml(sessLabel(s))+'</span>'
-    +(s.model?'<span class="pi-meta" style="color:var(--viz);max-width:80px;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(modelShort(s.model))+'</span>':'')
+    +(s.model?'<span class="pi-meta" style="color:var(--viz);max-width:110px;overflow:hidden;text-overflow:ellipsis" title="'+escapeHtml(s.model)+'">'+escapeHtml(ModelCatalog.displayName(s.model))+'</span>':'')
     +'<span class="pi-meta">'+(s.msg_count||0)+'</span>'
     +'</button>'
     +'<button class="sess-del" onclick="deleteCoachSession('+s.id+')" title="'+escapeHtml(t('coach_sessDelete'))+'">×</button>'
@@ -3868,10 +3877,19 @@ function renderCoachModelPop(){
   let html = '<button class="pop-item'+(!cur?' on':'')+'" onclick="pickCoachModel(this)" data-id="">'+
     '<span class="pi-title">'+escapeHtml(t('coach_model_default'))+'</span></button>';
   if(lib.length){
-    html += '<div class="pop-group">'+escapeHtml(t('model_library'))+' '+lib.length+'</div>'+
-      lib.map(m => '<button class="pop-item'+(cur===m.id?' on':'')+'" onclick="pickCoachModel(this)" data-id="'+escapeHtml(m.id)+'" title="'+escapeHtml(m.id)+'">'+
-      '<span class="pi-title">'+escapeHtml(m.short || modelShort(m.id))+'</span>'+
-      (m.context?'<span class="pi-meta">'+Math.round(m.context/1000)+'k</span>':'')+'</button>').join('');
+    // 与设置→模型库同一口径：按厂商家族分组 + logo + 官方名（model-catalog.js）
+    const groups = ModelCatalog.groupBy(lib, m => m.id, t('model_defaultGroup'));
+    html += groups.map(([label, ms]) =>
+      '<div class="pop-group">'+escapeHtml(label)+' '+ms.length+'</div>'+
+      ms.map(m => {
+        const prov = ModelCatalog.providerHint(m.id, t('model_defaultGroup'));
+        return '<button class="pop-item'+(cur===m.id?' on':'')+'" onclick="pickCoachModel(this)" data-id="'+escapeHtml(m.id)+'" title="'+escapeHtml(m.id)+'">'+
+        ModelCatalog.iconHtml(m.id, 'pi-ic')+
+        '<span class="pi-title">'+escapeHtml(ModelCatalog.displayName(m.id, m.short))+'</span>'+
+        (prov?'<span class="pi-meta">'+escapeHtml(prov)+'</span>':'')+
+        (m.context?'<span class="pi-meta">'+ModelCatalog.contextText(m.context)+'</span>':'')+'</button>';
+      }).join('')
+    ).join('');
   }
   pop.innerHTML = html;
 }
@@ -3879,17 +3897,15 @@ function pickCoachModel(btn){
   coachModelPick = btn.dataset.id || '';
   document.querySelectorAll('.pop-anchor .pop-list').forEach(p=>p.classList.remove('show'));
   const label = document.getElementById('curModelLabel');
-  if(label) label.textContent = coachModelPick ? modelShort(coachModelPick) : t('coach_pickModel');
+  if(label) label.textContent = coachModelPick ? ModelCatalog.displayName(coachModelPick) : t('coach_pickModel');
 }
 function renderModelPick(){
   const label = document.getElementById('curModelLabel');
-  if(label) label.textContent = coachModelPick ? modelShort(coachModelPick) : (savedModelId ? t('coach_model_default')+' · '+modelShort(savedModelId) : t('coach_pickModel'));
-}
-function modelProvider(id){
-  const i = id.indexOf('/');
-  return i > 0 ? id.slice(0, i) : t('model_defaultGroup');
+  if(label) label.textContent = coachModelPick ? ModelCatalog.displayName(coachModelPick)
+    : (savedModelId ? t('coach_model_default')+' · '+ModelCatalog.displayName(savedModelId) : t('coach_pickModel'));
 }
 function modelShort(id){
+  // 仅作「库里存的 short」与历史数据兜底；展示名一律走 ModelCatalog.displayName
   const i = id.indexOf('/');
   return i > 0 ? id.slice(i + 1) : id;
 }
@@ -4144,11 +4160,12 @@ function renderModelCards(){
   if(cnt) cnt.textContent = settingsModels.length ? (settingsModels.length + ' ' + t('model_libCount')) : '';
   if(!box) return;
   box.innerHTML = settingsModels.map(m => {
-    const ctx = m.context ? Math.round(m.context/1000)+'k' : '';
-    const sub = [m.id.includes('/') ? modelProvider(m.id) : '', ctx].filter(Boolean).join(' · ');
+    // 名称/图标统一走 model-catalog（厂商命中出 logo + 官方名，未命中兜底 ✦）；
+    // 副行是「网关代号 · 上下文」——名字里不再拼 provider（v3.0.0 糊成「…flashcbai · 1000k」）
+    const sub = ModelCatalog.subText(m.id, m.context);
     return '<div class="mcard-model'+(m.id===defaultModelId?' on':'')+'" onclick="setDefaultModel(\''+encodeURIComponent(m.id)+'\')" title="'+escapeHtml(m.id)+'">'+
-    '<span class="mc-ic"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg></span>'+
-    '<span class="mc-body"><span class="mc-name">'+escapeHtml(m.short || modelShort(m.id))+'</span>'+
+    ModelCatalog.iconHtml(m.id, 'mc-ic')+
+    '<span class="mc-body"><span class="mc-name">'+escapeHtml(ModelCatalog.displayName(m.id, m.short))+'</span>'+
     (sub?'<span class="mc-sub">'+escapeHtml(sub)+'</span>':'')+'</span>'+
     (m.id===defaultModelId?'<span class="pi-meta" style="color:var(--viz)">'+t('model_default_badge')+'</span>':'')+
     '<button class="mc-x" onclick="removeModel(event, \''+encodeURIComponent(m.id)+'\')" title="'+t('model_remove')+'"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button>'+
@@ -4162,13 +4179,13 @@ async function setDefaultModel(encId){
   renderModelCards();
   try{
     const d = await apiPost('/api/llm/config', { llm_model: id });
-    if(d.ok){ toast(t('model_defaultSet') + ': ' + modelShort(id), true); }
+    if(d.ok){ toast(t('model_defaultSet') + ': ' + ModelCatalog.displayName(id), true); }
   }catch(e){ toast(String(e.message||e), false); }
 }
 async function removeModel(ev, encId){
   ev.stopPropagation();
   const id = decodeURIComponent(encId);
-  if(!await appConfirm(t('model_remove'), modelShort(id), true)) return;
+  if(!await appConfirm(t('model_remove'), ModelCatalog.displayName(id), true)) return;
   settingsModels = settingsModels.filter(m => m.id !== id);
   let newDefault = defaultModelId;
   if(defaultModelId === id) newDefault = settingsModels.length ? settingsModels[0].id : '';
@@ -4217,15 +4234,19 @@ async function openGatewayPicker(){
     coachModels = d.models || [];
     if(msg) msg.textContent = t('model_fetchOk') + ' ' + coachModels.length + ' · ' + t('model_pickHint');
     if(!coachModels.length){ box.style.display='none'; confirmBtn.style.display='none'; return; }
-    const groups = new Map();
-    for(const m of coachModels){ const p = modelProvider(m.id); if(!groups.has(p)) groups.set(p, []); groups.get(p).push(m); }
-    box.innerHTML = [...groups.entries()].map(([prov, ms]) =>
-      '<div class="pop-group">'+escapeHtml(prov)+' '+ms.length+'</div>'+
+    // 同一口径：按厂商家族分组（未命中的退回 provider），条目带 logo + 官方名
+    const groups = ModelCatalog.groupBy(coachModels, m => m.id, t('model_defaultGroup'));
+    box.innerHTML = groups.map(([label, ms]) =>
+      '<div class="pop-group">'+escapeHtml(label)+' '+ms.length+'</div>'+
       ms.map(m => {
         const inLib = settingsModels.some(s => s.id === m.id);
+        // 网关代号（cbai/bcn）放进右侧元信息：同名模型靠它区分，而不是黏进名字里
+        const prov = ModelCatalog.providerHint(m.id, t('model_defaultGroup'));
         return '<button class="pop-item'+(inLib?' on':'')+'" data-id="'+escapeHtml(m.id)+'" data-inlib="'+(inLib?1:0)+'" onclick="gwTogglePick(this)">'+
-        '<span class="pi-title">'+escapeHtml(modelShort(m.id))+'</span>'+
-        (m.context?'<span class="pi-meta">'+Math.round(m.context/1000)+'k</span>':'')+
+        ModelCatalog.iconHtml(m.id, 'pi-ic')+
+        '<span class="pi-title">'+escapeHtml(ModelCatalog.displayName(m.id, m.short))+'</span>'+
+        (prov?'<span class="pi-meta">'+escapeHtml(prov)+'</span>':'')+
+        (m.context?'<span class="pi-meta">'+ModelCatalog.contextText(m.context)+'</span>':'')+
         (inLib?'<span class="pi-meta">'+t('model_inLib')+'</span>':'')+'</button>';
       }).join('')
     ).join('');
