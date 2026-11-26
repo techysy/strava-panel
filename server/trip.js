@@ -251,18 +251,31 @@ function parseStationData(jsText) {
 
 async function loadStations(dataDir) {
   const file = stationCacheFile(dataDir);
+  let stale = null;
   try {
     if (fs.existsSync(file)) {
       const cached = JSON.parse(fs.readFileSync(file, 'utf8'));
       if (Date.now() - cached.ts < STATION_CACHE_TTL) return cached.data;
+      stale = cached.data; // 过期缓存:刷新失败时的降级兜底
     }
   } catch { /* 缓存损坏则重取 */ }
-  const data = parseStationData(await fetchStationScript());
   try {
-    fs.mkdirSync(dataDir, { recursive: true });
-    fs.writeFileSync(file, JSON.stringify({ ts: Date.now(), data }), 'utf8');
-  } catch { /* 缓存写失败不影响查询 */ }
-  return data;
+    const data = parseStationData(await fetchStationScript());
+    // 12306 反爬返回 HTML/前端改版时解析出空映射:空数据绝不落盘(否则污染缓存 7 天,
+    // 期间所有查询都"找不到车站"),也不返回
+    if (!data || !Object.keys(data.NAME_STATIONS || {}).length) {
+      throw new Error('12306 站点数据解析为空');
+    }
+    try {
+      fs.mkdirSync(dataDir, { recursive: true });
+      fs.writeFileSync(file, JSON.stringify({ ts: Date.now(), data }), 'utf8');
+    } catch { /* 缓存写失败不影响查询 */ }
+    return data;
+  } catch (err) {
+    // 12306 不可达但磁盘有旧缓存:降级用旧数据(可能过期),好过整个余票功能直接报错
+    if (stale && Object.keys(stale.NAME_STATIONS || {}).length) return stale;
+    throw err;
+  }
 }
 
 function resolveStation(data, name) {
@@ -383,7 +396,19 @@ export async function tripTrains(qs, dataDir) {
   if (!from) throw new Error(stationErr(data, fromName, '出发站'));
   if (!to) throw new Error(stationErr(data, toName, '到达站'));
 
+  // 中转模式：直查无票/无直达时，经大枢纽两段拼接
+  if (String(qs.mode || '').toLowerCase() === 'transfer') {
+    return tripTrainsTransfer({ ...qs, from, to }, data, dataDir);
+  }
+
   const cookie = await get12306Cookie();
+  const typeFilter = String(qs.type || '').toUpperCase();   // 如 GD / C
+  const tickets = await queryLeftTickets(data, cookie, from, to, date, typeFilter);
+  return { ok: true, from: from.station_name, to: to.station_name, date, count: tickets.length, trains: tickets };
+}
+
+// 单程余票查询（tripTrains 与中转拼接共用）：from/to 为 resolveStation 后的站对象
+async function queryLeftTickets(data, cookie, from, to, date, typeFilter = '') {
   const params = new URLSearchParams({
     'leftTicketDTO.train_date': date,
     'leftTicketDTO.from_station': from.station_code,
@@ -395,9 +420,7 @@ export async function tripTrains(qs, dataDir) {
   }, 20000);
   const json = await resp.json().catch(() => null);
   if (!json?.data?.result) throw new Error('12306 未返回数据（可能限流或维护），请稍后重试');
-
-  const typeFilter = String(qs.type || '').toUpperCase();   // 如 GD / C
-  const tickets = json.data.result.map((raw) => {
+  return json.data.result.map((raw) => {
     const f = raw.split('|');
     const v = (key) => f[F[key]] || '';
     return {
@@ -409,8 +432,104 @@ export async function tripTrains(qs, dataDir) {
       seats: { swz: v('swz'), tz: v('tz'), zy: v('zy'), ze: v('ze'), gr: v('gr'), rw: v('rw'), dw: v('dw'), yw: v('yw'), rz: v('rz'), yz: v('yz'), wz: v('wz') },
     };
   }).filter(t => !typeFilter || [...typeFilter].some(ch => t.trainCode.startsWith(ch)));
+}
 
-  return { ok: true, from: from.station_name, to: to.station_name, date, count: tickets.length, trains: tickets };
+// ===================== 中转余票（大枢纽两段拼接） =====================
+// 12306 无公开中转接口；做法与主流抢票工具一致：经主要高铁枢纽各查一段，
+// 按「换乘时间窗 + 总时长」组合。只报两段都可购的方案，跨天中转不冒充可连。
+const TRANSFER_HUBS = [
+  '成都东', '重庆北', '贵阳北', '西安北', '郑州东', '武汉', '长沙南',
+  '南京南', '上海虹桥', '杭州东', '广州南', '北京南', '北京西',
+  '天津西', '济南西', '合肥南', '南昌西', '南宁东', '昆明南', '兰州西',
+];
+const hm = (s) => { const [h, m] = String(s || '0:0').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+const durMin = (s) => { const [h, m] = String(s || '0:0').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+// 余票可用性：任一坐席为「有」或正数字（'无'/'--'/空 = 不可订）
+const bookable = (t) => t.canBuy && Object.entries(t.seats).some(([k, v]) =>
+  k !== 'wz' && v && v !== '--' && v !== '无' && v !== '' && (v === '有' || (Number(v) > 0)));
+const bookableWz = (t) => t.canBuy && (bookable(t) || (t.seats.wz && t.seats.wz !== '--' && t.seats.wz !== '无' && t.seats.wz !== '' && (t.seats.wz === '有' || Number(t.seats.wz) > 0)));
+
+export async function tripTrainsTransfer(qs, data, dataDir) {
+  const from = qs.from, to = qs.to;              // 已 resolve 的站对象
+  const date = String(qs.date || '').trim();
+  // 中转模式下 GD 过滤包含 C：枢纽接驳段常用城际车（实测峨眉山→黄龙九寨最优解是 C42+C9462）
+  let typeFilter = String(qs.type || '').toUpperCase();
+  if (typeFilter === 'GD') typeFilter = 'GDC';
+  const minWait = Math.max(10, Math.min(120, Number(qs.minWait) || 20));    // 最短换乘(分钟)
+  const maxWait = Math.max(minWait, Math.min(480, Number(qs.maxWait) || 240)); // 最长换乘(分钟)
+  // 中转站：显式 via 优先；否则扫大枢纽（排除出发/到达本身）
+  const viaRaw = String(qs.via || '').trim();
+  let hubs;
+  if (viaRaw) {
+    const hub = resolveStation(data, viaRaw);
+    if (!hub) throw new Error(stationErr(data, viaRaw, '中转站'));
+    hubs = [hub];
+  } else {
+    hubs = TRANSFER_HUBS
+      .map((n) => resolveStation(data, n))
+      .filter((h) => h && h.station_code !== from.station_code && h.station_code !== to.station_code);
+  }
+
+  const cookie = await get12306Cookie();
+  // 逐枢纽串行查两段，间隔 150ms——12306 对突发密集查询限流很凶，并发 4 实测会被掐成全空。
+  // 结果带 60s 内存缓存：教练工具重试/用户连点不重复打 12306。
+  const results = [];
+  const sampleErr = [];
+  for (const hub of hubs) {
+    const ck = `t:${from.station_code}:${hub.station_code}:${date}:${typeFilter}`;
+    const ck2 = `t:${hub.station_code}:${to.station_code}:${date}:${typeFilter}`;
+    try {
+      const [leg1, leg2] = await Promise.all([
+        cachedQuery(ck, () => queryLeftTickets(data, cookie, from, hub, date, typeFilter)),
+        new Promise((res) => setTimeout(res, 150)).then(() => cachedQuery(ck2, () => queryLeftTickets(data, cookie, hub, to, date, typeFilter))),
+      ]);
+      results.push({ hub, leg1, leg2 });
+    } catch (e) {
+      if (sampleErr.length < 2) sampleErr.push(`${hub.station_name}: ${String(e.message || e).slice(0, 80)}`);
+      results.push({ hub, err: String(e.message || e) });   // 单枢纽失败不拖垮整体
+    }
+  }
+
+  const a1 = (t) => hm(t.arrive), d1 = (t) => hm(t.depart);
+  const options = [];
+  for (const r of results) {
+    if (r.err || !r.leg1?.length || !r.leg2?.length) continue;
+    for (const t1 of r.leg1) {
+      if (!bookableWz(t1)) continue;
+      if (a1(t1) <= d1(t1)) continue;              // leg1 跨天到达 → 同日中转不成立，不冒充
+      for (const t2 of r.leg2) {
+        if (!bookableWz(t2)) continue;
+        const wait = d1(t2) - a1(t1);
+        if (wait < minWait || wait > maxWait) continue;
+        options.push({
+          hub: r.hub.station_name,
+          legs: [t1, t2],
+          waitMin: wait,
+          totalMin: durMin(t1.duration) + wait + durMin(t2.duration),
+          anySeat: bookable(t1) && bookable(t2),   // false = 仅无座可买
+        });
+      }
+    }
+  }
+  options.sort((a, b) => a.totalMin - b.totalMin || a.waitMin - b.waitMin);
+  const top = options.slice(0, 12);
+  const out = {
+    ok: true, mode: 'transfer',
+    from: from.station_name, to: to.station_name, date,
+    hubsTried: hubs.length, hubsOk: results.filter((r) => !r.err && r.leg1?.length && r.leg2?.length).length,
+    count: top.length,
+    options: top,
+  };
+  if (!out.hubsOk && sampleErr.length) out.sampleError = sampleErr[0];   // 全空时带一个样本错误便于诊断限流
+  return out;
+}
+
+// 12306 余票 60s 内存缓存（中转扫枢纽会连发几十个请求，重试/连点不重复打）
+const _trainCache = new Map();
+function cachedQuery(key, fn) {
+  const hit = _trainCache.get(key);
+  if (hit && Date.now() - hit.ts < 60000) return Promise.resolve(hit.val);
+  return fn().then((val) => { _trainCache.set(key, { ts: Date.now(), val }); return val; });
 }
 
 // ===================== 常用目的地数据（skill 内置表） =====================

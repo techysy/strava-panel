@@ -234,12 +234,13 @@ const TrackMap = (() => {
     if (st.lastShow) drawOn(st.map, st.lastShow.tracks, { markers: st.lastShow.markers, fit: opts?.fit !== false });
   }
 
-  function setTile(st, key) {
+  function setTile(st, key, persist = true) {
     const cfg = TILES[key] || TILES.street;
     if (st.tile) st.tile.remove();
     st.tile = L.tileLayer(cfg.url, { attribution: cfg.attr, subdomains: cfg.sub || 'abc', maxZoom: 19 }).addTo(st.map);
     st.tileKey = key;
-    try { localStorage.setItem('sp-tiles', key); } catch (e) {}
+    // persist=false：单图指定底图（如聊天 GPX 小图固定素底），不写全局偏好键
+    if (persist) { try { localStorage.setItem('sp-tiles', key); } catch (e) {} }
     // 切换控件
     let ctl = st.map._container.querySelector('.tm-tiles');
     if (!ctl) {
@@ -294,6 +295,10 @@ const TrackMap = (() => {
     }
     // 容器已可见：若之前是隐藏态调用，本次即补画（清掉暂存）
     const st = ensureMap(host);
+    // opts.tile：本次绘制强制指定底图（light/street/sat），不写全局偏好——
+    // 聊天 GPX 小图固定素底用，出行计划/FIT 仍跟随用户偏好。
+    // 必须在 ensureMap 之后：新建图时 ensureMap 读的是全局偏好键，这里再覆盖。
+    if (opts.tile && TILES[opts.tile] && st.tileKey !== opts.tile) setTile(st, opts.tile, false);
     if (host.__tmPending) { host.__tmPending = null; st.pendingShow = null; }
     clearLayers(st);
     const list = normTracks(tracks);

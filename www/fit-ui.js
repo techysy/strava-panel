@@ -24,6 +24,15 @@ const FitUI = (() => {
   // 列表 = 「添加文件」入口卡（与文件卡同排同规格）+ 各文件卡。
   // 拖放/点击都走隐藏的 <input>；fitFileList 本身也是拖放落点（整行可投）。
   function addCardHtml() {
+    if (!fitFiles.length) {
+      return `<div class="fit-empty" id="fitAddCard" onclick="FitUI.pickFiles()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();FitUI.pickFiles()}">
+        <div class="empty-icon"><svg class="ic" aria-hidden="true"><use href="#i-file"/></svg><span><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg></span></div>
+        <h3>${escapeHtml(t('fit_emptyTitle'))}</h3>
+        <p>${escapeHtml(t('fit_emptyBody'))}</p>
+        <span class="btn primary"><svg class="ic" aria-hidden="true"><use href="#i-upload"/></svg>${escapeHtml(t('fit_addCard'))}</span>
+        <small><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg>${escapeHtml(t('fit_localNote'))}</small>
+      </div>`;
+    }
     return `<div class="fit-file fit-add" id="fitAddCard" onclick="FitUI.pickFiles()" title="${escapeHtml(t('fit_addSub'))}">
       <svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>
       <div class="fa-t" data-i18n="fit_addCard">${escapeHtml(t('fit_addCard'))}</div>
@@ -1614,12 +1623,17 @@ const FitUI = (() => {
     const authEl = $('fitUploadAuthHint'); if (authEl) authEl.style.display = 'none';
     showProg(t('fit_uploading'));
     const poll = setInterval(pollUploadProgress, 1200);
+    // 上传全程(文件体 + 服务端转 Strava + 轮询)最坏可到 ~150s:给 fetch 挂硬超时,
+    // 防止服务端僵死/半开连接把按钮永久卡在「上传中」。超时后服务端可能仍在处理。
+    const ac = new AbortController();
+    const abortT = setTimeout(() => ac.abort(new Error('client_timeout')), 150000);
     try {
       const q = new URLSearchParams({ type: 'fit', fields: JSON.stringify(fields), name: fields.name }).toString();
       const resp = await fetch(`${API}/api/strava/upload?${q}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/octet-stream', 'Authorization': 'Bearer ' + apiToken },
         body: bytes,
+        signal: ac.signal,
       });
       const d = await resp.json().catch(() => ({ error: '响应解析失败' }));
       if (d.code === 'MISSING_SCOPES') {
@@ -1641,9 +1655,13 @@ const FitUI = (() => {
         showResult(t('fit_uploadFail') + escapeHtml(d.error || '未知错误'), false);
       }
     } catch (e) {
-      showResult(t('fit_uploadFail') + escapeHtml(String(e.message || e)), false);
+      if (e && (e.message === 'client_timeout' || e.name === 'AbortError')) {
+        showResult(t('fit_uploadFail') + t('fit_uploadTimeout'), false);
+      } else {
+        showResult(t('fit_uploadFail') + escapeHtml(String(e.message || e)), false);
+      }
     } finally {
-      clearInterval(poll); hideProg(); setUploadBusy(false);
+      clearTimeout(abortT); clearInterval(poll); hideProg(); setUploadBusy(false);
     }
   }
   // 缺 write scope → 走一次强制 OAuth，轮询 can_upload 成功后自动续传暂存上传

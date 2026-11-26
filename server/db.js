@@ -64,7 +64,9 @@ function isoCalendar(d) {
   const thu = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate() + (4 - dow));
   const dThu = new Date(thu);
   const jan1 = Date.UTC(dThu.getUTCFullYear(), 0, 1);
-  const week = Math.round(1 + (thu - jan1) / 604800000);
+  // floor 而非 round:Jan 1 落在周五/六/日的年份(2022/2023/2027…)round 会把全年周号
+  // 整体 +1(2022-06-16 应为 W24 却算出 W25),floor+1 才与 Python date.isocalendar 一致
+  const week = Math.floor((thu - jan1) / 604800000) + 1;
   return [dThu.getUTCFullYear(), week];
 }
 
@@ -230,6 +232,9 @@ export class StravaDB {
     fs.mkdirSync(path.dirname(this.dbPath), { recursive: true });
     // 确保 schema 存在 (幂等; 兼容 db 文件被删/重建)
     this.db = new DatabaseSync(this.dbPath);
+    // node:sqlite 默认不等锁:热部署新旧进程交叠或备份持写锁的瞬间,建表/迁移会直接
+    // SQLITE_BUSY 导致服务起不来。给写锁 5s 等待窗口。
+    this.db.exec('PRAGMA busy_timeout = 5000');
     this.db.exec(SCHEMA_SQL);
     // 心率/功率列自动迁移:老库缺列则 ALTER 补齐(幂等)
     const existing = new Set(this.db.prepare('PRAGMA table_info(activities)').all().map(c => c.name));
@@ -241,10 +246,18 @@ export class StravaDB {
     if (memCols.size && !memCols.has('session_id')) {
       this.db.exec('ALTER TABLE coach_memory ADD COLUMN session_id INTEGER DEFAULT 0');
     }
+    // coach_memory 图片列迁移:老表缺 image 列则补齐(存 DATA_DIR/coach-images/ 相对路径)
+    if (memCols.size && !memCols.has('image')) {
+      this.db.exec('ALTER TABLE coach_memory ADD COLUMN image TEXT');
+    }
     // coach_sessions 模型列迁移:老表缺 model 列则补齐(会话级辅助模型)
     const sessCols = new Set(this.db.prepare('PRAGMA table_info(coach_sessions)').all().map(c => c.name));
     if (sessCols.size && !sessCols.has('model')) {
       this.db.exec('ALTER TABLE coach_sessions ADD COLUMN model TEXT');
+    }
+    // coach_sessions 归档列迁移:老表缺 archived 列则补齐(0=活跃 1=已归档)
+    if (sessCols.size && !sessCols.has('archived')) {
+      this.db.exec('ALTER TABLE coach_sessions ADD COLUMN archived INTEGER DEFAULT 0');
     }
     // coach_plans 日历计划表迁移:老库缺表则补齐
     const hasPlans = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='coach_plans'").get();
@@ -310,7 +323,9 @@ export class StravaDB {
       try { this.db.exec('ROLLBACK'); } catch { /* 回滚失败时保留原始错误 */ }
       throw err;
     }
-    this.setMeta('last_sync', localIsoNow());
+    // last_sync 仅作展示/自动同步心跳参考(同步水位用的是 MAX(start_date)),
+    // 写失败(磁盘满等)不应否定已经成功落库的整批数据。
+    try { this.setMeta('last_sync', localIsoNow()); } catch { /* 忽略 */ }
     return added;
   }
 
@@ -360,8 +375,10 @@ export class StravaDB {
         params.push(...typeFilter);
       }
     } else if (typeFilter) { q += ' AND type=?'; params.push(typeFilter); }
-    if (startDate) { q += ' AND start_date >= ?'; params.push(startDate); }
-    if (endDate) { q += ' AND start_date <= ?'; params.push(endDate + 'T23:59:59'); }
+    // 日期过滤按本地日历日语义(调用方传的都是本地日期, start_date_local 缺列时退回 UTC):
+    // 按 UTC 列过滤, 北京时间 0-8 点开始的活动会被划出边界日期
+    if (startDate) { q += ' AND COALESCE(start_date_local, start_date) >= ?'; params.push(startDate); }
+    if (endDate) { q += ' AND COALESCE(start_date_local, start_date) <= ?'; params.push(endDate + 'T23:59:59'); }
     q += ' ORDER BY start_date DESC LIMIT ?';
     params.push(limit);
     return this.db.prepare(q).all(...params).map(wrapRow);
@@ -369,6 +386,14 @@ export class StravaDB {
 
   getRides(startDate = null, endDate = null, limit = 100000, types = ['Ride']) {
     return this.getActivities(types, limit, startDate, endDate);
+  }
+
+  /** 按主键取单条活动（教练消息里 #id 引用解析用）。取不到返回 null。 */
+  getActivityById(id) {
+    const n = Number(id);
+    if (!n) return null;
+    const row = this.db.prepare('SELECT * FROM activities WHERE id=?').get(n);
+    return row ? wrapRow(row) : null;
   }
 
   count() {
@@ -397,8 +422,8 @@ export class StravaDB {
       q += ` AND type IN (${typeList.map(() => '?').join(',')})`;
       params.push(...typeList);
     }
-    if (startDate) { q += ' AND start_date >= ?'; params.push(startDate); }
-    if (endDate) { q += ' AND start_date <= ?'; params.push(endDate + 'T23:59:59'); }
+    if (startDate) { q += ' AND COALESCE(start_date_local, start_date) >= ?'; params.push(startDate); }
+    if (endDate) { q += ' AND COALESCE(start_date_local, start_date) <= ?'; params.push(endDate + 'T23:59:59'); }
     const r = this.db.prepare(q).get(...params);
     const n = r.total_rides || 0;
     const dist = (r.total_distance || 0) / 1000;
@@ -442,7 +467,9 @@ export class StravaDB {
     const rows = this.getRides(startDate, endDate, 100000, types);
     const days = new Map();
     for (const a of rows) {
-      const d = String(a.start_date || '').slice(0, 10);
+      // 桶键按 start_date_local(当地墙钟)切,缺列退回 UTC start_date:
+      // 按 UTC 切会把北京时间 0-8 点开始的活动划进前一天,晨骑/早跑全部错桶
+      const d = String(a.start_date_local || a.start_date || '').slice(0, 10);
       if (!parseDate(d)) continue;
       let day = days.get(d);
       if (!day) { day = emptyBucket(); days.set(d, day); }
@@ -471,7 +498,7 @@ export class StravaDB {
     const rows = this.getRides(startDate, endDate, 100000, types);
     const weeks = new Map();
     for (const a of rows) {
-      const d = String(a.start_date || '').slice(0, 10);
+      const d = String(a.start_date_local || a.start_date || '').slice(0, 10);
       const dt = parseDate(d);
       if (!dt) continue;
       const [iy, iw] = isoCalendar(dt);
@@ -506,7 +533,7 @@ export class StravaDB {
     const rows = this.getRides(startDate, endDate, 100000, types);
     const months = new Map();
     for (const a of rows) {
-      const d = String(a.start_date || '').slice(0, 10);
+      const d = String(a.start_date_local || a.start_date || '').slice(0, 10);
       const dt = parseDate(d);
       if (!dt) continue;
       const key = `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}`;
@@ -539,7 +566,7 @@ export class StravaDB {
     const rows = this.getRides(startDate, endDate, 100000, types);
     const years = new Map();
     for (const a of rows) {
-      const d = String(a.start_date || '').slice(0, 10);
+      const d = String(a.start_date_local || a.start_date || '').slice(0, 10);
       const dt = parseDate(d);
       if (!dt) continue;
       const key = `${dt.getFullYear()}`;
@@ -562,8 +589,8 @@ export class StravaDB {
     let q = `SELECT moving_time, average_watts FROM activities
              WHERE average_watts IS NOT NULL AND average_watts > 0 AND moving_time IS NOT NULL AND moving_time > 0`;
     const params = [];
-    if (startDate) { q += ' AND start_date >= ?'; params.push(startDate); }
-    if (endDate) { q += ' AND start_date <= ?'; params.push(endDate + 'T23:59:59'); }
+    if (startDate) { q += ' AND COALESCE(start_date_local, start_date) >= ?'; params.push(startDate); }
+    if (endDate) { q += ' AND COALESCE(start_date_local, start_date) <= ?'; params.push(endDate + 'T23:59:59'); }
     const rows = this.db.prepare(q).all(...params);
     const durations = [], watts = [];
     for (const d of DURATIONS) {
@@ -593,10 +620,11 @@ export class StravaDB {
     return Number(r.lastInsertRowid);
   }
 
-  addMemory(role, content, sid = 0) {
-    /** 追加一条对话记忆(role: user|assistant),返回新 id */
-    const r = this.db.prepare('INSERT INTO coach_memory(role,content,created_at,session_id) VALUES(?,?,?,?)')
-      .run(String(role), String(content), localIsoNow(), Number(sid) || 0);
+  addMemory(role, content, sid = 0, image = null) {
+    /** 追加一条对话记忆(role: user|assistant),返回新 id。
+     *  image: 图片相对路径(DATA_DIR/coach-images/xxx.jpg),无图传 null。 */
+    const r = this.db.prepare('INSERT INTO coach_memory(role,content,created_at,session_id,image) VALUES(?,?,?,?,?)')
+      .run(String(role), String(content), localIsoNow(), Number(sid) || 0, image || null);
     // 首条用户消息自动作为会话标题;刷新 updated_at
     if (role === 'user') {
       const sess = this.db.prepare('SELECT title FROM coach_sessions WHERE id=?').get(Number(sid) || 0);
@@ -613,11 +641,12 @@ export class StravaDB {
   getMemory(limit = 40, sid = null) {
     /** 取会话最近 limit 条(按时间正序返回,便于拼上下文);sid=null 取全部(兼容旧行为) */
     const n = Math.max(1, Math.min(200, limit | 0));
+    const cols = 'id,role,content,created_at,session_id,image';
     let rows;
     if (sid === null) {
-      rows = this.db.prepare('SELECT id,role,content,created_at,session_id FROM coach_memory ORDER BY id DESC LIMIT ?').all(n);
+      rows = this.db.prepare(`SELECT ${cols} FROM coach_memory ORDER BY id DESC LIMIT ?`).all(n);
     } else {
-      rows = this.db.prepare('SELECT id,role,content,created_at,session_id FROM coach_memory WHERE session_id=? ORDER BY id DESC LIMIT ?').all(Number(sid) || 0, n);
+      rows = this.db.prepare(`SELECT ${cols} FROM coach_memory WHERE session_id=? ORDER BY id DESC LIMIT ?`).all(Number(sid) || 0, n);
     }
     return rows.reverse();
   }
@@ -636,21 +665,58 @@ export class StravaDB {
     return m;
   }
 
-  listSessions() {
-    /** 会话列表(按最近更新倒序),含消息数、首条预览与会话级模型 */
+  listSessions(includeArchived = false) {
+    /** 会话列表(按最近更新倒序),含消息数、首条预览与会话级模型。
+     *  默认只返回活跃会话;includeArchived=true 时全部返回(带 archived 标记)。 */
+    const where = includeArchived ? '' : 'WHERE COALESCE(s.archived,0)=0';
     return this.db.prepare(`
-      SELECT s.id, s.title, s.model, s.created_at, s.updated_at,
+      SELECT s.id, s.title, s.model, s.created_at, s.updated_at, COALESCE(s.archived,0) AS archived,
              (SELECT COUNT(*) FROM coach_memory m WHERE m.session_id=s.id) AS msg_count
       FROM coach_sessions s
+      ${where}
       ORDER BY s.updated_at DESC, s.id DESC`).all();
   }
 
-  deleteSession(sid) {
-    /** 删除会话:消息与会话行一并删除。返回删除的消息数。 */
+  setArchived(sid, archived) {
+    /** 归档/取消归档单个会话。归档不删数据,只是从活跃列表收纳。 */
     const id = Number(sid) || 0;
-    const r = this.db.prepare('DELETE FROM coach_memory WHERE session_id=?').run(id);
-    this.db.prepare('DELETE FROM coach_sessions WHERE id=?').run(id);
-    return Number(r.changes);
+    const v = archived ? 1 : 0;
+    this.db.prepare('UPDATE coach_sessions SET archived=? WHERE id=?').run(v, id);
+    return v;
+  }
+
+  archiveSessions(ids) {
+    /** 批量归档。返回实际归档条数。 */
+    const list = (Array.isArray(ids) ? ids : []).map(Number).filter(n => n > 0);
+    if (!list.length) return 0;
+    const stmt = this.db.prepare('UPDATE coach_sessions SET archived=1 WHERE id=?');
+    let n = 0;
+    for (const id of list) n += Number(stmt.run(id).changes);
+    return n;
+  }
+
+  deleteSession(sid) {
+    /** 删除会话:消息与会话行一并删除。返回删除的消息数。
+     *  两条 DELETE 包事务:第二条失败(磁盘满/锁)不留 0 消息的幽灵会话。 */
+    const id = Number(sid) || 0;
+    this.db.exec('BEGIN');
+    try {
+      const r = this.db.prepare('DELETE FROM coach_memory WHERE session_id=?').run(id);
+      this.db.prepare('DELETE FROM coach_sessions WHERE id=?').run(id);
+      this.db.exec('COMMIT');
+      return Number(r.changes);
+    } catch (err) {
+      try { this.db.exec('ROLLBACK'); } catch { /* 回滚失败时保留原始错误 */ }
+      throw err;
+    }
+  }
+
+  /** 列出引用了图片的消息(清理孤立图片文件用) */
+  memoryImages(sid = null) {
+    const rows = sid === null
+      ? this.db.prepare("SELECT id,image FROM coach_memory WHERE image IS NOT NULL AND image!=''").all()
+      : this.db.prepare("SELECT id,image FROM coach_memory WHERE session_id=? AND image IS NOT NULL AND image!=''").all(Number(sid) || 0);
+    return rows.map(r => ({ id: r.id, image: r.image }));
   }
 
   countMemory() {
@@ -666,6 +732,12 @@ export class StravaDB {
     }
     const r = this.db.prepare('DELETE FROM coach_memory').run();
     return Number(r.changes);
+  }
+
+  /** 删除单条消息(供聊天里「删除这条」用)。返回是否删到。 */
+  deleteMemory(id) {
+    const r = this.db.prepare('DELETE FROM coach_memory WHERE id=?').run(Number(id) || 0);
+    return Number(r.changes) > 0;
   }
 
   // ---- 训练计划 (coach_plans, 日历视图) ----

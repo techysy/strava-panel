@@ -17,7 +17,10 @@
  *   POST /api/config        # 保存凭据 (JSON)
  *   GET  /api/stats         # 骑行统计 (读 SQLite 缓存，快)
  *   GET  /api/weekly        # 每周聚合
- *   GET  /api/activities    # 最近活动列表 (读缓存)
+ *   GET  /api/activities    # 最近活动列表 (读缓存; ?search=名称 ?ids=1,2)
+ *   POST /api/coach/image   # 上传教练图片 (body=图片二进制; 返回 name)
+ *   GET  /api/coach/image?name=  # 读取教练图片 (?base64=1 返回 data URL)
+ *   POST /api/coach/message  # 删除单条教练消息 {id}
  *   GET  /api/sync          # 手动触发 Strava→SQLite 同步
  *   POST /api/sync          # 同上 (POST)
  *   GET  /api/sync/progress # 同步进度 (前端轮询)
@@ -152,27 +155,33 @@ function loadConfig() {
   return cfg;
 }
 
-function saveConfig(cfg) {
+function saveConfig(cfg, onlyKeys = null) {
+  /** 写入配置。onlyKeys 给定时只把这些键覆盖到磁盘当前值之上——exchange/refresh
+   *  的 cfg 是跨越数秒网络等待的旧快照, 整文件回写会把等待期间用户保存的其他配置
+   *  (甚至刚换的新凭据)静默回滚; 只写本次变更的键, 并发写互不覆盖。 */
   fs.mkdirSync(DATA_DIR, { recursive: true });
+  const merged = onlyKeys
+    ? { ...loadConfig(), ...Object.fromEntries(onlyKeys.filter((k) => k in cfg).map((k) => [k, cfg[k]])) }
+    : { ...loadConfig(), ...cfg };
   const lines = [
-    `client_id=${cfg.client_id || ''}`,
-    `client_secret=${cfg.client_secret || ''}`,
-    `refresh_token=${cfg.refresh_token || ''}`,
-    `athlete_id=${cfg.athlete_id || ''}`,
-    `api_token=${cfg.api_token || ''}`,
-    `oauth_state=${cfg.oauth_state || ''}`,
-    `redirect_uri=${cfg.redirect_uri || ''}`,
-    `llm_base_url=${cfg.llm_base_url || ''}`,
-    `llm_api_key=${cfg.llm_api_key || ''}`,
-    `llm_model=${cfg.llm_model || ''}`,
-    `llm_models=${cfg.llm_models || '[]'}`,
-    `auto_sync=${String(cfg.auto_sync || '0') === '1' ? '1' : '0'}`,
-    `auto_sync_hours=${String(cfg.auto_sync_hours || '24')}`,
-    `intervals_athlete_id=${cfg.intervals_athlete_id || ''}`,
-    `intervals_api_key=${cfg.intervals_api_key || ''}`,
-    `coach_sports=${cfg.coach_sports || 'Ride'}`,
-    `coach_times=${cfg.coach_times || ''}`,
-    `coach_home_city=${cfg.coach_home_city || ''}`,
+    `client_id=${merged.client_id || ''}`,
+    `client_secret=${merged.client_secret || ''}`,
+    `refresh_token=${merged.refresh_token || ''}`,
+    `athlete_id=${merged.athlete_id || ''}`,
+    `api_token=${merged.api_token || ''}`,
+    `oauth_state=${merged.oauth_state || ''}`,
+    `redirect_uri=${merged.redirect_uri || ''}`,
+    `llm_base_url=${merged.llm_base_url || ''}`,
+    `llm_api_key=${merged.llm_api_key || ''}`,
+    `llm_model=${merged.llm_model || ''}`,
+    `llm_models=${merged.llm_models || '[]'}`,
+    `auto_sync=${String(merged.auto_sync || '0') === '1' ? '1' : '0'}`,
+    `auto_sync_hours=${String(merged.auto_sync_hours || '24')}`,
+    `intervals_athlete_id=${merged.intervals_athlete_id || ''}`,
+    `intervals_api_key=${merged.intervals_api_key || ''}`,
+    `coach_sports=${merged.coach_sports || 'Ride'}`,
+    `coach_times=${merged.coach_times || ''}`,
+    `coach_home_city=${merged.coach_home_city || ''}`,
   ];
   fs.writeFileSync(CONF_FILE, lines.join('\n') + '\n', 'utf8');
   chmod600(CONF_FILE); // 权限 600，仅属主可读
@@ -180,7 +189,7 @@ function saveConfig(cfg) {
   // 不能无条件删——exchange/refresh 是"先 save 后写新 token"，若无条件删会误删刚换来的 token。
   try {
     if (fs.existsSync(TOKEN_FILE)) {
-      const curRt = String(cfg.refresh_token || '').trim();
+      const curRt = String(merged.refresh_token || '').trim();
       const cached = String(JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf8')).refresh_token || '').trim();
       if (curRt && cached && curRt !== cached) fs.rmSync(TOKEN_FILE);
     }
@@ -199,7 +208,7 @@ function getOrCreateApiToken() {
   if (!tok) {
     tok = tokenUrlsafe(32);
     cfg.api_token = tok;
-    saveConfig(cfg);
+    saveConfig(cfg, ['api_token']);
   }
   return tok;
 }
@@ -218,7 +227,7 @@ function apiTokenValid(token) {
 function recreateApiToken() {
   const cfg = loadConfig();
   cfg.api_token = tokenUrlsafe(32);
-  saveConfig(cfg);
+  saveConfig(cfg, ['api_token']);
   return cfg.api_token;
 }
 
@@ -289,7 +298,7 @@ function buildOauthUrl(requestHost = null) {
   if (!clientId) return [null, '请先填写 Client ID'];
   const state = tokenUrlsafe(16);
   cfg.oauth_state = state;
-  saveConfig(cfg);
+  saveConfig(cfg, ['oauth_state']);
   const redirectUri = getRedirectUri(requestHost);
   if (!redirectUri) {
     // 未配置回调 且 请求来自公网中转域名(无法推导) → 提示用户显式配置
@@ -306,11 +315,12 @@ function buildOauthUrl(requestHost = null) {
   return [`${OAUTH_AUTHORIZE_URL}?${params.toString()}`, redirectUri];
 }
 
-// fetch 带超时 (对齐 python urllib timeout=20)
+// fetch 带全程超时 (对齐 python urllib timeout=20)。
+// 用 AbortSignal.timeout 而非「fetch settle 即清定时器」的 AbortController:后者在
+// 响应头到达瞬间就停止计时, resp.json()/text() 的 body 阶段失去约束——对端发完头后
+// 卡住会一直挂到 undici 默认 300s bodyTimeout, tokenSerial 里会连环堵死后续请求。
 function fetchTimeout(url, opts = {}, ms = 20000) {
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), ms);
-  return fetch(url, { ...opts, signal: ac.signal }).finally(() => clearTimeout(t));
+  return fetch(url, { ...opts, signal: AbortSignal.timeout(ms) });
 }
 
 async function exchangeCode(code) {
@@ -351,7 +361,8 @@ async function exchangeCode(code) {
     cfg.refresh_token = r.refresh_token || '';
     if (r.athlete && typeof r.athlete === 'object') cfg.athlete_id = String(r.athlete.id || '');
     cfg.oauth_state = '';
-    saveConfig(cfg);
+    // 只写本次变更的键:cfg 是跨越网络等待的旧快照, 整文件回写会回滚等待期间用户的并发保存
+    saveConfig(cfg, ['refresh_token', 'athlete_id', 'oauth_state']);
     // 保存 access token
     fs.mkdirSync(DATA_DIR, { recursive: true });
     writeTokenFile({
@@ -393,7 +404,8 @@ async function refreshToken(cfg) {
   //   否则刷新成功的 token 也被随即删掉，缓存永远不存在 → 每次都重新刷新
   if (r.refresh_token) {
     cfg.refresh_token = r.refresh_token;
-    saveConfig(cfg);
+    // 同 exchangeCode:旧快照只回写 refresh_token, 不覆盖并发保存的其他配置
+    saveConfig(cfg, ['refresh_token']);
   }
   fs.mkdirSync(DATA_DIR, { recursive: true });
   writeTokenFile({
@@ -409,6 +421,12 @@ function scopeErr(scope) {
   /** token 缺活动权限时的错误描述，用于状态提示而非直接当刷新失败 */
   return `scope 缺 ${REQUIRED_SCOPE}（当前: ${scope || '无'}），需重新 OAuth 授权`;
 }
+
+// 刷新失败负缓存:Strava 不可达(NAS 断网/网关抽风)时每次现场刷新都要吃满 20s 超时,
+// 且 tokenSerial 串行——仪表盘并发的几个读接口会连环排队各挂 20s, 面板形同卡死。
+// 失败后 60s 内直接复用上次错误, 不再发网络请求。
+let _tokenFailUntil = 0;
+let _tokenFailMsg = '';
 
 async function getAccessToken() {
   /** 返回 [access_token|null, error]。token 需同时：有效 + scope 含 activity:read_all。
@@ -429,13 +447,18 @@ async function getAccessToken() {
         // 缓存缺失/过期/缺活动 scope 时，落到下面刷新，看能否拿到正确 scope
       } catch { /* 缓存文件坏了 → 走刷新 */ }
     }
-    // 2) 否则刷新；刷新返回的 token 必须含活动 scope，否则视为不可用
+    // 2) 否则刷新；60s 内刚失败过则直接复用上次错误，不再打网络
+    if (Date.now() < _tokenFailUntil) return [null, _tokenFailMsg];
     try {
       const [token, scope] = await refreshToken(cfg);
+      _tokenFailUntil = 0;
+      // 刷新返回的 token 必须含活动 scope，否则视为不可用
       if (!scopeHasActivity(scope)) return [null, scopeErr(scope)];
       return [token, null];
     } catch (e) {
-      return [null, `刷新失败: ${e.message || e}`];
+      _tokenFailMsg = `刷新失败: ${e.message || e}`;
+      _tokenFailUntil = Date.now() + 60000;
+      return [null, _tokenFailMsg];
     }
   });
 }
@@ -548,6 +571,12 @@ async function uploadToStrava(token, buf, dataType, fields, fname) {
       const resp = await fetchTimeout(`${STRAVA_API}/uploads/${up.id}`, {
         headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
       });
+      // 非 2xx(401 token 失效/404 id 无效/429 限流)的错误体里没有 activity_id 和
+      // status 语义, 不判定会一直轮到 60s 假报「处理超时」, 掩盖真实原因
+      if (!resp.ok) {
+        const body = (await resp.text().catch(() => '')).slice(0, 200);
+        throw Object.assign(new Error(`查询处理状态 HTTP ${resp.status} ${body}`), { status: resp.status });
+      }
       st = await resp.json();
     } catch (e) {
       log('strava', `upload 轮询失败 id=${up.id}: ${e.message || e}`);
@@ -618,6 +647,7 @@ async function syncFromStrava(token, limitPages = 20, mode = 'incremental') {
   const allActs = [];
   let page = 1;
   let skipped = 0;
+  let complete = false; // 是否自然翻完(短页/空页)。耗尽 limitPages 上限时拉到的只是子集
   try {
     // 增量:以本地最新活动时间为 after 水位(留 1 天重叠,覆盖 Strava 落库延迟)
     let after = null;
@@ -631,7 +661,7 @@ async function syncFromStrava(token, limitPages = 20, mode = 'incremental') {
     while (page <= limitPages) {
       const acts = await getActivitiesPage(token, page, 100, after);
       SYNC_PROGRESS.page = page;
-      if (!acts || acts.length === 0) break;
+      if (!acts || acts.length === 0) { complete = true; break; }
       allActs.push(...acts);
       SYNC_PROGRESS.fetched = allActs.length;
       SYNC_PROGRESS.message = `已拉取第 ${page} 页 · ${allActs.length} 条`;
@@ -642,17 +672,25 @@ async function syncFromStrava(token, limitPages = 20, mode = 'incremental') {
         if (newest <= after) { skipped = 1; break; }
       }
       page += 1;
-      if (page > 1 && acts.length < 100) break;
+      if (page > 1 && acts.length < 100) { complete = true; break; }
     }
     SYNC_PROGRESS.message = '写入本地数据库';
     const added = db.upsertActivities(allActs);
-    // 远端对账删除：仅全量同步且自然翻完（未因触及水位提前停页）时，
-    // 拉到的 id 集合即远端全集——本地多出来的（Strava 网页已删除的）跟着删。
-    // 增量窗口只看到新活动，绝不能拿它当全集（会把老活动误删光）。
+    // 远端对账删除：仅全量同步且自然翻完（短页/空页结束）时，拉到的 id 集合才是
+    // 远端全集——本地多出来的（Strava 网页已删除的）跟着删。
+    // 增量窗口只看到新活动、耗尽 limitPages 上限（20 页×100 条）只拉到子集，
+    // 这两种情况绝不能拿去对账（会把没拉到的老活动误删光，活动数>2000 的账号必踩）。
     let pruned = 0;
-    if (mode === 'full' && !skipped) {
-      pruned = db.pruneNotIn(new Set(allActs.map(a => a.id)));
-      if (pruned) log('system', `远端对账: 清理本地已删除于 Strava 的活动 ${pruned} 条`);
+    if (mode === 'full' && complete) {
+      const ids = new Set(allActs.map(a => a.id));
+      const local = db.count();
+      if (ids.size * 2 < local) {
+        // 兜底:待清理超过本地一半时几乎必然是翻页/权限异常, 宁可漏删不可误删
+        log('system', `远端对账: 仅拉到 ${ids.size} 条但本地有 ${local} 条, 疑似翻页受限, 跳过对账删除`);
+      } else {
+        pruned = db.pruneNotIn(ids);
+        if (pruned) log('system', `远端对账: 清理本地已删除于 Strava 的活动 ${pruned} 条`);
+      }
     }
     SYNC_PROGRESS.done = true;
     SYNC_PROGRESS.message = `完成 · 拉取 ${allActs.length} 条, 新增 ${added} 条${pruned ? `, 清理已删 ${pruned} 条` : ''}`;
@@ -674,7 +712,9 @@ async function ensureLocalData() {
   try {
     const [tok, err] = await getAccessToken();
     if (!tok) return [false, err || '未配置'];
-    await syncFromStrava(tok);
+    // 经 syncSerial 排队:与手动/自动同步互斥, 否则并发跑会交替覆盖 SYNC_PROGRESS,
+    // 进度接口对前端失真
+    await syncSerial(() => syncFromStrava(tok));
     return [true, null];
   } catch (e) {
     return [false, String(e.message || e)];
@@ -766,6 +806,8 @@ function readLogs(name, date = null, tail = 500) {
   let display = '当前';
   if (date) {
     const compact = String(date).replace(/-/g, '');
+    // compact 会拼进文件路径:只接受 8 位数字, 否则 ../ 可穿越出 logs 目录读任意文件
+    if (!/^\d{8}$/.test(compact)) return { source: name, date, display: '无效日期', total: 0, content: '' };
     target = path.join(LOG_ARCHIVE_DIR, `${name}.log.${compact}`);
     display = fmtDisplayDate(compact);
   }
@@ -868,8 +910,10 @@ function buildApiDoc(lang = 'zh', requestHost = null) {
       + '# 4. Weekly aggregation\n'
       + 'curl -s -H "$AUTH" "$BASE/api/weekly"\n'
       + '\n'
-      + '# 5. Activities list (filter)\n'
+      + '# 5. Activities list (filter / search by name / fetch by ids)\n'
       + 'curl -s -H "$AUTH" "$BASE/api/activities?type=Ride&limit=10"\n'
+      + 'curl -s -H "$AUTH" "$BASE/api/activities?search=songpan&limit=20"\n'
+      + 'curl -s -H "$AUTH" "$BASE/api/activities?ids=101,102"\n'
       + '\n'
       + '# 6. Trigger Strava→SQLite sync\n'
       + 'curl -s -H "$AUTH" "$BASE/api/sync"\n'
@@ -877,6 +921,8 @@ function buildApiDoc(lang = 'zh', requestHost = null) {
       + '# 6b. Upload an activity file to Strava (fit/tcx/gpx/json; poll progress after)\n'
       + 'curl -s -X POST -H "$AUTH" --data-binary @ride.fit "$BASE/api/strava/upload?type=fit&fields=%7B%22name%22:%22Ride%22%7D&name=ride.fit"\n'
       + 'curl -s -H "$AUTH" "$BASE/api/strava/upload/progress"\n'
+      + '#    Status codes: 200 ok / 409 duplicate(code=DUPLICATE) / 504 upstream timeout(code=TIMEOUT)\n'
+      + '#    / 401 Strava auth expired(code=NO_TOKEN) / 429 rate-limited. Body always JSON; judge by fields.\n'
       + '\n'
       + '# 7. Export all data (json/csv)\n'
       + 'curl -s -H "$AUTH" "$BASE/api/export?fmt=json"\n'
@@ -919,8 +965,10 @@ function buildApiDoc(lang = 'zh', requestHost = null) {
     + '# 4. 每周聚合\n'
     + 'curl -s -H "$AUTH" "$BASE/api/weekly"\n'
     + '\n'
-    + '# 5. 活动列表（支持过滤）\n'
+    + '# 5. 活动列表（支持过滤 / 名称搜索 / 按 id 精确取）\n'
     + 'curl -s -H "$AUTH" "$BASE/api/activities?type=Ride&limit=10"\n'
+    + 'curl -s -H "$AUTH" "$BASE/api/activities?search=松潘&limit=20"\n'
+    + 'curl -s -H "$AUTH" "$BASE/api/activities?ids=101,102"\n'
     + '\n'
     + '# 6. 触发 Strava→SQLite 同步\n'
     + 'curl -s -H "$AUTH" "$BASE/api/sync"\n'
@@ -928,6 +976,8 @@ function buildApiDoc(lang = 'zh', requestHost = null) {
     + '# 6b. 上传活动文件到 Strava（fit/tcx/gpx/json；随后轮询进度）\n'
     + 'curl -s -X POST -H "$AUTH" --data-binary @ride.fit "$BASE/api/strava/upload?type=fit&fields=%7B%22name%22:%22Ride%22%7D&name=ride.fit"\n'
     + 'curl -s -H "$AUTH" "$BASE/api/strava/upload/progress"\n'
+    + '#    状态码：200 成功 / 409 重复(DUPLICATE) / 504 上游处理超时(TIMEOUT)\n'
+    + '#    / 401 Strava 授权失效(NO_TOKEN) / 429 限流。响应恒为 JSON，请按 body 字段判断。\n'
     + '\n'
     + '# 7. 导出全量数据（json/csv）\n'
     + 'curl -s -H "$AUTH" "$BASE/api/export?fmt=json"\n'
@@ -1105,10 +1155,169 @@ const COACH_SYSTEM = (digest, lang, now = new Date(), sports = ['Ride']) => {
     timeRulePref,
     timeRule,
     calRule,
+    // 活动引用：用户消息里的 #<id> 会被解析成该活动的真实数据附在消息后（见 resolveActivityRefs）
+    lang === 'en'
+      ? 'The user may reference a local activity with #<id> in their message. When you see a "【引用活动 #id】" block, that is the real recorded data of the referenced activity (distance/duration/elevation/HR/power/cadence). Use it directly for analysis — do not ask the user to retype those numbers, and do not invent values.'
+      : '用户可能在消息里用 #<编号> 引用本地活动。当你看到「【引用活动 #编号】」块时，那就是该活动真实记录的数据（距离/时长/爬升/心率/功率/踏频）。请直接基于这些数据做分析——不要再让用户重复这些数字，也不要编造数值。',
+    // 图片输入：用户可能附一张图（码表截图/功率曲线/路线/伤病照片等），直接看图回答
+    lang === 'en'
+      ? 'The user may attach an image to their message. When the message contains an image_url block, analyze it directly — describe what you see and answer the training question based on it. If the image is unreadable or irrelevant, say so instead of inventing details. The user may also attach a GPX route file; its parsed stats (distance/elevation/duration) arrive inline in the message — use them for route and trip planning.'
+      : '用户可能在消息里附一张图片。当消息中出现 image_url 块时，请直接读图分析——描述你看到的内容（码表数据/功率曲线/心率/路线/截图文字等），并基于图片回答训练问题。图片无法辨认或与问题无关时，如实说明，不要编造细节。用户也可能附 GPX 路线文件，其解析出的统计（距离/爬升/用时/起终点）会直接写在消息里——结合它做路线与行程建议。',
+    coachToolList(lang),
     '给出具体的、可执行的训练建议(强度用心率/功率/踏频/体感描述)。回答保持简洁,用 markdown 轻量排版(可用标题、表格、列表)。',
     lang === 'zh' ? '始终使用简体中文回答。' : 'Always answer in English.',
   ].join('\n');
 };
+
+// ---- #<id> 活动引用解析 ----
+// 用户在消息里写 #123 引用本地活动，模型侧附上该活动的真实数据（距离/时长/爬升/心率/功率/踏频）。
+// 语法宽松：#123、#123, #123、…都认；不存在的 id 原样返回文本，不报错。
+// 返回 names: 供前端把裸 #id 渲染成带活动名的引用 chip（「插入成功」的可见反馈）。
+function resolveActivityRefs(msg) {
+  const ids = [];
+  const seen = new Set();
+  const re = /#(\d+)/g;
+  let m;
+  while ((m = re.exec(String(msg || ''))) !== null) {
+    const id = Number(m[1]);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+    if (ids.length >= 6) break;   // 最多 6 条，避免单条消息塞爆上下文
+  }
+  if (!ids.length) return null;
+  const acts = ids.map(id => db.getActivityById(id)).filter(Boolean);
+  if (!acts.length) return null;
+  const names = {};
+  const lines = acts.map(a => {
+    names[a.id] = a.name || ('活动 #' + a.id);
+    const km = (num(a.distance) / 1000).toFixed(1);
+    const h = (num(a.moving_time) / 3600).toFixed(1);
+    const el = Math.round(num(a.total_elevation_gain));
+    const hr = a.average_heartrate != null ? Math.round(num(a.average_heartrate)) + 'bpm' : '-';
+    const pw = a.average_watts != null ? Math.round(num(a.average_watts)) + 'W' : '-';
+    const cad = a.average_cadence != null ? Math.round(num(a.average_cadence)) + 'rpm' : '-';
+    const tp = SPORT_LABEL[a.type] || a.type || '';
+    return `【引用活动 #${a.id}】${String(a.start_date_local || a.start_date || '').slice(0, 10)} [${tp}] ${a.name || ''}：${km}km / ${h}h / 爬升${el}m / 均HR ${hr} / 均功率 ${pw} / 均踏频 ${cad}`;
+  });
+  return { text: lines.join('\n'), count: acts.length, names };
+}
+
+// ---- 教练工具（出行计划数据）----
+// 不依赖网关的 function calling：模型在回复里输出一行 ⟦TOOL⟧{json} 表示要取数据，
+// 服务端执行后把结果作为 user 消息喂回去再问一轮（最多 3 轮）。任何 OpenAI 兼容模型都可用。
+const TOOL_MARK = '⟦TOOL⟧';
+const COACH_DESTINATIONS = TRIP_DESTINATIONS.map(d =>
+  `${d.name}（lat ${d.lat}, lon ${d.lon}, 海拔${d.alt}m; 火车:${d.rail}; 骑行:${d.ride}）`).join('\n');
+
+function coachToolList(lang) {
+  return lang === 'en'
+    ? [
+      'You can fetch live trip data by replying with EXACTLY ONE line and nothing else:',
+      `${TOOL_MARK}{"tool":"<name>","args":{...}}`,
+      'The server executes it and returns the result as the next user message; then give your real answer.',
+      'Tools:',
+      '- {"tool":"geocode","args":{"name":"松潘"}} → coordinates of any place',
+      '- {"tool":"weather","args":{"lat":32.65,"lon":103.59,"days":3}} or {"tool":"weather","args":{"name":"松潘","days":3}} → hourly weather forecast (≤7 days)',
+      '- {"tool":"route_weather","args":{"pts":[[32.65,103.59],[32.75,103.82]],"days":2}} → weather along up to 8 route points',
+      '- {"tool":"trains","args":{"from":"成都东","to":"松潘","date":"2026-11-20"}} → train schedule (date required, YYYY-MM-DD)',
+      '- {"tool":"trains","args":{"from":"中江","to":"北京西","date":"2026-11-20","mode":"transfer"}} → transfer options via major hubs (auto-picks hubs; add "via":"贵阳北" to force one; defaults to G/D trains)',
+      'Built-in destinations (use their lat/lon directly, no geocode needed):',
+      COACH_DESTINATIONS,
+      'Rules: call a tool only when the question needs live weather/train data; never invent weather or train times; after receiving results answer the user directly (do not mention the tool protocol).',
+    ].join('\n')
+    : [
+      '你可以获取出行计划的实时数据：当需要天气/火车等真实数据时，回复中只输出一行：',
+      `${TOOL_MARK}{"tool":"<名称>","args":{...}}`,
+      '服务端执行后会把结果作为下一条 user 消息返回，随后你再给出正式回答。',
+      '可用工具：',
+      '- {"tool":"geocode","args":{"name":"松潘"}} → 查任意地点坐标',
+      '- {"tool":"weather","args":{"lat":32.65,"lon":103.59,"days":3}} 或 {"tool":"weather","args":{"name":"松潘","days":3}} → 逐小时天气预报(最多7天)',
+      '- {"tool":"route_weather","args":{"pts":[[32.65,103.59],[32.75,103.82]],"days":2}} → 沿线最多8个点的路线天气',
+      '- {"tool":"trains","args":{"from":"成都东","to":"松潘","date":"2026-11-20"}} → 火车班次(date 必填,YYYY-MM-DD)',
+      '- {"tool":"trains","args":{"from":"中江","to":"北京西","date":"2026-11-20","mode":"transfer"}} → 中转方案（自动选大枢纽两段拼接；可用 "via":"贵阳北" 指定中转站；默认只看 G/D 车次）',
+      '内置目的地（直接用其 lat/lon，无需 geocode）：',
+      COACH_DESTINATIONS,
+      '规则：只在问题涉及实时天气/火车时调用工具；绝不编造天气或车次；拿到结果后直接回答用户，不要提及工具协议。',
+    ].join('\n');
+}
+
+async function runCoachTool(name, args) {
+  const a = args && typeof args === 'object' ? args : {};
+  const qs = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, String(v)]));
+  switch (String(name || '')) {
+    case 'geocode':
+      return tripGeocode({ name: a.name, count: a.count || 5, language: 'zh' });
+    case 'weather': {
+      let { lat, lon } = a;
+      if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) {
+        const g = await tripGeocode({ name: a.name || '', count: 1 });
+        const hit = (g && g.results && g.results[0]) || null;
+        if (!hit) throw new Error(`未找到地点「${a.name || ''}」`);
+        lat = hit.latitude; lon = hit.longitude;
+      }
+      return tripWeather({ lat, lon, days: a.days || 3, tz: a.tz || 'Asia/Shanghai' });
+    }
+    case 'route_weather': {
+      const pts = Array.isArray(a.pts) ? a.pts : [];
+      return tripRouteWeather({ pts: pts.slice(0, 8).map(p => `${p[0]},${p[1]}`).join(';'), days: a.days || 2 });
+    }
+    case 'trains':
+      return tripTrains({ from: a.from, to: a.to, date: a.date, dep_from: a.dep_from || '', dep_to: a.dep_to || '',
+        mode: a.mode || '', via: a.via || '', type: a.type || 'GD' }, DATA_DIR);
+    default:
+      throw new Error(`未知工具: ${name}`);
+  }
+}
+
+// 工具结果塞回上下文前压到固定预算内（逐小时数据可能很大）
+function squeezeToolResult(obj, budget = 6000) {
+  let s;
+  try { s = JSON.stringify(obj); } catch { s = String(obj); }
+  if (s.length <= budget) return s;
+  // 优先丢 hourly 数组的中间部分，保留头部/尾部
+  try {
+    const clone = JSON.parse(s);
+    const cut = (arr) => arr.length > 24 ? arr.slice(0, 12).concat([{ omitted: arr.length - 24 + 12 + ' hours' }], arr.slice(-12)) : arr;
+    if (clone.points) for (const p of clone.points) if (p.hourly) p.hourly = cut(p.hourly);
+    if (clone.hourly) clone.hourly = cut(clone.hourly);
+    s = JSON.stringify(clone);
+  } catch { /* 原样截断 */ }
+  return s.length > budget ? s.slice(0, budget) + '…(截断)' : s;
+}
+
+function parseToolCall(reply) {
+  const i = String(reply || '').indexOf(TOOL_MARK);
+  if (i < 0) return null;
+  const line = String(reply).slice(i + TOOL_MARK.length).split('\n')[0].trim();
+  const m = line.match(/^\{[\s\S]*\}$/) ? line : (line.match(/\{[\s\S]*\}/) || [])[0];
+  if (!m) return null;
+  try {
+    const j = JSON.parse(m);
+    if (j && j.tool) return { tool: String(j.tool), args: j.args || {}, raw: String(reply).slice(i, i + TOOL_MARK.length + m.length) };
+  } catch { /* 非 JSON */ }
+  return null;
+}
+
+// 工具循环：最多 3 轮（首答 + 2 次取数），拿到最终非工具回复为止
+async function coachToolLoop(cfg, messages, lang) {
+  let reply = await callLlm(cfg, messages);
+  for (let round = 0; round < 2; round++) {
+    const call = parseToolCall(reply);
+    if (!call) break;
+    let resultText;
+    try {
+      const result = await runCoachTool(call.tool, call.args);
+      resultText = `【工具 ${call.tool} 结果】\n` + squeezeToolResult(result);
+    } catch (e) {
+      resultText = `【工具 ${call.tool} 失败】${e.message || e}（请基于已有信息回答，或如实告知拿不到该数据）`;
+    }
+    messages.push({ role: 'assistant', content: call.raw });
+    messages.push({ role: 'user', content: resultText });
+    reply = await callLlm(cfg, messages);
+  }
+  return reply;
+}
 
 async function callLlm(cfg, messages, timeoutMs = 90000) {
   /** OpenAI 兼容 /chat/completions 调用。返回 assistant 文本。 */
@@ -1261,6 +1470,123 @@ function recordAgentGet(req, rawPath) {
   log('agent', `agent 调用 ${rawPath}`);
 }
 
+// ---------- 教练图片 ----------
+// 图片存在 DATA_DIR/coach-images/，DB 里只存相对路径。前端展示走 /api/coach/image（带 token），
+// 模型侧走 /api/coach/image?base64=1 取 data URL 塞进 image_url。
+const COACH_IMG_DIR = path.join(DATA_DIR, 'coach-images');
+const COACH_IMG_BYTES = 8 * 1024 * 1024;   // 单张上限 8MB（模型网关一般 5~10MB）
+const COACH_IMG_TYPES = {
+  'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp',
+  'image/gif': '.gif', 'image/heic': '.heic', 'image/heif': '.heif',
+};
+const COACH_IMG_TYPES_REVERSE = Object.fromEntries(
+  Object.entries(COACH_IMG_TYPES).map(([mime, ext]) => [ext, mime]));
+// GPX 路线文件（教练附件）：扩展名 .gpx → application/gpx+xml
+COACH_IMG_TYPES_REVERSE['.gpx'] = 'application/gpx+xml';
+
+function coachImgPath(rel) {
+  // 只允许 coach-images 下的相对路径，拒绝 ../ 穿越
+  const rel2 = String(rel || '').replace(/^\/+/, '');
+  const p = path.resolve(COACH_IMG_DIR, rel2);
+  return p.startsWith(path.resolve(COACH_IMG_DIR) + path.sep) ? p : null;
+}
+
+function saveCoachImage(buf, mime) {
+  let ext = COACH_IMG_TYPES[String(mime || '').toLowerCase()];
+  if (!ext && String(mime).toLowerCase() === 'application/gpx+xml') ext = '.gpx';
+  if (!ext) return null;
+  fs.mkdirSync(COACH_IMG_DIR, { recursive: true });
+  const name = `img-${Date.now()}-${tokenUrlsafe(6)}${ext}`;
+  fs.writeFileSync(path.join(COACH_IMG_DIR, name), buf);
+  try { chmod600(path.join(COACH_IMG_DIR, name)); } catch { /* Windows 尽力而为 */ }
+  return name;
+}
+
+function sniffImageMime(buf) {
+  /** 按 magic bytes 认图片格式（content-type 缺失时的兜底）。 */
+  const b = Buffer.from(buf);
+  if (b.length < 4) return null;
+  if (b[0] === 0xFF && b[1] === 0xD8) return 'image/jpeg';
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) return 'image/png';
+  if (b.slice(0, 4).toString('ascii') === 'RIFF' && b.slice(8, 12).toString('ascii') === 'WEBP') return 'image/webp';
+  if (b.slice(0, 3).toString('ascii') === 'GIF') return 'image/gif';
+  return null;
+}
+
+function coachImageDataUrl(rel) {
+  /** 读图片转 data URL（供 OpenAI 兼容网关的 image_url）。GPX 不适用（走 parseGpxSummary）。 */
+  const p = coachImgPath(rel);
+  if (!p || !fs.existsSync(p)) return '';
+  if (p.toLowerCase().endsWith('.gpx')) return '';
+  const buf = fs.readFileSync(p);
+  const ext = p.slice(p.lastIndexOf('.'));
+  const mime = COACH_IMG_TYPES_REVERSE[ext] || 'image/jpeg';
+  return `data:${mime};base64,${buf.toString('base64')}`;
+}
+
+// ---- GPX 路线解析（教练附件：给模型统计文本，不是视觉输入）----
+function parseGpxSummary(buf) {
+  /** 解析 GPX 的 trkpt/rtept：距离/爬升/用时/起终点/海拔区间。解析失败抛错。 */
+  const xml = Buffer.from(buf).toString('utf8').slice(0, 20 * 1024 * 1024);
+  const name = ((xml.match(/<name>([^<]{1,120})<\/name>/) || [])[1] || '').trim();
+  const pts = [];
+  const re = /<(trk|rte)pt\b([^>]*?)(\/>|>([\s\S]*?)<\/\1pt>)/g;
+  let m;
+  while ((m = re.exec(xml)) !== null && pts.length < 50000) {
+    const attrs = m[2];
+    const la = (attrs.match(/lat="([-\d.]+)"/) || [])[1];
+    const lo = (attrs.match(/lon="([-\d.]+)"/) || [])[1];
+    if (la == null || lo == null) continue;
+    const body = m[4] || '';
+    const ele = (body.match(/<ele>([-\d.]+)<\/ele>/) || [])[1];
+    const time = (body.match(/<time>([^<]+)<\/time>/) || [])[1];
+    pts.push({ lat: parseFloat(la), lon: parseFloat(lo), ele: ele != null ? parseFloat(ele) : null, time });
+  }
+  if (pts.length < 2) throw new Error('GPX 中没有可用的轨迹点');
+  const R = 6371, rad = Math.PI / 180;
+  const hav = (a, b) => {
+    const dLa = (b.lat - a.lat) * rad, dLo = (b.lon - a.lon) * rad;
+    const s = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLo / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(s));
+  };
+  let dist = 0, gain = 0, prevEle = null;
+  for (let i = 1; i < pts.length; i++) {
+    dist += hav(pts[i - 1], pts[i]);
+    const e = pts[i].ele;
+    if (e != null && prevEle != null && e > prevEle) gain += e - prevEle;
+    if (e != null) prevEle = e;
+  }
+  const eles = pts.map(p => p.ele).filter(v => v != null);
+  const times = pts.map(p => p.time).filter(v => v);
+  let durH = null;
+  if (times.length >= 2) {
+    const t0 = Date.parse(times[0]), t1 = Date.parse(times[times.length - 1]);
+    if (Number.isFinite(t0) && Number.isFinite(t1) && t1 > t0) durH = (t1 - t0) / 3600000;
+  }
+  const fmt = (v, d = 1) => Number(v).toFixed(d);
+  const f = (p) => `${fmt(p.lat, 4)},${fmt(p.lon, 4)}`;
+  const lines = [
+    `【GPX 路线 ${name ? name + ' ' : ''}#${pts.length} 点】`,
+    `距离 ${fmt(dist)}km / 爬升 ${Math.round(gain)}m` + (durH != null ? ` / 用时 ${fmt(durH)}h（均速 ${fmt(dist / durH)}km/h）` : ' / 无时间信息'),
+    `海拔 ${eles.length ? fmt(Math.min(...eles), 0) + '~' + fmt(Math.max(...eles), 0) + 'm' : '无数据'}`,
+    `起点 ${f(pts[0])}（${fmt(pts[0].ele != null ? pts[0].ele : 0, 0)}m） → 终点 ${f(pts[pts.length - 1])}（${fmt(pts[pts.length - 1].ele != null ? pts[pts.length - 1].ele : 0, 0)}m）`,
+  ];
+  return lines.join('\n');
+}
+
+function pruneCoachImages(keepSet) {
+  /** 清理不再被任何消息引用的图片文件（会话删除/清空记忆后调用）。 */
+  try {
+    if (!fs.existsSync(COACH_IMG_DIR)) return 0;
+    let n = 0;
+    for (const f of fs.readdirSync(COACH_IMG_DIR)) {
+      if (keepSet.has(f)) continue;
+      try { fs.unlinkSync(path.join(COACH_IMG_DIR, f)); n++; } catch { /* 单个失败忽略 */ }
+    }
+    return n;
+  } catch { return 0; }
+}
+
 function requireApiToken(req, res, qs, rawPath) {
   /** 校验 API 访问 token（数据接口保护）。返回是否通过。 */
   // 从 Authorization header 或 ?token= 参数读取
@@ -1409,6 +1735,35 @@ async function handleGet(req, res, rawPath, qs) {
         count: db.countMemory(),
         llm: (() => { const c = llmConfig(); return { configured: c.configured, base_url: c.baseUrl, model: c.model, has_key: Boolean(c.apiKey), models: parseLlmModels(cfg) }; })(),
       });
+    } catch (e) {
+      sendJson(res, { error: String(e.message || e) }, 500);
+    }
+    return;
+  }
+  if (rawPath === '/api/coach/image') {
+    // 教练消息里的图片：?name=img-xxx.jpg 直接返回二进制；?base64=1 返回 data URL
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    const p = coachImgPath(qs.name);
+    if (!p || !fs.existsSync(p)) { sendJson(res, { error: '图片不存在' }, 404); return; }
+    const buf = fs.readFileSync(p);
+    if (qs.base64 === '1') {
+      const mime = COACH_IMG_TYPES_REVERSE[p.slice(p.lastIndexOf('.'))] || 'image/jpeg';
+      sendJson(res, { ok: true, data_url: `data:${mime};base64,${buf.toString('base64')}` });
+      return;
+    }
+    res.writeHead(200, {
+      'Content-Type': COACH_IMG_TYPES_REVERSE[p.slice(p.lastIndexOf('.'))] || 'image/jpeg',
+      'Content-Length': buf.length,
+      'Cache-Control': 'private, max-age=86400',
+    });
+    return res.end(buf);
+  }
+  if (rawPath === '/api/coach/sessions/archived') {
+    // 已归档会话列表(含消息数),供会话管理页「已归档」分区展示
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    try {
+      const all = db.listSessions(true);
+      sendJson(res, { ok: true, sessions: all.filter(s => Number(s.archived) === 1) });
     } catch (e) {
       sendJson(res, { error: String(e.message || e) }, 500);
     }
@@ -1566,7 +1921,16 @@ async function handleGet(req, res, rawPath, qs) {
       // type 支持逗号分隔多类型（如 Run,TrailRun）；单类型/缺省行为不变
       const tRaw = String(qs.type || '').trim();
       const typeArg = tRaw ? tRaw.split(',').map(s => s.trim()).filter(Boolean) : null;
-      const acts = db.getActivities(typeArg && typeArg.length === 1 ? typeArg[0] : typeArg, strictInt(qs.limit, 50), qs.start || null, qs.end || null);
+      // search：按活动名称模糊过滤（教练 @ / # 引用选择器用）。q 走 SQL LIKE，参数化防注入。
+      const q = String(qs.search || qs.q || '').trim();
+      let acts = db.getActivities(typeArg && typeArg.length === 1 ? typeArg[0] : typeArg, strictInt(qs.limit, 50), qs.start || null, qs.end || null);
+      if (q) acts = acts.filter(a => String(a.name || '').toLowerCase().includes(q.toLowerCase()));
+      // ids=1,2,3：按 id 精确取（引用选择器与 #id 解析共用，避免名称搜索漏掉目标）
+      const idRaw = String(qs.ids || '').trim();
+      if (idRaw) {
+        const idList = idRaw.split(',').map(s => Number(s.trim())).filter(n => n > 0);
+        if (idList.length) acts = idList.map(id => db.getActivityById(id)).filter(Boolean);
+      }
       sendJson(res, { activities: acts, count: acts.length });
     } catch (e) {
       sendJson(res, { error: String(e.message || e) }, 500);
@@ -1696,6 +2060,7 @@ async function handleGet(req, res, rawPath, qs) {
     let name = qs.source || 'strava';
     if (!(name in LOG_SOURCES)) name = 'strava';
     const date = qs.date || null;
+    if (date && !/^\d{8}$/.test(String(date).replace(/-/g, ''))) { sendJson(res, { error: '无效日期' }, 400); return; }
     let tail;
     try { tail = strictInt(qs.tail, 500); } catch { tail = 500; }
     sendJson(res, readLogs(name, date, tail));
@@ -1706,6 +2071,8 @@ async function handleGet(req, res, rawPath, qs) {
     let name = qs.source || 'strava';
     if (!(name in LOG_SOURCES)) name = 'strava';
     const date = qs.date || null;
+    // 日期会进文件名与 Content-Disposition 头:必须 8 位数字, 否则既可穿越也污染响应头
+    if (date && !/^\d{8}$/.test(String(date).replace(/-/g, ''))) { sendJson(res, { error: '无效日期' }, 400); return; }
     const result = readLogs(name, date, 0);
     let fname = 'strava.log';
     if (date) fname = `strava.log.${String(date).replace(/-/g, '')}`;
@@ -1733,7 +2100,9 @@ async function handlePost(req, res, rawPath, qs) {
   if (rawPath === '/api/config') {
     if (!requireApiToken(req, res, qs, rawPath)) return;
     try {
-      const data = JSON.parse(await readBody(req));
+      let data;
+      try { data = JSON.parse(await readBody(req)); }
+      catch { sendJson(res, { error: '请求体不是合法 JSON' }, 400); return; }
       // redirect_uri 必须是绝对 URL(http/https)，拒绝残缺的相对路径(如 /oauth/callback)
       // 否则 Strava 授权直接报错。
       if (data.redirect_uri) {
@@ -1752,9 +2121,9 @@ async function handlePost(req, res, rawPath, qs) {
         saveConfig(cfg);
       });
       const [tok, err] = await getAccessToken();
-      // 有凭据且有 token 时自动同步一次
+      // 有凭据且有 token 时自动同步一次(同样走队列, 不与手动同步并发)
       if (tok) {
-        try { await syncFromStrava(tok); } catch { /* 同步失败不影响保存结果 */ }
+        try { await syncSerial(() => syncFromStrava(tok)); } catch { /* 同步失败不影响保存结果 */ }
       }
       // 保存成功即返回 ok（未拿到 token 时 err 提示 token 状态）
       sendJson(res, { ok: true, token_ok: Boolean(tok), error: err });
@@ -1767,7 +2136,9 @@ async function handlePost(req, res, rawPath, qs) {
   if (rawPath === '/api/llm/config') {
     if (!requireApiToken(req, res, qs, rawPath)) return;
     try {
-      const data = JSON.parse(await readBody(req));
+      let data;
+      try { data = JSON.parse(await readBody(req)); }
+      catch { sendJson(res, { error: '请求体不是合法 JSON' }, 400); return; }
       await syncSerial(() => {
         const cfg = loadConfig();
         if ('llm_base_url' in data) cfg.llm_base_url = String(data.llm_base_url || '').trim();
@@ -1813,13 +2184,26 @@ async function handlePost(req, res, rawPath, qs) {
     const c = llmConfig();
     if (!c.configured) { sendJson(res, { error: '尚未配置模型:请到 设置 → 模型 填写 API 地址与模型名' }, 400); return; }
     try {
-      const data = JSON.parse(await readBody(req));
+      let data;
+      try { data = JSON.parse(await readBody(req)); }
+      catch { sendJson(res, { error: '请求体不是合法 JSON' }, 400); return; }
       const msg = String(data.message || '').trim();
-      if (!msg) { sendJson(res, { error: '消息为空' }, 400); return; }
+      // 附件（图片或 GPX）：前端先上传拿到 name，再随消息带上（最多 1 个）
+      const image = String(data.image || '').trim() || null;
+      if (!msg && !image) { sendJson(res, { error: '消息为空' }, 400); return; }
+      // #<id> 引用本地活动：把该活动真实数据附进本次消息(存库的仍是用户原文,便于回溯)
+      const refBlock = resolveActivityRefs(msg);
       // 会话:sid 缺省时新建;模型名允许会话级覆盖(网关拉列表后点选)
       const sid = db.ensureSession(data.session_id);
       const lang = data.lang === 'en' ? 'en' : 'zh';
-      db.addMemory('user', msg, sid);
+      // 附件落库：仅允许本面板 coach-images/ 下的文件，防路径穿越
+      let storedImage = null;
+      if (image) {
+        const p = coachImgPath(image);
+        if (!p || !fs.existsSync(p)) { sendJson(res, { error: '附件不存在，请重新上传' }, 400); return; }
+        storedImage = String(image).replace(/^\/+/, '');
+      }
+      db.addMemory('user', msg, sid, storedImage);
       const history = db.getMemory(40, sid);
       // 模型优先级:请求显式 model > 会话级 model(设置页配置) > 已保存默认配置
       const sessRow = db.db.prepare('SELECT model FROM coach_sessions WHERE id=?').get(sid);
@@ -1827,13 +2211,79 @@ async function handlePost(req, res, rawPath, qs) {
       // 组消息:系统提示(含训练摘要+运动方式约束) + 历史对话(去掉刚写入又重复的最后一条由 history 天然包含)
       const messages = [{ role: 'system', content: COACH_SYSTEM(buildTrainingDigest(), lang, new Date(), coachSports()) }];
       for (const m of history.slice(0, -1)) messages.push({ role: m.role, content: m.content });
-      messages.push({ role: 'user', content: msg });
+      // 引用块只进本次模型上下文，不写进 coach_memory（历史消息保持用户原文）
+      const userText = refBlock ? msg + '\n\n' + refBlock.text : msg;
+      // 附件：图片 → image_url 多模态；GPX → 解析成统计文本。
+      // 历史里的附件不重复带（模型只看当前问题带的附件即可）
+      let attachParts = [];
+      if (storedImage) {
+        if (storedImage.toLowerCase().endsWith('.gpx')) {
+          try {
+            const p = coachImgPath(storedImage);
+            attachParts.push({ type: 'text', text: parseGpxSummary(fs.readFileSync(p)) });
+          } catch (e) {
+            attachParts.push({ type: 'text', text: `【GPX 附件解析失败】${e.message || e}` });
+          }
+        } else {
+          let dataUrl = '';
+          try { dataUrl = await coachImageDataUrl(storedImage); } catch { /* 读不到就降级纯文本 */ }
+          if (dataUrl) attachParts.push({ type: 'image_url', image_url: { url: dataUrl } });
+        }
+      }
+      if (attachParts.length) messages.push({ role: 'user', content: [{ type: 'text', text: userText }, ...attachParts] });
+      else messages.push({ role: 'user', content: userText });
       const useCfg = modelId ? { ...c, model: modelId } : c;
-      const reply = await callLlm(useCfg, messages);
+      const reply = await coachToolLoop(useCfg, messages, lang);
       db.addMemory('assistant', reply, sid);
-      sendJson(res, { ok: true, reply, session_id: sid, sessions: db.listSessions() });
+      // refNames 回给前端：把输入框里的裸 #id 渲染成带活动名的引用 chip
+      sendJson(res, { ok: true, reply, session_id: sid, sessions: db.listSessions(), refNames: refBlock ? refBlock.names : null });
     } catch (e) {
       sendJson(res, { error: String(e.message || e) }, 502);
+    }
+    return;
+  }
+  if (rawPath === '/api/coach/image') {
+    // 上传图片/GPX（body 直接是二进制，?name 可选带原始文件名用于扩展名判断）
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    try {
+      const buf = await readBodyBuf(req, COACH_IMG_BYTES);
+      if (!buf.length) { sendJson(res, { error: '图片为空' }, 400); return; }
+      const ctype = String(req.headers['content-type'] || '').split(';')[0].trim();
+      const hintExt = String(qs.name || '').toLowerCase().endsWith('.gpx');
+      // GPX：content-type 或扩展名任一命中即可（GPX 是文本，magic bytes 嗅探不到）
+      if (ctype === 'application/gpx+xml' || hintExt) {
+        const name = saveCoachImage(buf, 'application/gpx+xml');
+        sendJson(res, { ok: true, name, url: '/api/coach/image?name=' + encodeURIComponent(name) });
+        return;
+      }
+      // 允许不带 content-type（部分客户端直接 POST 裸字节）——按 magic bytes 猜
+      let mime = COACH_IMG_TYPES[ctype.toLowerCase()] ? ctype.toLowerCase() : null;
+      if (!mime) mime = sniffImageMime(buf);
+      if (!mime) { sendJson(res, { error: '不支持的格式（仅 jpg/png/webp/gif/gpx）' }, 415); return; }
+      const name = saveCoachImage(buf, mime);
+      sendJson(res, { ok: true, name, url: '/api/coach/image?name=' + encodeURIComponent(name) });
+    } catch (e) {
+      const tooBig = /过大/.test(String(e.message || ''));
+      sendJson(res, { error: String(e.message || e), code: tooBig ? 'TOO_LARGE' : undefined }, tooBig ? 413 : 500);
+    }
+    return;
+  }
+  if (rawPath === '/api/coach/message') {
+    // 删除单条消息 {id}；会话删除/清空时也可批量 {session_id}
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    try {
+      const data = await readBody(req).then((b) => { try { return JSON.parse(b || '{}'); } catch { return {}; } });
+      const id = Number(data.id) || 0;
+      if (!id) { sendJson(res, { error: '缺少 id' }, 400); return; }
+      const row = db.db.prepare('SELECT image FROM coach_memory WHERE id=?').get(id);
+      const ok = db.deleteMemory(id);
+      if (ok && row && row.image) {
+        const p = coachImgPath(row.image);
+        if (p) { try { fs.unlinkSync(p); } catch { /* 已删/被占用忽略 */ } }
+      }
+      sendJson(res, { ok: true, deleted: ok ? 1 : 0 });
+    } catch (e) {
+      sendJson(res, { error: String(e.message || e) }, 500);
     }
     return;
   }
@@ -1842,7 +2292,11 @@ async function handlePost(req, res, rawPath, qs) {
     try {
       const data = await readBody(req).then((b) => { try { return JSON.parse(b || '{}'); } catch { return {}; } });
       const sid = data.session_id != null ? Number(data.session_id) : null;
-      sendJson(res, { ok: true, cleared: db.clearMemory(sid), sessions: db.listSessions() });
+      // 清记忆后图片不再被引用 → 一并清理文件（保留 set 之外的）
+      const keep = new Set(db.memoryImages(sid).map(r => r.image));
+      const cleared = db.clearMemory(sid);
+      if (cleared) pruneCoachImages(keep);
+      sendJson(res, { ok: true, cleared, sessions: db.listSessions() });
     } catch (e) {
       sendJson(res, { error: String(e.message || e) }, 500);
     }
@@ -1850,36 +2304,51 @@ async function handlePost(req, res, rawPath, qs) {
   }
   if (rawPath === '/api/strava/upload') {
     if (!requireApiToken(req, res, qs, rawPath)) return;
-    if (_uploadInFlight) { sendJson(res, { error: '已有上传在处理中，请稍候', code: 'BUSY' }, 409); return; }
-    const dataType = String(qs.type || '').toLowerCase();
-    if (!UPLOAD_TYPES.has(dataType)) { sendJson(res, { error: `不支持的文件类型: ${dataType || '(空)'}（仅 fit/tcx/gpx/json）` }, 400); return; }
-    let fields = {};
-    try { fields = JSON.parse(qs.fields || '{}'); } catch { sendJson(res, { error: 'fields 参数需为 JSON' }, 400); return; }
-    // 写权限预检：token 缺 activity:write 时直接返回结构化错误 + 活动名，供前端「去授权后重放」
-    {
-      const [preTok, preErr] = await getAccessToken();
-      if (!preTok) { sendJson(res, { error: preErr || '未配置' }, 400); return; }
-      if (!scopeHasWrite(currentScope())) { sendJson(res, uploadErr(currentScope(), fields.name), 403); return; }
+    // 互斥的检查-置位必须原子:先置位再 await。原实现隔了 getAccessToken/readBodyBuf
+    // 两个 await 才置位, 并发上传都能通过 409 检查, 并行跑 uploadToStrava 互相覆盖
+    // 进度且真的重复上传
+    if (_uploadInFlight) {
+      await readBodyBuf(req).catch(() => {}); // 先排空 body:不消费就应答, 客户端推大文件会被连接重置而非拿到 409
+      sendJson(res, { error: '已有上传在处理中，请稍候', code: 'BUSY' }, 409);
+      return;
     }
-    let buf;
-    try { buf = await readBodyBuf(req); }
-    catch (e) { sendJson(res, { error: String(e.message || e), code: 'TOO_LARGE' }, 413); return; }
-    if (!buf.length) { sendJson(res, { error: '文件为空' }, 400); return; }
-    const fname = qs.name ? String(qs.name) : `activity.${dataType}`;
     _uploadInFlight = true;
     try {
+      // 先排空请求体再做全部预检:409/400/413/403 若在消费 body 前应答, 客户端还在推
+      // 文件就被断链拿不到结构化错误(缺 scope → 去授权 → 重放 的流程直接失效)
+      let buf;
+      try { buf = await readBodyBuf(req); }
+      catch (e) { sendJson(res, { error: String(e.message || e), code: 'TOO_LARGE' }, 413); return; }
+      if (!buf.length) { sendJson(res, { error: '文件为空' }, 400); return; }
+      const dataType = String(qs.type || '').toLowerCase();
+      if (!UPLOAD_TYPES.has(dataType)) { sendJson(res, { error: `不支持的文件类型: ${dataType || '(空)'}（仅 fit/tcx/gpx/json）` }, 400); return; }
+      let fields = {};
+      try { fields = JSON.parse(qs.fields || '{}'); } catch { sendJson(res, { error: 'fields 参数需为 JSON' }, 400); return; }
+      // 写权限预检：token 缺 activity:write 时直接返回结构化错误 + 活动名，供前端「去授权后重放」
+      {
+        const [preTok, preErr] = await getAccessToken();
+        if (!preTok) { sendJson(res, { error: preErr || '未配置' }, 400); return; }
+        if (!scopeHasWrite(currentScope())) { sendJson(res, uploadErr(currentScope(), fields.name), 403); return; }
+      }
+      const fname = qs.name ? String(qs.name) : `activity.${dataType}`;
       const [tok] = await getAccessToken();
       if (!tok) { sendJson(res, { error: '未授权', code: 'NO_TOKEN' }, 400); return; }
       const res2 = await uploadToStrava(tok, buf, dataType, fields, fname);
       if (res2 && (res2._dup || res2._timeout)) {
+        // 失败给语义正确的状态码:重复=409、上游处理超时=504。body 的 ok/code/error
+        // 字段保持不变——前端与外部 agent 均按字段判断, 不受状态码影响
         sendJson(res, { ok: false, error: res2.error || res2._error || '处理异常',
-          code: res2._dup ? 'DUPLICATE' : 'TIMEOUT', upload_id: res2.id });
+          code: res2._dup ? 'DUPLICATE' : 'TIMEOUT', upload_id: res2.id },
+          res2._dup ? 409 : 504);
         return;
       }
       await afterUploadSync();
       sendJson(res, { ok: true, activity_id: res2 && res2.activity_id, upload_id: res2 && res2.id });
     } catch (e) {
-      sendJson(res, { error: String(e.message || e), code: e.status === 401 ? 'NO_TOKEN' : 'ERROR' }, 502);
+      // Strava 侧鉴权失效/限流失真透传(401 带 NO_TOKEN 区别于面板 api_token 的 401),
+      // 其余包装成 502 网关错误
+      sendJson(res, { error: String(e.message || e), code: e.status === 401 ? 'NO_TOKEN' : 'ERROR' },
+        e.status === 401 ? 401 : (e.status === 429 ? 429 : 502));
     } finally {
       _uploadInFlight = false;
     }
@@ -1902,7 +2371,9 @@ async function handlePost(req, res, rawPath, qs) {
     // 删除本地缓存活动:{id}。只删本地缓存，不动 Strava 端（Strava 删除走官网）。
     if (!requireApiToken(req, res, qs, rawPath)) return;
     try {
-      const data = JSON.parse(await readBody(req));
+      let data;
+      try { data = JSON.parse(await readBody(req)); }
+      catch { sendJson(res, { error: '请求体不是合法 JSON' }, 400); return; }
       const id = Number(data.id);
       if (!id || !Number.isFinite(id)) { sendJson(res, { error: '缺少活动 id' }, 400); return; }
       const deleted = db.deleteActivity(id);
@@ -1918,7 +2389,9 @@ async function handlePost(req, res, rawPath, qs) {
     // 自动同步配置:{auto_sync:bool, auto_sync_hours:number}
     if (!requireApiToken(req, res, qs, rawPath)) return;
     try {
-      const data = JSON.parse(await readBody(req));
+      let data;
+      try { data = JSON.parse(await readBody(req)); }
+      catch { sendJson(res, { error: '请求体不是合法 JSON' }, 400); return; }
       await syncSerial(() => {
         const cfg = loadConfig();
         if ('auto_sync' in data) cfg.auto_sync = data.auto_sync ? '1' : '0';
@@ -1937,10 +2410,12 @@ async function handlePost(req, res, rawPath, qs) {
     return;
   }
   if (rawPath === '/api/coach/session') {
-    // 会话管理:重命名 {session_id, title} / 删除 DELETE {session_id}
+    // 会话管理:重命名 {session_id, title} / 归档 {session_id, archived} / 删除 DELETE {session_id}
     if (!requireApiToken(req, res, qs, rawPath)) return;
     try {
-      const data = JSON.parse(await readBody(req));
+      let data;
+      try { data = JSON.parse(await readBody(req)); }
+      catch { sendJson(res, { error: '请求体不是合法 JSON' }, 400); return; }
       const sid = Number(data.session_id);
       if (!sid) { sendJson(res, { error: '缺少 session_id' }, 400); return; }
       if (req.method === 'DELETE') {
@@ -1948,8 +2423,27 @@ async function handlePost(req, res, rawPath, qs) {
         sendJson(res, { ok: true, session_id: sid, deleted, sessions: db.listSessions() });
         return;
       }
+      if (data.archived !== undefined) {
+        const archived = db.setArchived(sid, data.archived);
+        sendJson(res, { ok: true, session_id: sid, archived, sessions: db.listSessions() });
+        return;
+      }
       const title = db.renameSession(sid, data.title);
       sendJson(res, { ok: true, session_id: sid, title, sessions: db.listSessions() });
+    } catch (e) {
+      sendJson(res, { error: String(e.message || e) }, 500);
+    }
+    return;
+  }
+  if (rawPath === '/api/coach/sessions/archive') {
+    // 批量归档 {session_ids:[...]}；?all=1 归档全部活跃会话
+    if (!requireApiToken(req, res, qs, rawPath)) return;
+    try {
+      const data = await readBody(req).then(b => { try { return JSON.parse(b || '{}'); } catch { return {}; } });
+      let ids = Array.isArray(data.session_ids) ? data.session_ids : [];
+      if (qs.all === '1') ids = db.listSessions().map(s => s.id);
+      const archived = db.archiveSessions(ids);
+      sendJson(res, { ok: true, archived, sessions: db.listSessions() });
     } catch (e) {
       sendJson(res, { error: String(e.message || e) }, 500);
     }
@@ -2058,6 +2552,15 @@ async function main() {
       if (!res.headersSent) sendJson(res, { error: String(e.message || e) }, 500);
       else res.end();
     });
+  });
+  // 端口被占(热部署新旧进程交叠/重复启动)给一行可读退出信息, 而非裸 EADDRINUSE 调用栈
+  server.on('error', (e) => {
+    if (e && e.code === 'EADDRINUSE') {
+      console.error(`端口 ${port} 已被占用(BIND_HOST=${BIND_HOST}): 旧实例可能尚未退出, 稍后重试或改用 SP_PORT`);
+    } else {
+      console.error(`服务监听失败: ${(e && e.message) || e}`);
+    }
+    process.exit(1);
   });
   // TCP backlog / keep-alive 默认值即可; Node 的 listen 自动处理 SO_REUSEAddr
   await new Promise((resolve) => server.listen(port, BIND_HOST, resolve));
